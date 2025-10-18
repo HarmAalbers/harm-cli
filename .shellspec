@@ -1,0 +1,20 @@
+# ShellSpec configuration for harm-cli
+
+## Output format
+--format documentation
+--color
+
+## Shell to use (default - can be overridden with -s flag)
+--shell bash
+
+## Coverage (uncomment to enable)
+# --kcov
+
+## Fail fast (uncomment to stop on first failure)
+# --fail-fast
+
+## Random execution order (uncomment for randomization)
+# --random
+
+## Execution
+--jobs 1

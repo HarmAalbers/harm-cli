@@ -1,0 +1,248 @@
+#!/usr/bin/env bash
+# shellcheck shell=bash
+# harm-cli - Personal CLI toolkit for development
+# Version: 0.1.0-alpha
+#
+# Usage: harm-cli [OPTIONS] COMMAND [ARGS...]
+
+set -Eeuo pipefail
+IFS=$'\n\t'
+
+# ═══════════════════════════════════════════════════════════════
+# Configuration & Globals
+# ═══════════════════════════════════════════════════════════════
+
+SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd -P)"
+readonly SCRIPT_DIR
+ROOT_DIR="$(cd -- "$SCRIPT_DIR/.." && pwd -P)"
+readonly ROOT_DIR
+VERSION="$(cat "$ROOT_DIR/VERSION" 2>/dev/null || echo "unknown")"
+readonly VERSION
+
+# Load common utilities
+# shellcheck source=lib/common.sh
+if [[ -f "$ROOT_DIR/lib/common.sh" ]]; then
+  source "$ROOT_DIR/lib/common.sh"
+else
+  # Minimal fallback if common.sh doesn't exist yet
+  die() {
+    echo "ERROR: $*" >&2
+    exit "${2:-1}"
+  }
+  log() { echo "$@" >&2; }
+fi
+
+# ═══════════════════════════════════════════════════════════════
+# Command Dispatch
+# ═══════════════════════════════════════════════════════════════
+
+cmd_version() {
+  local format="${1:-text}"
+  case "$format" in
+    json)
+      jq -n \
+        --arg version "$VERSION" \
+        --arg shell "$BASH_VERSION" \
+        '{version: $version, shell: "bash", shell_version: $shell}'
+      ;;
+    *)
+      echo "harm-cli version $VERSION"
+      echo "Shell: bash $BASH_VERSION"
+      ;;
+  esac
+}
+
+cmd_help() {
+  cat <<'EOF'
+harm-cli - Personal CLI toolkit for development
+
+Usage:
+  harm-cli [OPTIONS] COMMAND [ARGS...]
+
+Options:
+  -h, --help              Show this help message
+  -v, --version           Show version information
+  -F, --format FORMAT     Output format (text|json) [default: text]
+  -q, --quiet             Suppress non-error output
+  -d, --debug             Enable debug output
+
+Commands:
+  version                 Show version information
+  help                    Show this help message
+  doctor                  Check system dependencies and health
+  init                    Initialize harm-cli in current shell
+
+  work                    Work session management
+  goal                    Goal tracking and progress
+  ai                      AI assistant commands
+  git                     Enhanced git workflows
+  proj                    Project management
+
+Run 'harm-cli COMMAND --help' for more information on a command.
+
+Environment Variables:
+  HARM_CLI_HOME          Override config directory (default: ~/.harm-cli)
+  HARM_CLI_LOG_LEVEL     Log level: DEBUG|INFO|WARN|ERROR (default: INFO)
+  HARM_CLI_FORMAT        Default output format: text|json (default: text)
+
+Examples:
+  harm-cli version --format json
+  harm-cli work start
+  harm-cli goal set "Complete refactoring" 4h
+  harm-cli ai query "How do I..."
+
+For more information, visit: https://github.com/HarmAalbers/harm-cli
+EOF
+}
+
+cmd_doctor() {
+  log "🏥 Checking system health..."
+  echo ""
+
+  # Check shell
+  echo "Shell Environment:"
+  echo "  ✅ Bash version: $BASH_VERSION"
+
+  # Check required dependencies
+  echo ""
+  echo "Required Dependencies:"
+  local deps=(bash jq git)
+  local missing=0
+
+  for dep in "${deps[@]}"; do
+    if command -v "$dep" >/dev/null 2>&1; then
+      echo "  ✅ $dep"
+    else
+      echo "  ❌ $dep (missing)"
+      ((missing++))
+    fi
+  done
+
+  # Check optional dependencies
+  echo ""
+  echo "Optional Dependencies:"
+  local opt_deps=(zsh curl docker python3)
+
+  for dep in "${opt_deps[@]}"; do
+    if command -v "$dep" >/dev/null 2>&1; then
+      echo "  ✅ $dep"
+    else
+      echo "  ⚠️  $dep (optional)"
+    fi
+  done
+
+  echo ""
+  if ((missing > 0)); then
+    die "$missing required dependencies missing" 1
+  else
+    echo "✅ All required dependencies installed"
+  fi
+}
+
+cmd_init() {
+  cat <<'EOF'
+# harm-cli shell integration
+
+To enable harm-cli in your shell, add this to your ~/.bashrc or ~/.zshrc:
+
+  # Load harm-cli
+  eval "$(harm-cli init)"
+
+Or source the initialization script directly:
+
+  # Bash
+  source /path/to/harm-cli/etc/harm-cli.bash
+
+  # Zsh
+  source /path/to/harm-cli/etc/harm-cli.zsh
+
+This will:
+  - Add harm-cli to your PATH
+  - Enable command completions
+  - Set up helpful aliases
+  - Initialize work session tracking
+EOF
+}
+
+# ═══════════════════════════════════════════════════════════════
+# Argument Parsing
+# ═══════════════════════════════════════════════════════════════
+
+main() {
+  local format="text"
+  local quiet=0
+  local debug=0
+
+  # Parse global options
+  while [[ $# -gt 0 ]]; do
+    case "$1" in
+      -h | --help)
+        cmd_help
+        exit 0
+        ;;
+      -v | --version)
+        cmd_version "$format"
+        exit 0
+        ;;
+      -F | --format)
+        format="${2:?--format requires an argument}"
+        shift 2
+        ;;
+      -q | --quiet)
+        quiet=1
+        shift
+        ;;
+      -d | --debug)
+        debug=1
+        set -x
+        shift
+        ;;
+      -*)
+        die "Unknown option: $1" 2
+        ;;
+      *)
+        break
+        ;;
+    esac
+  done
+
+  # Export format for subcommands
+  export HARM_CLI_FORMAT="$format"
+  export HARM_CLI_QUIET="$quiet"
+  export HARM_CLI_DEBUG="$debug"
+
+  # Dispatch to command
+  local cmd="${1:-help}"
+  shift || true
+
+  case "$cmd" in
+    version)
+      # Allow format as positional arg or use global format
+      local cmd_format="${1:-$format}"
+      cmd_version "$cmd_format"
+      ;;
+    help)
+      cmd_help
+      ;;
+    doctor)
+      cmd_doctor "$@"
+      ;;
+    init)
+      cmd_init "$@"
+      ;;
+    work | goal | ai | git | proj)
+      die "Command '$cmd' not yet implemented. Coming soon in Phase 2+!" 1
+      ;;
+    *)
+      die "Unknown command: $cmd. Run 'harm-cli help' for usage." 2
+      ;;
+  esac
+}
+
+# ═══════════════════════════════════════════════════════════════
+# Entry Point
+# ═══════════════════════════════════════════════════════════════
+
+if [[ "${BASH_SOURCE[0]}" == "${0}" ]]; then
+  main "$@"
+fi

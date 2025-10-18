@@ -1,0 +1,56 @@
+# Pre-commit hooks for harm-cli
+# Install: brew install pre-commit
+# Setup: pre-commit install
+# Run: pre-commit run --all-files
+
+repos:
+  # Shell script formatting
+  - repo: https://github.com/scop/pre-commit-shfmt
+    rev: v3.8.0-1
+    hooks:
+      - id: shfmt
+        args: [-w, -i, '2', -ci, -bn]
+        types: [shell]
+
+  # Shell script linting
+  - repo: https://github.com/shellcheck-py/shellcheck-py
+    rev: v0.10.0.1
+    hooks:
+      - id: shellcheck
+        args: [-x]
+        types: [shell]
+
+  # Spell checking
+  - repo: https://github.com/codespell-project/codespell
+    rev: v2.2.6
+    hooks:
+      - id: codespell
+        args: [--ignore-words-list, 'crate,ect,hist,nd,te,thru']
+        exclude: '^(\.git/|spec/golden/)'
+
+  # General file checks
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v4.5.0
+    hooks:
+      - id: trailing-whitespace
+        exclude: '^spec/golden/'
+      - id: end-of-file-fixer
+        exclude: '^spec/golden/'
+      - id: check-yaml
+      - id: check-json
+      - id: check-added-large-files
+        args: [--maxkb=500]
+      - id: check-case-conflict
+      - id: check-merge-conflict
+      - id: check-executables-have-shebangs
+      - id: check-shebang-scripts-are-executable
+      - id: mixed-line-ending
+        args: [--fix=lf]
+
+  # Markdown formatting
+  - repo: https://github.com/pre-commit/mirrors-prettier
+    rev: v4.0.0-alpha.8
+    hooks:
+      - id: prettier
+        types_or: [markdown, yaml]
+        exclude: '^(spec/golden/|CHANGELOG\.md)'

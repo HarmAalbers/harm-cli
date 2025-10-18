@@ -1,0 +1,82 @@
+name: Tests
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main, develop]
+
+jobs:
+  test-bash:
+    name: Test with Bash
+    runs-on: macos-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Install dependencies
+        run: |
+          brew install shellspec jq
+
+      - name: Run tests with bash
+        run: shellspec -s /bin/bash
+
+      - name: Check formatting
+        run: |
+          brew install shfmt
+          shfmt -d -i 2 -ci -bn bin/* lib/*.sh lib/**/*.sh spec/*.sh spec/**/*.sh
+
+      - name: Run shellcheck
+        run: |
+          brew install shellcheck
+          shellcheck bin/* lib/*.sh lib/**/*.sh || true
+
+  test-zsh:
+    name: Test with Zsh
+    runs-on: macos-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Install dependencies
+        run: |
+          brew install shellspec jq
+
+      - name: Run tests with zsh
+        run: shellspec -s /bin/zsh
+
+  lint:
+    name: Lint & Format Check
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y shellcheck shfmt
+
+      - name: Run shellcheck
+        run: shellcheck bin/* lib/*.sh lib/**/*.sh || true
+
+      - name: Check formatting
+        run: shfmt -d -i 2 -ci -bn bin/* lib/*.sh lib/**/*.sh spec/*.sh spec/**/*.sh
+
+  pre-commit:
+    name: Pre-commit Hooks
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install pre-commit
+        run: pip install pre-commit
+
+      - name: Run pre-commit
+        run: pre-commit run --all-files --show-diff-on-failure
