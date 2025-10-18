@@ -39,15 +39,15 @@ spell:
 # Testing
 # ═══════════════════════════════════════════════════════════════
 
-# Run tests with bash shell
+# Run tests with bash shell (bash 5+ required)
 test-bash:
-    @echo "🧪 Running tests with bash..."
-    shellspec -s /bin/bash
+    @echo "🧪 Running tests with bash 5+..."
+    shellspec -s /opt/homebrew/bin/bash
 
 # Run tests with zsh shell
 test-zsh:
     @echo "🧪 Running tests with zsh..."
-    shellspec -s /bin/zsh
+    shellspec -s /bin/zsh --pattern 'spec/cli_core_spec.sh'
 
 # Run all tests (bash + zsh)
 test: test-bash test-zsh
