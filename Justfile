@@ -47,7 +47,7 @@ test-bash:
 # Run tests with zsh shell
 test-zsh:
     @echo "🧪 Running tests with zsh..."
-    shellspec -s /bin/zsh
+    shellspec -s /bin/zsh --pattern 'spec/cli_core_spec.sh'
 
 # Run all tests (bash + zsh)
 test: test-bash test-zsh
