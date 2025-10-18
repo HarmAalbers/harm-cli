@@ -4,8 +4,8 @@
 --format documentation
 --color
 
-## Shell to use (default - can be overridden with -s flag)
---shell bash
+## Shell to use (bash 5+ required)
+--shell /opt/homebrew/bin/bash
 
 ## Coverage (uncomment to enable)
 # --kcov
@@ -15,6 +15,10 @@
 
 ## Random execution order (uncomment for randomization)
 # --random
+
+## Warnings
+# Do not treat warnings as failures (stderr output is expected in tests)
+# --warning-as-failure
 
 ## Execution
 --jobs 1

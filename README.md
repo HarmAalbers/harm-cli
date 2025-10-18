@@ -26,7 +26,8 @@
 ### Prerequisites
 
 **Required:**
-- Bash 3.2+ or Zsh 5.x
+- **Bash 5.0+** (uses modern features: associative arrays, ${var^^} expansion)
+- Zsh 5.x (for zsh-specific features)
 - Git
 - jq
 

@@ -49,16 +49,13 @@ export HARM_DEBUG_LOG_FILE
 export HARM_LOG_LEVEL HARM_LOG_TO_FILE HARM_LOG_TO_CONSOLE
 export HARM_LOG_MAX_SIZE HARM_LOG_MAX_FILES HARM_LOG_UNBUFFERED
 
-# Log level priorities (bash 3.2 compatible - using functions instead of assoc array)
-_log_level_priority() {
-  case "$1" in
-    DEBUG) echo 0 ;;
-    INFO) echo 1 ;;
-    WARN) echo 2 ;;
-    ERROR) echo 3 ;;
-    *) echo 1 ;; # Default to INFO
-  esac
-}
+# Log level priorities (bash 4+ associative array)
+declare -gA LOG_LEVELS=(
+  [DEBUG]=0
+  [INFO]=1
+  [WARN]=2
+  [ERROR]=3
+)
 
 # ═══════════════════════════════════════════════════════════════
 # Core Logging Functions
@@ -93,10 +90,8 @@ log_timestamp() {
 # Usage: log_should_write "DEBUG" || return
 log_should_write() {
   local level="${1:?log_should_write requires level}"
-  local current_priority
-  current_priority="$(_log_level_priority "$HARM_LOG_LEVEL")"
-  local message_priority
-  message_priority="$(_log_level_priority "$level")"
+  local current_priority="${LOG_LEVELS[${HARM_LOG_LEVEL}]:-1}"
+  local message_priority="${LOG_LEVELS[${level}]:-0}"
 
   ((message_priority >= current_priority))
 }
@@ -314,18 +309,17 @@ log_stats() {
 }
 
 # ═══════════════════════════════════════════════════════════════
-# Performance Timers (bash 3.2 compatible using temp files)
+# Performance Timers (bash 4+ using associative array)
 # ═══════════════════════════════════════════════════════════════
+
+# Associative array for timers
+declare -gA HARM_PERF_TIMERS
 
 # log_perf_start: Start performance timer
 # Usage: log_perf_start "timer_name"
 log_perf_start() {
   local name="${1:?log_perf_start requires timer name}"
-  local timer_dir="${HARM_LOG_DIR}/.timers"
-  mkdir -p "$timer_dir" 2>/dev/null || true
-
-  local timer_file="$timer_dir/${name}.timer"
-  date +%s%N 2>/dev/null >"$timer_file" || date +%s >"$timer_file"
+  HARM_PERF_TIMERS[$name]="$(date +%s%N 2>/dev/null || date +%s)"
 }
 
 # log_perf_end: End performance timer and log duration
@@ -333,21 +327,18 @@ log_perf_start() {
 log_perf_end() {
   local name="${1:?log_perf_end requires timer name}"
   local component="${2:?log_perf_end requires component}"
-  local timer_dir="${HARM_LOG_DIR}/.timers"
-  local timer_file="$timer_dir/${name}.timer"
 
-  if [[ ! -f "$timer_file" ]]; then
+  if [[ -z "${HARM_PERF_TIMERS[$name]:-}" ]]; then
     log_warn "$component" "Timer not started: $name"
     return 1
   fi
 
-  local start_time
-  start_time="$(cat "$timer_file")"
+  local start_time="${HARM_PERF_TIMERS[$name]}"
   local end_time
   end_time="$(date +%s%N 2>/dev/null || date +%s)"
   local duration=$((end_time - start_time))
 
-  # Convert nanoseconds to milliseconds if available
+  # Convert nanoseconds to milliseconds
   if [[ "$end_time" =~ [0-9]{10,} ]]; then
     duration=$((duration / 1000000)) # ns to ms
     log_debug "$component" "Timer: $name completed in ${duration}ms"
@@ -356,7 +347,7 @@ log_perf_end() {
   fi
 
   # Clean up timer
-  rm -f "$timer_file"
+  unset "HARM_PERF_TIMERS[$name]"
 }
 
 # ═══════════════════════════════════════════════════════════════

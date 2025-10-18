@@ -37,16 +37,16 @@ trim() {
   printf '%s\n' "$str"
 }
 
-# uppercase: Convert string to uppercase (bash 3.2 compatible)
+# uppercase: Convert string to uppercase (bash 4+)
 # Usage: upper=$(uppercase "hello")
 uppercase() {
-  echo "$*" | tr '[:lower:]' '[:upper:]'
+  printf '%s\n' "${*^^}"
 }
 
-# lowercase: Convert string to lowercase (bash 3.2 compatible)
+# lowercase: Convert string to lowercase (bash 4+)
 # Usage: lower=$(lowercase "HELLO")
 lowercase() {
-  echo "$*" | tr '[:upper:]' '[:lower:]'
+  printf '%s\n' "${*,,}"
 }
 
 # starts_with: Check if string starts with prefix

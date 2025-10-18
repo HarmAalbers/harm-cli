@@ -112,6 +112,7 @@ End
 It 'fails on missing file'
 When run bash -c "source $ROOT/lib/error.sh && source $ROOT/lib/util.sh && file_sha256 /nonexistent"
 The status should equal 5
+The error should include "Required file not found"
 End
 End
 
@@ -181,6 +182,7 @@ End
 It 'validates PID is integer'
 When run bash -c "source $ROOT/lib/error.sh && source $ROOT/lib/util.sh && is_running 'not_a_number'"
 The status should equal 2
+The error should include "PID must be an integer"
 End
 End
 End
