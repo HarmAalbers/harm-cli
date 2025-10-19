@@ -32,28 +32,25 @@ if [[ -z "${_HARM_ERROR_LOADED:-}" ]]; then
   export EXIT_SUCCESS EXIT_ERROR EXIT_INVALID_ARGS EXIT_MISSING_DEPS
   export EXIT_PERMISSION EXIT_NOT_FOUND EXIT_TIMEOUT EXIT_CANCELLED
 
+  # Color definitions
+  if [[ -t 2 ]] && command -v tput >/dev/null 2>&1 && [[ -z "${NO_COLOR:-}" ]]; then
+    ERROR_RED="$(tput setaf 1)"
+    WARNING_YELLOW="$(tput setaf 3)"
+    INFO_BLUE="$(tput setaf 4)"
+    SUCCESS_GREEN="$(tput setaf 2)"
+    BOLD="$(tput bold)"
+    RESET="$(tput sgr0)"
+    DIM="$(tput dim)"
+  else
+    ERROR_RED="" WARNING_YELLOW="" INFO_BLUE="" SUCCESS_GREEN=""
+    BOLD="" RESET="" DIM=""
+  fi
+
+  readonly ERROR_RED WARNING_YELLOW INFO_BLUE SUCCESS_GREEN BOLD RESET DIM
+  export ERROR_RED WARNING_YELLOW INFO_BLUE SUCCESS_GREEN BOLD RESET DIM
+
   readonly _HARM_ERROR_LOADED=1
 fi
-
-# ═══════════════════════════════════════════════════════════════
-# Color Definitions
-# ═══════════════════════════════════════════════════════════════
-
-if [[ -t 2 ]] && command -v tput >/dev/null 2>&1 && [[ -z "${NO_COLOR:-}" ]]; then
-  ERROR_RED="$(tput setaf 1)"
-  WARNING_YELLOW="$(tput setaf 3)"
-  INFO_BLUE="$(tput setaf 4)"
-  SUCCESS_GREEN="$(tput setaf 2)"
-  BOLD="$(tput bold)"
-  RESET="$(tput sgr0)"
-  DIM="$(tput dim)"
-else
-  ERROR_RED="" WARNING_YELLOW="" INFO_BLUE="" SUCCESS_GREEN=""
-  BOLD="" RESET="" DIM=""
-fi
-
-readonly ERROR_RED WARNING_YELLOW INFO_BLUE SUCCESS_GREEN BOLD RESET DIM
-export ERROR_RED WARNING_YELLOW INFO_BLUE SUCCESS_GREEN BOLD RESET DIM
 
 # ═══════════════════════════════════════════════════════════════
 # Core Error Functions

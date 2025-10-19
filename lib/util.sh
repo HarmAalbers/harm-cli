@@ -13,6 +13,9 @@
 set -Eeuo pipefail
 IFS=$'\n\t'
 
+# Prevent multiple loading
+[[ -n "${_HARM_UTIL_LOADED:-}" ]] && return 0
+
 # Source dependencies
 UTIL_SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd -P)"
 readonly UTIL_SCRIPT_DIR
@@ -21,6 +24,9 @@ readonly UTIL_SCRIPT_DIR
 source "$UTIL_SCRIPT_DIR/common.sh"
 # shellcheck source=lib/error.sh
 source "$UTIL_SCRIPT_DIR/error.sh"
+
+# Mark as loaded
+readonly _HARM_UTIL_LOADED=1
 
 # ═══════════════════════════════════════════════════════════════
 # String Utilities

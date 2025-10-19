@@ -14,12 +14,21 @@
 set -Eeuo pipefail
 IFS=$'\n\t'
 
-# Source error handling
-SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd -P)"
-readonly SCRIPT_DIR
+# Prevent multiple loading
+if [[ -n "${_HARM_LOGGING_LOADED:-}" ]]; then
+  return 0
+fi
 
-# shellcheck source=lib/error.sh
-source "$SCRIPT_DIR/error.sh"
+# Source error handling (only once)
+if [[ -z "${LOG_SCRIPT_DIR:-}" ]]; then
+  LOG_SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd -P)"
+  readonly LOG_SCRIPT_DIR
+  # shellcheck source=lib/error.sh
+  source "$LOG_SCRIPT_DIR/error.sh"
+fi
+
+# Mark as loaded
+readonly _HARM_LOGGING_LOADED=1
 
 # ═══════════════════════════════════════════════════════════════
 # Configuration
