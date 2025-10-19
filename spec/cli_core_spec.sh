@@ -9,20 +9,20 @@ It 'shows version in text format'
 When run "$CLI" version
 The status should be success
 The output should include "harm-cli version"
-The output should include "0.1.0-alpha"
+The output should include "0.2.0-alpha"
 End
 
 It 'shows version in JSON format'
 When run "$CLI" version json
 The status should be success
 The output should include '"version"'
-The output should include "0.1.0-alpha"
+The output should include "0.2.0-alpha"
 End
 
 It 'shows version with --version flag'
 When run "$CLI" --version
 The status should be success
-The output should include "0.1.0-alpha"
+The output should include "0.2.0-alpha"
 End
 End
 

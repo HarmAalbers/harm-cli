@@ -178,14 +178,12 @@ The error should include "updated to 50%"
 End
 
 It 'updates JSON file'
-Skip "JSONL update needs refinement"
 goal_update_progress 1 75 >/dev/null 2>&1
 The contents of file "$(goal_file_for_today)" should include '"progress"'
 The contents of file "$(goal_file_for_today)" should include '75'
 End
 
 It 'marks as completed at 100%'
-Skip "JSONL update needs refinement"
 goal_update_progress 1 100 >/dev/null 2>&1
 The contents of file "$(goal_file_for_today)" should include '"completed"'
 The contents of file "$(goal_file_for_today)" should include 'true'
@@ -202,7 +200,6 @@ Describe 'goal_complete'
 BeforeEach 'rm -f "$(goal_file_for_today)" && goal_set "Test goal" >/dev/null 2>&1'
 
 It 'marks goal as 100% complete'
-Skip "JSONL update needs refinement"
 goal_complete 1 >/dev/null 2>&1
 The contents of file "$(goal_file_for_today)" should include '"progress"'
 The contents of file "$(goal_file_for_today)" should include '100'

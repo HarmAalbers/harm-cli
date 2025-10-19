@@ -50,8 +50,10 @@ readonly _HARM_WORK_LOADED=1
 # Helper Functions
 # ═══════════════════════════════════════════════════════════════
 
-# parse_iso8601_to_epoch: Convert ISO8601 timestamp to epoch (cross-platform)
-# Usage: epoch=$(parse_iso8601_to_epoch "2025-10-18T10:00:00Z")
+# parse_iso8601_to_epoch: DEPRECATED - Use iso8601_to_epoch from lib/util.sh instead
+#
+# This function is kept for backward compatibility but delegates to the new
+# unified time handling function in lib/util.sh which properly handles UTC.
 parse_iso8601_to_epoch() {
   iso8601_to_epoch "$@"
 }
@@ -61,7 +63,27 @@ parse_iso8601_to_epoch() {
 # ═══════════════════════════════════════════════════════════════
 
 # work_is_active: Check if work session is currently active
-# Usage: work_is_active && echo "working"
+#
+# Description:
+#   Checks if a work session is currently active by verifying
+#   the state file exists and contains status="active".
+#
+# Arguments:
+#   None
+#
+# Returns:
+#   0 - Work session is active
+#   1 - No active work session
+#
+# Examples:
+#   if work_is_active; then
+#     echo "Currently working"
+#   fi
+#   work_is_active && work_status
+#
+# Notes:
+#   - Checks file existence and parses JSON status field
+#   - Safe to call multiple times (no side effects)
 work_is_active() {
   [[ -f "$HARM_WORK_STATE_FILE" ]] \
     && json_get "$(cat "$HARM_WORK_STATE_FILE")" ".status" | grep -q "active"
@@ -116,7 +138,31 @@ work_load_state() {
 # ═══════════════════════════════════════════════════════════════
 
 # work_start: Start a new work session
-# Usage: work_start ["goal description"]
+#
+# Description:
+#   Starts a new work session with optional goal description.
+#   Creates state file to track session duration and metadata.
+#
+# Arguments:
+#   $1 - goal (string, optional): Description of what you're working on
+#
+# Returns:
+#   0 - Session started successfully
+#   1 - Session already active (cannot start new one)
+#
+# Outputs:
+#   stdout: Success message (text) or JSON response
+#   stderr: Log entry via log_info()
+#
+# Examples:
+#   work_start
+#   work_start "Implementing authentication"
+#   HARM_CLI_FORMAT=json work_start "Bug fix #123"
+#
+# Notes:
+#   - Only one session can be active at a time
+#   - Timestamp is recorded in UTC (ISO 8601)
+#   - Session persists across shell restarts
 work_start() {
   local goal="${1:-}"
 
@@ -146,7 +192,32 @@ work_start() {
 }
 
 # work_stop: Stop current work session
-# Usage: work_stop
+#
+# Description:
+#   Stops the active work session, calculates duration, and archives to monthly log.
+#   Removes the active session state file.
+#
+# Arguments:
+#   None
+#
+# Returns:
+#   0 - Session stopped successfully
+#   1 - No active session to stop
+#
+# Outputs:
+#   stdout: Duration summary (text) or JSON response
+#   stderr: Log entry via log_info()
+#   file: Appends session to monthly archive (JSONL format)
+#
+# Examples:
+#   work_stop
+#   HARM_CLI_FORMAT=json work_stop
+#
+# Notes:
+#   - Calculates total duration from start to stop
+#   - Archives to ~/.harm-cli/work/sessions_YYYY-MM.jsonl
+#   - State file is removed after archiving
+#   - Duration shown in human-readable format (text mode)
 work_stop() {
   if ! work_is_active; then
     error_msg "No active work session" "$EXIT_ERROR"
@@ -206,7 +277,28 @@ work_stop() {
 }
 
 # work_status: Show current work session status
-# Usage: work_status
+#
+# Description:
+#   Displays information about the current work session including
+#   elapsed time, start time, and associated goal.
+#
+# Arguments:
+#   None
+#
+# Returns:
+#   0 - Always succeeds (shows "inactive" if no session)
+#
+# Outputs:
+#   stdout: Session status (text) or JSON with elapsed seconds
+#
+# Examples:
+#   work_status
+#   HARM_CLI_FORMAT=json work_status | jq '.elapsed_seconds'
+#
+# Notes:
+#   - Shows elapsed time in human-readable format (text mode)
+#   - JSON mode includes precise elapsed_seconds for scripting
+#   - Elapsed time updates in real-time on each call
 work_status() {
   if ! work_is_active; then
     if [[ "${HARM_CLI_FORMAT:-text}" == "json" ]]; then

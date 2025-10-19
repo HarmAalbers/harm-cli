@@ -274,6 +274,124 @@ json_validate() {
 }
 
 # ═══════════════════════════════════════════════════════════════
+# Output Formatting Utilities
+# ═══════════════════════════════════════════════════════════════
+
+# format_command_response: Format command response (text or JSON)
+#
+# Description:
+#   Unified response formatter supporting both text and JSON output.
+#   Reduces duplication across commands by centralizing format logic.
+#
+# Arguments:
+#   $1 - status (string): Status message (e.g., "set", "updated", "stopped")
+#   $2+ - fields (key=value pairs): Data to include in response
+#
+# Environment:
+#   HARM_CLI_FORMAT - Output format: "text" (default) or "json"
+#
+# Returns:
+#   0 - Always succeeds
+#
+# Outputs:
+#   stdout: Formatted response based on HARM_CLI_FORMAT
+#
+# Examples:
+#   format_command_response "set" message="Goal set for today" goal="Write tests"
+#   format_command_response "updated" status="success" progress=75
+#   HARM_CLI_FORMAT=json format_command_response "stopped" duration_seconds=3661
+#
+# Notes:
+#   - Text format: Prints message, then indented key-value pairs
+#   - JSON format: Builds JSON object with status + all fields
+#   - Automatically handles message vs other fields
+format_command_response() {
+  local status="${1:?format_command_response requires status}"
+  shift
+
+  if [[ "${HARM_CLI_FORMAT:-text}" == "json" ]]; then
+    # Build JSON object
+    local -a jq_args=("--arg" "status" "$status")
+    # shellcheck disable=SC2016  # $status is for jq, not bash
+    local jq_expr='{status: $status'
+
+    # Add each field to JSON
+    for arg in "$@"; do
+      if [[ "$arg" =~ ^([^=]+)=(.*)$ ]]; then
+        local key="${BASH_REMATCH[1]}"
+        local value="${BASH_REMATCH[2]}"
+
+        # Detect if value should be a number
+        if [[ "$value" =~ ^[0-9]+$ ]]; then
+          jq_args+=("--argjson" "$key" "$value")
+          jq_expr+=", $key: \$$key"
+        else
+          jq_args+=("--arg" "$key" "$value")
+          jq_expr+=", $key: \$$key"
+        fi
+      fi
+    done
+
+    jq_expr+='}'
+    jq -n "${jq_args[@]}" "$jq_expr"
+  else
+    # Text format
+    local message=""
+    local -a details=()
+
+    for arg in "$@"; do
+      if [[ "$arg" =~ ^message=(.*)$ ]]; then
+        message="${BASH_REMATCH[1]}"
+      elif [[ "$arg" =~ ^([^=]+)=(.*)$ ]]; then
+        local key="${BASH_REMATCH[1]}"
+        local value="${BASH_REMATCH[2]}"
+        # Convert snake_case to Title Case for display
+        local display_key
+        display_key=$(echo "$key" | sed 's/_/ /g' | awk '{for(i=1;i<=NF;i++) $i=toupper(substr($i,1,1)) tolower(substr($i,2));}1')
+        details+=("  $display_key: $value")
+      fi
+    done
+
+    # Print message if provided
+    [[ -n "$message" ]] && success_msg "$message"
+
+    # Print details
+    for detail in "${details[@]}"; do
+      echo "$detail"
+    done
+  fi
+}
+
+# validate_iso8601_timestamp: Validate ISO 8601 timestamp format
+#
+# Description:
+#   Validates that a string matches ISO 8601 timestamp format.
+#   Supports UTC timestamps (Z suffix) commonly used in this project.
+#
+# Arguments:
+#   $1 - timestamp (string): Timestamp to validate
+#
+# Returns:
+#   0 - Valid ISO 8601 format
+#   1 - Invalid format
+#
+# Examples:
+#   validate_iso8601_timestamp "2025-10-19T10:30:00Z"  # Valid
+#   validate_iso8601_timestamp "2025-10-19 10:30:00"   # Invalid
+#   validate_iso8601_timestamp "invalid"               # Invalid
+#
+# Notes:
+#   - Accepts: YYYY-MM-DDTHH:MM:SSZ format
+#   - Strict validation prevents malformed timestamps
+#   - Used to validate external input and state files
+validate_iso8601_timestamp() {
+  local timestamp="${1:?validate_iso8601_timestamp requires timestamp}"
+
+  # ISO 8601 pattern: YYYY-MM-DDTHH:MM:SSZ
+  [[ "$timestamp" =~ ^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$ ]]
+}
+
+# ═══════════════════════════════════════════════════════════════
 # Exports
 # ═══════════════════════════════════════════════════════════════
 
@@ -284,3 +402,4 @@ export -f resolve_path is_absolute basename_no_ext
 export -f is_running
 export -f parse_duration format_duration
 export -f json_get json_validate
+export -f format_command_response validate_iso8601_timestamp

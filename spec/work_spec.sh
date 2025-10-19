@@ -107,7 +107,6 @@ End
 It 'outputs JSON format'
 export HARM_CLI_FORMAT=json
 work_start "Test goal" >/dev/null 2>&1
-sleep 1
 When call work_status
 The output should include '"goal"'
 The output should include '"status"'
@@ -168,7 +167,6 @@ When call work_stop
 The status should be success
 The output should include '"status"'
 The output should include '"duration_seconds"'
-
 The error should include "[INFO]"
 End
 It 'calculates duration accurately (timezone bug test)'
