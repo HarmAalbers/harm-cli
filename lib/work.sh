@@ -341,8 +341,144 @@ work_status() {
 }
 
 # ═══════════════════════════════════════════════════════════════
+# Work Enforcement & Focus Tracking
+# ═══════════════════════════════════════════════════════════════
+
+# work_require_active: Require active work session
+#
+# Description:
+#   Checks if a work session is active. If not, displays a reminder
+#   to start a session. Useful for enforcing work tracking discipline.
+#
+# Arguments:
+#   None
+#
+# Returns:
+#   0 - Work session is active
+#   1 - No active work session
+#
+# Outputs:
+#   stderr: Reminder message if no session active
+#
+# Examples:
+#   work_require_active || echo "Please start a work session"
+#   work_require_active && echo "Session active, continue working"
+#
+# Notes:
+#   - Non-blocking (doesn't prevent work, just reminds)
+#   - Useful in shell hooks or aliases
+#
+# Performance:
+#   - <10ms (file check + JSON parse)
+work_require_active() {
+  if work_is_active; then
+    return 0
+  else
+    work_remind
+    return 1
+  fi
+}
+
+# work_remind: Remind user to start work session
+#
+# Description:
+#   Displays friendly reminder to start a work session with example command.
+#
+# Arguments:
+#   None
+#
+# Returns:
+#   0 - Always succeeds
+#
+# Outputs:
+#   stderr: Reminder message
+#
+# Examples:
+#   work_remind
+#   work_is_active || work_remind
+#
+# Notes:
+#   - Non-blocking reminder only
+#   - Suggests starting a session
+work_remind() {
+  echo "" >&2
+  echo "💡 Tip: No active work session" >&2
+  echo "   Start tracking: harm-cli work start \"task description\"" >&2
+  echo "" >&2
+  return 0
+}
+
+# work_focus_score: Calculate focus score for current/last session
+#
+# Description:
+#   Calculates a focus score (0-100) based on session duration and
+#   activity patterns. Longer uninterrupted sessions = higher score.
+#
+# Arguments:
+#   None
+#
+# Returns:
+#   0 - Score calculated
+#   1 - No session data available
+#
+# Outputs:
+#   stdout: Focus score (0-100)
+#
+# Examples:
+#   score=$(work_focus_score)
+#   work_focus_score && echo "Focus score: $score"
+#
+# Notes:
+#   - Score based on session duration
+#   - < 15 min = 0-30 (warming up)
+#   - 15-60 min = 30-70 (productive)
+#   - > 60 min = 70-100 (deep focus)
+#   - Future: Could integrate with activity tracking
+#
+# Performance:
+#   - <20ms (simple calculation)
+work_focus_score() {
+  if ! work_is_active; then
+    echo "0"
+    return 1
+  fi
+
+  # Get session duration
+  local start_time goal paused
+  start_time=$(json_get "$(work_load_state)" ".start_time")
+  paused=$(json_get "$(work_load_state)" ".paused_duration" || echo "0")
+
+  local now
+  now=$(get_epoch_seconds)
+  local start_epoch
+  start_epoch=$(parse_iso8601_to_epoch "$start_time")
+  local elapsed=$((now - start_epoch - paused))
+
+  # Calculate score based on duration (in minutes)
+  local minutes=$((elapsed / 60))
+
+  local score
+  if [[ $minutes -lt 15 ]]; then
+    # Warming up: 0-30
+    score=$((minutes * 2))
+  elif [[ $minutes -lt 60 ]]; then
+    # Productive: 30-70
+    score=$((30 + (minutes - 15)))
+  else
+    # Deep focus: 70-100
+    local bonus=$(((minutes - 60) / 6))
+    score=$((70 + bonus))
+    [[ $score -gt 100 ]] && score=100
+  fi
+
+  echo "$score"
+  return 0
+}
+
+# ═══════════════════════════════════════════════════════════════
 # Exports
 # ═══════════════════════════════════════════════════════════════
 
 export -f work_is_active work_get_state work_save_state work_load_state
 export -f work_start work_stop work_status
+export -f work_require_active work_remind work_focus_score
