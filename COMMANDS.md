@@ -228,6 +228,70 @@ Stop current work session
 harm-cli work stop
 ```
 
+### Work Enforcement (Focus Mode)
+
+Check current violation count
+
+```bash
+harm-cli work violations
+```
+
+Reset violation counter
+
+```bash
+harm-cli work reset-violations
+```
+
+Set enforcement mode
+
+```bash
+harm-cli work set-mode strict      # Strict enforcement
+harm-cli work set-mode moderate    # Track but don't warn (default)
+harm-cli work set-mode coaching    # Gentle reminders
+harm-cli work set-mode off         # No enforcement
+```
+
+### Enforcement Modes Explained
+
+**strict** - Maximum focus enforcement
+
+- Locks you to single project
+- Warns on every project switch
+- Shows distraction count
+- Forces goal review after 3 violations
+
+**moderate** - Balanced tracking (default)
+
+- Tracks violations silently
+- No interruptions
+- View with `harm-cli work violations`
+
+**coaching** - Gentle guidance
+
+- Periodic gentle reminders
+- No strict enforcement
+- Helpful suggestions only
+
+**off** - No enforcement
+
+- Basic work session tracking only
+- No violation tracking
+
+### Configuration
+
+Set enforcement mode permanently
+
+```bash
+export HARM_WORK_ENFORCEMENT=strict
+```
+
+Set distraction threshold
+
+```bash
+export HARM_WORK_DISTRACTION_THRESHOLD=3  # Default
+export HARM_WORK_DISTRACTION_THRESHOLD=5  # More lenient
+```
+
 ---
 
 ## 📊 Activity Tracking

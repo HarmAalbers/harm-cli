@@ -260,7 +260,16 @@ Commands:
   start <description>  Start a new work session
   stop                 Stop current work session
   status               Show current work session status (default)
+  violations           Show violation count (strict mode)
+  reset-violations     Reset violation counter
+  set-mode <mode>      Set enforcement mode (strict|moderate|coaching|off)
   --help               Show this help
+
+Enforcement Modes:
+  strict     Single project/goal enforcement with warnings
+  moderate   Track violations but don't warn (default)
+  coaching   Gentle reminders only
+  off        No enforcement
 
 Examples:
   harm-cli work start "Phase 3 implementation"
@@ -276,7 +285,10 @@ EOF
         start) work_start "$@" ;;
         stop) work_stop "$@" ;;
         status) work_status "$@" ;;
-        *) die "Unknown work command: $subcmd. Try: start, stop, status" 2 ;;
+        violations) work_get_violations ;;
+        reset-violations) work_reset_violations ;;
+        set-mode) work_set_enforcement "$@" ;;
+        *) die "Unknown work command: $subcmd. Try: start, stop, status, violations, reset-violations, set-mode" 2 ;;
       esac
       ;;
     activity)
