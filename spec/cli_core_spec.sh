@@ -58,6 +58,17 @@ The output should include "Bash version"
 End
 End
 
+Describe 'ai command'
+It 'shows AI help'
+When run "$CLI" ai --help
+The status should be success
+The output should include "AI-powered development assistant"
+End
+
+# Note: API key requirement tested thoroughly in spec/ai_spec.sh
+# CLI integration just verifies the command is wired up correctly
+End
+
 Describe 'error handling'
 It 'fails on unknown command'
 When run "$CLI" nonexistent-command

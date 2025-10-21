@@ -74,9 +74,9 @@ Commands:
 
   work                    Work session management
   goal                    Goal tracking and progress
-  ai                      AI assistant commands
-  git                     Enhanced git workflows
-  proj                    Project management
+  ai                      AI assistant commands (Gemini)
+  git                     Enhanced git workflows (coming soon)
+  proj                    Project management (coming soon)
 
 Run 'harm-cli COMMAND --help' for more information on a command.
 
@@ -87,9 +87,10 @@ Environment Variables:
 
 Examples:
   harm-cli version --format json
-  harm-cli work start
+  harm-cli work start "Phase 3"
   harm-cli goal set "Complete refactoring" 4h
-  harm-cli ai query "How do I..."
+  harm-cli ai "How do I list files recursively?"
+  harm-cli ai --setup
 
 For more information, visit: https://github.com/HarmAalbers/harm-cli
 EOF
@@ -261,8 +262,57 @@ main() {
         *) die "Unknown goal command: $subcmd. Try: set, show, progress, complete, clear" 2 ;;
       esac
       ;;
-    ai | git | proj)
-      die "Command '$cmd' not yet implemented. Coming soon in Phase 3+!" 1
+    ai)
+      # shellcheck source=lib/ai.sh
+      source "$ROOT_DIR/lib/ai.sh"
+      subcmd="${1:-query}"
+      shift || true
+      case "$subcmd" in
+        --help | -h)
+          cat <<'EOF'
+harm-cli ai - AI-powered development assistant
+
+Usage:
+  harm-cli ai [OPTIONS] [QUERY]
+
+Options:
+  -h, --help        Show this help
+  --setup           Configure API key
+  --no-cache        Skip cache
+  -c, --context     Include full context
+
+Query:
+  Ask the AI a question or request suggestions.
+  If no query provided, gets context-aware suggestions.
+
+Examples:
+  harm-cli ai "How do I list files recursively?"
+  harm-cli ai -c "What should I work on?"
+  harm-cli ai --setup
+  harm-cli --format json ai "test"
+
+API Key Setup:
+  1. Get key: https://aistudio.google.com/app/apikey
+  2. Run: harm-cli ai --setup
+  3. Or: export GEMINI_API_KEY="your-key"
+
+Cache:
+  - Responses cached for 1 hour (configurable)
+  - Speeds up repeated queries
+  - Clear: rm -rf ~/.harm-cli/ai-cache
+EOF
+          ;;
+        --setup)
+          ai_setup
+          ;;
+        *)
+          # Everything else is a query (including --no-cache, --context flags)
+          ai_query "$subcmd" "$@"
+          ;;
+      esac
+      ;;
+    git | proj)
+      die "Command '$cmd' not yet implemented. Coming soon in Phase 4+!" 1
       ;;
     *)
       die "Unknown command: $cmd. Run 'harm-cli help' for usage." 2
