@@ -41,8 +41,20 @@ spell:
 
 # Run tests with bash shell (bash 5+ required)
 test-bash:
-    @echo "🧪 Running tests with bash 5+..."
-    shellspec -s /opt/homebrew/bin/bash
+    #!/usr/bin/env bash
+    set -euo pipefail
+    echo "🧪 Running tests with bash 5+..."
+    if [ -f /opt/homebrew/bin/bash ]; then
+        BASH_PATH=/opt/homebrew/bin/bash
+    elif command -v bash >/dev/null 2>&1; then
+        BASH_PATH=$(command -v bash)
+    else
+        echo "Error: Bash not found"
+        exit 1
+    fi
+    echo "Using bash: $BASH_PATH"
+    $BASH_PATH --version | head -1
+    shellspec -s "$BASH_PATH"
 
 # Run tests with zsh shell
 test-zsh:

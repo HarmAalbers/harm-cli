@@ -18,9 +18,17 @@ jobs:
         run: |
           brew install bash shellspec jq
 
+      - name: Verify bash version
+        run: |
+          BASH_PATH="$(brew --prefix)/bin/bash"
+          echo "Bash path: $BASH_PATH"
+          "$BASH_PATH" --version
+
       - name: Run tests with bash 5+
         # Use homebrew bash (5.x) instead of system bash (3.2) to support modern features
-        run: shellspec
+        run: |
+          BASH_PATH="$(brew --prefix)/bin/bash"
+          shellspec -s "$BASH_PATH"
 
   pre-commit:
     name: Pre-commit Hooks
