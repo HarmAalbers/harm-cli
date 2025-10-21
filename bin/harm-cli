@@ -77,6 +77,7 @@ Commands:
   ai                      AI assistant commands (Gemini)
   git                     Enhanced git workflows with AI
   proj                    Project management and switching
+  docker                  Docker and Docker Compose management
 
 Run 'harm-cli COMMAND --help' for more information on a command.
 
@@ -425,6 +426,69 @@ EOF
         *)
           error_msg "Unknown proj command: $subcmd"
           echo "Try: harm-cli proj --help"
+          exit "$EXIT_INVALID_ARGS"
+          ;;
+      esac
+      ;;
+    docker)
+      # shellcheck source=lib/docker.sh
+      source "$ROOT_DIR/lib/docker.sh"
+      subcmd="${1:-status}"
+      shift || true
+      case "$subcmd" in
+        --help | -h)
+          cat <<'EOF'
+harm-cli docker - Docker and Docker Compose management
+
+Usage:
+  harm-cli docker [COMMAND] [ARGS]
+
+Commands:
+  status         Show service status (default)
+  up [services]  Start services (detached)
+  down           Stop and remove services
+  logs <service> View service logs
+  shell <service> Open shell in container
+  health         Check Docker environment health
+  --help         Show this help
+
+Examples:
+  harm-cli docker status
+  harm-cli docker up
+  harm-cli docker up backend database
+  harm-cli docker down
+  harm-cli docker logs backend
+  harm-cli docker shell backend
+  harm-cli docker health
+
+Notes:
+  - Auto-detects compose.yaml or docker-compose.yml
+  - Requires Docker daemon running
+  - Services start in detached mode (-d)
+  - Logs follow by default (-f)
+EOF
+          ;;
+        up)
+          docker_up "$@"
+          ;;
+        down)
+          docker_down "$@"
+          ;;
+        status | ps)
+          docker_status "$@"
+          ;;
+        logs)
+          docker_logs "$@"
+          ;;
+        shell | sh)
+          docker_shell "$@"
+          ;;
+        health)
+          docker_health "$@"
+          ;;
+        *)
+          error_msg "Unknown docker command: $subcmd"
+          echo "Try: harm-cli docker --help"
           exit "$EXIT_INVALID_ARGS"
           ;;
       esac

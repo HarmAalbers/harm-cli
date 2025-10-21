@@ -102,7 +102,11 @@ harm-cli git commit-msg          # AI-powered commit message
 # Project management
 harm-cli proj list               # List projects
 harm-cli proj add ~/myapp        # Add project
-harm-cli proj switch myapp       # Switch to project
+
+# Docker management
+harm-cli docker up               # Start services
+harm-cli docker status           # Service status
+harm-cli docker logs backend     # View logs
 
 # Get help
 harm-cli help
@@ -320,7 +324,8 @@ End
 - AI integration: ✅ 50 tests
 - Git workflows: ✅ 11 tests
 - Project management: ✅ 18 tests
-- **Total: 235 tests (100% passing)**
+- Docker management: ✅ 12 tests
+- **Total: 247 tests (100% passing)**
 
 ---
 
