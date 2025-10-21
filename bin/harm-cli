@@ -75,6 +75,7 @@ Commands:
   work                    Work session management
   goal                    Goal tracking and progress
   activity                Activity tracking and command logging
+  insights                Productivity insights and analytics
   ai                      AI assistant commands (Gemini)
   git                     Enhanced git workflows with AI
   proj                    Project management and switching
@@ -325,6 +326,64 @@ EOF
           ;;
         *)
           die "Unknown activity command: $subcmd. Try: query, stats, clear, cleanup" 2
+          ;;
+      esac
+      ;;
+    insights)
+      # shellcheck source=lib/insights.sh
+      source "$ROOT_DIR/lib/insights.sh"
+      subcmd="${1:-show}"
+      shift || true
+      case "$subcmd" in
+        --help | -h)
+          cat <<'EOF'
+harm-cli insights - Productivity insights and analytics
+
+Usage:
+  harm-cli insights [COMMAND] [ARGS]
+
+Commands:
+  show <period> [category]  Show insights dashboard (default)
+                            Periods: today, yesterday, week, month, all
+                            Categories: all, commands, performance, errors, projects, hours
+  daily [date]              Daily summary (default: today)
+  export <file>             Export HTML report
+  json <period>             Export JSON data
+  --help                    Show this help
+
+Examples:
+  harm-cli insights show week
+  harm-cli insights show today commands
+  harm-cli insights daily
+  harm-cli insights export report.html
+  harm-cli insights json week
+
+Categories:
+  all           Complete dashboard (default)
+  commands      Command frequency analysis
+  performance   Performance metrics
+  errors        Error rate and failed commands
+  projects      Project activity distribution
+  hours         Peak productivity hours
+
+Note: Analyzes data from activity tracking.
+      Requires: harm-cli activity to be running
+EOF
+          ;;
+        show)
+          insights_show "${1:-week}" "${2:-all}"
+          ;;
+        daily)
+          insights_daily_summary "${1:-today}"
+          ;;
+        export)
+          insights_export_html week "${1:-insights-report.html}"
+          ;;
+        json)
+          insights_export_json "${1:-week}"
+          ;;
+        *)
+          die "Unknown insights command: $subcmd. Try: show, daily, export, json" 2
           ;;
       esac
       ;;

@@ -321,6 +321,123 @@ export HARM_ACTIVITY_RETENTION_DAYS=90  # Default
 
 ---
 
+## 📈 Productivity Insights
+
+Show comprehensive insights dashboard
+
+```bash
+harm-cli insights show week
+harm-cli insights show today
+harm-cli insights show month
+```
+
+Show specific category insights
+
+```bash
+harm-cli insights show week commands      # Command frequency
+harm-cli insights show today performance  # Performance metrics
+harm-cli insights show week errors        # Error analysis
+harm-cli insights show month projects     # Project distribution
+harm-cli insights show week hours         # Peak hours
+```
+
+Daily summary with recommendations
+
+```bash
+harm-cli insights daily
+harm-cli insights daily yesterday
+```
+
+Export HTML report
+
+```bash
+harm-cli insights export report.html
+```
+
+Export JSON data
+
+```bash
+harm-cli insights json week
+harm-cli insights json month
+```
+
+### Insights Categories
+
+**commands** - Command frequency analysis
+
+- Most used commands
+- Command patterns
+- Usage trends
+
+**performance** - Performance metrics
+
+- Average command duration
+- Slowest commands
+- Performance patterns
+
+**errors** - Error analysis
+
+- Error rate calculation
+- Failed commands list
+- Failure patterns
+
+**projects** - Project activity
+
+- Time per project
+- Project switches
+- Focus distribution
+
+**hours** - Peak productivity
+
+- Most active hours
+- Activity heatmap
+- Time patterns
+
+### Example Workflows
+
+Morning routine
+
+```bash
+harm-cli insights daily
+harm-cli insights show week commands
+```
+
+Weekly review
+
+```bash
+harm-cli insights show week
+harm-cli insights export weekly-report.html
+```
+
+Analyze performance issues
+
+```bash
+harm-cli insights show today performance
+harm-cli insights show week errors
+```
+
+### Integration with jq
+
+Get productivity score programmatically
+
+```bash
+harm-cli insights json week | jq -r '.error_rate'
+```
+
+Find top command
+
+```bash
+harm-cli insights json today | jq -r '.top_commands[0].command'
+```
+
+Get all projects
+
+```bash
+harm-cli insights json month | jq -r '.projects[].project'
+```
+
+---
+
 ## 🎯 Goal Tracking
 
 Set a new goal with estimated time
@@ -801,6 +918,7 @@ export HARM_HOOKS_DEBUG=1
 | **Work**        | `harm-cli work start "task"`  | Start work session      |
 | **Goals**       | `harm-cli goal set "goal" 4h` | Set new goal            |
 | **Activity**    | `harm-cli activity stats`     | View activity stats     |
+| **Insights**    | `harm-cli insights show week` | Productivity insights   |
 | **AI**          | `harm-cli ai "question"`      | Ask AI assistant        |
 | **Git**         | `harm-cli git commit-msg`     | Generate commit message |
 | **Projects**    | `harm-cli proj list`          | List all projects       |
