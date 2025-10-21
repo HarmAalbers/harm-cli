@@ -12,12 +12,12 @@
 `harm-cli` is a production-grade command-line toolkit designed to streamline development workflows with professional engineering standards. Built from a complete refactoring of a 19,000-line ZSH development environment, it follows elite-tier practices:
 
 - ✅ **Strict error handling** - `set -Eeuo pipefail` everywhere
-- ✅ **Comprehensive testing** - ShellSpec with bash + zsh coverage
+- ✅ **Comprehensive testing** - ShellSpec with bash coverage
 - ✅ **Reproducible builds** - Deterministic releases with SBOM
 - ✅ **Code quality gates** - Pre-commit hooks, linting, formatting
 - ✅ **JSON + text output** - All commands support both formats
 - ✅ **Atomic operations** - Safe file I/O with proper locking
-- ✅ **CI/CD ready** - GitHub Actions with multi-shell testing
+- ✅ **CI/CD ready** - GitHub Actions with automated testing
 
 ---
 
@@ -26,12 +26,13 @@
 ### Prerequisites
 
 **Required:**
+
 - **Bash 5.0+** (uses modern features: associative arrays, ${var^^} expansion)
-- Zsh 5.x (for zsh-specific features)
 - Git
 - jq
 
 **Recommended:**
+
 - just (command runner)
 - shellspec (testing)
 - shellcheck (linting)
@@ -44,7 +45,7 @@
 git clone https://github.com/HarmAalbers/harm-cli.git
 cd harm-cli
 
-# Add to PATH (add to ~/.bashrc or ~/.zshrc)
+# Add to PATH (add to ~/.bashrc)
 export PATH="$HOME/harm-cli/bin:$PATH"
 
 # Verify installation
@@ -96,7 +97,6 @@ harm-cli/
 │   └── harm-cli              # Main CLI entry point
 ├── lib/
 │   ├── common.sh             # Core utilities (error handling, logging, I/O)
-│   ├── zsh/                  # Zsh-specific helpers
 │   └── bash/                 # Bash-specific helpers
 ├── spec/
 │   ├── helpers/              # Test utilities
@@ -105,7 +105,7 @@ harm-cli/
 │   ├── golden/               # Golden output files
 │   └── cli_core_spec.sh      # ShellSpec tests
 ├── etc/                      # Configuration files
-├── completions/              # Shell completions (bash, zsh)
+├── completions/              # Shell completions (bash)
 ├── man/                      # Man pages
 ├── docs/                     # Documentation
 ├── scripts/                  # Build and release scripts
@@ -129,9 +129,8 @@ just lint                # Lint with shellcheck
 just spell               # Spell check documentation
 
 # Testing
-just test                # Run all tests (bash + zsh)
-just test-bash           # Test with bash only
-just test-zsh            # Test with zsh only
+just test                # Run all tests
+just test-bash           # Test with bash
 just test-file FILE      # Run specific test file
 just test-watch          # Watch mode for TDD
 just coverage            # Run with coverage report
@@ -203,6 +202,7 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for detailed standards.
 - [x] Documentation
 
 **Metrics:**
+
 - 472 lines of code
 - 8 ShellSpec tests (100% passing)
 - Bash + Zsh support
@@ -210,26 +210,31 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for detailed standards.
 ### Coming Soon (Phases 1-8)
 
 **Phase 1: Core Infrastructure** (Next)
+
 - Error handling module
 - Logging system (multi-level, JSON output)
 - Utility functions
 
 **Phase 2: Work & Goals**
+
 - Work session tracking
 - Goal management
 - Progress reporting
 
 **Phase 3: AI Integration**
+
 - OpenAI API integration
 - AI-powered commit messages
 - Goal validation
 
 **Phase 4: Git & Projects**
+
 - Enhanced git workflows
 - Project management
 - Smart commits
 
 **Phase 5+:**
+
 - Docker management
 - Python development tools
 - Health monitoring
@@ -254,6 +259,7 @@ End
 ```
 
 **Coverage:**
+
 - Core CLI: ✅ 8 tests
 - Version command: ✅
 - Help command: ✅

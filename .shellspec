@@ -17,8 +17,7 @@
 # --random
 
 ## Warnings
-# Do not treat warnings as failures (stderr output is expected in tests)
-# --warning-as-failure
+# Warnings are informational only (stderr output expected in complex tests)
 
 ## Execution
 --jobs 1

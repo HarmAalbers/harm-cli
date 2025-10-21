@@ -13,6 +13,9 @@
 set -Eeuo pipefail
 IFS=$'\n\t'
 
+# Prevent multiple loading
+[[ -n "${_HARM_UTIL_LOADED:-}" ]] && return 0
+
 # Source dependencies
 UTIL_SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd -P)"
 readonly UTIL_SCRIPT_DIR
@@ -21,6 +24,9 @@ readonly UTIL_SCRIPT_DIR
 source "$UTIL_SCRIPT_DIR/common.sh"
 # shellcheck source=lib/error.sh
 source "$UTIL_SCRIPT_DIR/error.sh"
+
+# Mark as loaded
+readonly _HARM_UTIL_LOADED=1
 
 # ═══════════════════════════════════════════════════════════════
 # String Utilities
@@ -245,6 +251,118 @@ format_duration() {
   echo "$result"
 }
 
+# get_utc_timestamp: Get current UTC timestamp in ISO 8601 format
+#
+# Description:
+#   Returns the current date/time as a UTC timestamp in ISO 8601 format.
+#   This is the single source of truth for creating timestamps.
+#
+# Arguments:
+#   None
+#
+# Returns:
+#   0 - Always succeeds
+#
+# Outputs:
+#   stdout: ISO 8601 UTC timestamp (YYYY-MM-DDTHH:MM:SSZ)
+#
+# Examples:
+#   timestamp=$(get_utc_timestamp)
+#   # Output: "2025-10-21T14:30:00Z"
+#
+# Notes:
+#   - Always returns UTC (Z suffix)
+#   - Format is compatible with iso8601_to_epoch()
+#   - Single source of truth for timestamp creation
+get_utc_timestamp() {
+  date -u '+%Y-%m-%dT%H:%M:%SZ'
+}
+
+# get_utc_epoch: Get current UTC time as Unix epoch seconds
+#
+# Description:
+#   Returns the current time as Unix epoch seconds (seconds since 1970-01-01 00:00:00 UTC).
+#   This is the single source of truth for getting current epoch time.
+#
+# Arguments:
+#   None
+#
+# Returns:
+#   0 - Always succeeds
+#
+# Outputs:
+#   stdout: Unix epoch seconds
+#
+# Examples:
+#   now=$(get_utc_epoch)
+#   # Output: "1729521000"
+#
+# Notes:
+#   - Always returns UTC epoch
+#   - Use for time calculations and comparisons
+#   - Single source of truth for current epoch time
+get_utc_epoch() {
+  date -u +%s
+}
+
+# iso8601_to_epoch: Convert ISO 8601 UTC timestamp to Unix epoch
+#
+# Description:
+#   Converts an ISO 8601 UTC timestamp to Unix epoch seconds.
+#   Handles both GNU date (Linux) and BSD date (macOS) with proper UTC interpretation.
+#   This fixes the timezone bug where BSD date was interpreting timestamps in local time.
+#
+# Arguments:
+#   $1 - timestamp (string): ISO 8601 UTC timestamp (YYYY-MM-DDTHH:MM:SSZ)
+#
+# Returns:
+#   0 - Conversion successful
+#   1 - Conversion failed (fallback to current time)
+#
+# Outputs:
+#   stdout: Unix epoch seconds
+#   stderr: Warning if parsing fails
+#
+# Examples:
+#   epoch=$(iso8601_to_epoch "2025-01-01T00:00:00Z")
+#   # Output: "1735689600"
+#
+#   start_epoch=$(iso8601_to_epoch "$start_time")
+#   current=$(get_utc_epoch)
+#   duration=$((current - start_epoch))
+#
+# Notes:
+#   - Requires Z suffix for UTC timestamps
+#   - GNU date: uses -d flag
+#   - BSD date: uses -j -u -f flags (the -u is CRITICAL for UTC interpretation)
+#   - Falls back to current time with warning if parsing fails
+#   - Single source of truth for timestamp parsing
+#
+# Bug Fix:
+#   The original implementation was missing the -u flag on BSD date,
+#   causing it to interpret UTC timestamps in local timezone,
+#   resulting in incorrect time calculations offset by the timezone difference.
+iso8601_to_epoch() {
+  local timestamp="${1:?iso8601_to_epoch requires timestamp}"
+
+  # Try GNU date first (Linux)
+  if date -d "$timestamp" +%s 2>/dev/null; then
+    return 0
+  fi
+
+  # Try BSD date (macOS) - CRITICAL: -u flag forces UTC interpretation
+  # Without -u, BSD date interprets timestamp in local timezone causing bug
+  # Strip the Z suffix as BSD date format strings don't handle it well
+  local timestamp_no_z="${timestamp%Z}"
+  if date -j -u -f '%Y-%m-%dT%H:%M:%S' "$timestamp_no_z" +%s 2>/dev/null; then
+    return 0
+  fi
+
+  # Fallback: use current time
+  warn_msg "Could not parse timestamp: $timestamp, using current time"
+  get_utc_epoch
+}
+
 # ═══════════════════════════════════════════════════════════════
 # JSON Utilities
 # ═══════════════════════════════════════════════════════════════
@@ -268,6 +386,124 @@ json_validate() {
 }
 
 # ═══════════════════════════════════════════════════════════════
+# Output Formatting Utilities
+# ═══════════════════════════════════════════════════════════════
+
+# format_command_response: Format command response (text or JSON)
+#
+# Description:
+#   Unified response formatter supporting both text and JSON output.
+#   Reduces duplication across commands by centralizing format logic.
+#
+# Arguments:
+#   $1 - status (string): Status message (e.g., "set", "updated", "stopped")
+#   $2+ - fields (key=value pairs): Data to include in response
+#
+# Environment:
+#   HARM_CLI_FORMAT - Output format: "text" (default) or "json"
+#
+# Returns:
+#   0 - Always succeeds
+#
+# Outputs:
+#   stdout: Formatted response based on HARM_CLI_FORMAT
+#
+# Examples:
+#   format_command_response "set" message="Goal set for today" goal="Write tests"
+#   format_command_response "updated" status="success" progress=75
+#   HARM_CLI_FORMAT=json format_command_response "stopped" duration_seconds=3661
+#
+# Notes:
+#   - Text format: Prints message, then indented key-value pairs
+#   - JSON format: Builds JSON object with status + all fields
+#   - Automatically handles message vs other fields
+format_command_response() {
+  local status="${1:?format_command_response requires status}"
+  shift
+
+  if [[ "${HARM_CLI_FORMAT:-text}" == "json" ]]; then
+    # Build JSON object
+    local -a jq_args=("--arg" "status" "$status")
+    # shellcheck disable=SC2016  # $status is for jq, not bash
+    local jq_expr='{status: $status'
+
+    # Add each field to JSON
+    for arg in "$@"; do
+      if [[ "$arg" =~ ^([^=]+)=(.*)$ ]]; then
+        local key="${BASH_REMATCH[1]}"
+        local value="${BASH_REMATCH[2]}"
+
+        # Detect if value should be a number
+        if [[ "$value" =~ ^[0-9]+$ ]]; then
+          jq_args+=("--argjson" "$key" "$value")
+          jq_expr+=", $key: \$$key"
+        else
+          jq_args+=("--arg" "$key" "$value")
+          jq_expr+=", $key: \$$key"
+        fi
+      fi
+    done
+
+    jq_expr+='}'
+    jq -n "${jq_args[@]}" "$jq_expr"
+  else
+    # Text format
+    local message=""
+    local -a details=()
+
+    for arg in "$@"; do
+      if [[ "$arg" =~ ^message=(.*)$ ]]; then
+        message="${BASH_REMATCH[1]}"
+      elif [[ "$arg" =~ ^([^=]+)=(.*)$ ]]; then
+        local key="${BASH_REMATCH[1]}"
+        local value="${BASH_REMATCH[2]}"
+        # Convert snake_case to Title Case for display
+        local display_key
+        display_key=$(echo "$key" | sed 's/_/ /g' | awk '{for(i=1;i<=NF;i++) $i=toupper(substr($i,1,1)) tolower(substr($i,2));}1')
+        details+=("  $display_key: $value")
+      fi
+    done
+
+    # Print message if provided
+    [[ -n "$message" ]] && success_msg "$message"
+
+    # Print details
+    for detail in "${details[@]}"; do
+      echo "$detail"
+    done
+  fi
+}
+
+# validate_iso8601_timestamp: Validate ISO 8601 timestamp format
+#
+# Description:
+#   Validates that a string matches ISO 8601 timestamp format.
+#   Supports UTC timestamps (Z suffix) commonly used in this project.
+#
+# Arguments:
+#   $1 - timestamp (string): Timestamp to validate
+#
+# Returns:
+#   0 - Valid ISO 8601 format
+#   1 - Invalid format
+#
+# Examples:
+#   validate_iso8601_timestamp "2025-10-19T10:30:00Z"  # Valid
+#   validate_iso8601_timestamp "2025-10-19 10:30:00"   # Invalid
+#   validate_iso8601_timestamp "invalid"               # Invalid
+#
+# Notes:
+#   - Accepts: YYYY-MM-DDTHH:MM:SSZ format
+#   - Strict validation prevents malformed timestamps
+#   - Used to validate external input and state files
+validate_iso8601_timestamp() {
+  local timestamp="${1:?validate_iso8601_timestamp requires timestamp}"
+
+  # ISO 8601 pattern: YYYY-MM-DDTHH:MM:SSZ
+  [[ "$timestamp" =~ ^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$ ]]
+}
+
+# ═══════════════════════════════════════════════════════════════
 # Exports
 # ═══════════════════════════════════════════════════════════════
 
@@ -276,5 +512,6 @@ export -f array_join array_contains
 export -f file_sha256 file_age ensure_executable
 export -f resolve_path is_absolute basename_no_ext
 export -f is_running
-export -f parse_duration format_duration
+export -f parse_duration format_duration get_utc_timestamp get_utc_epoch iso8601_to_epoch
 export -f json_get json_validate
+export -f format_command_response validate_iso8601_timestamp

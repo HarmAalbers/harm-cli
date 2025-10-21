@@ -12,6 +12,10 @@
 set -Eeuo pipefail
 IFS=$'\n\t'
 
+# Prevent multiple loading
+[[ -n "${_HARM_COMMON_LOADED:-}" ]] && return 0
+readonly _HARM_COMMON_LOADED=1
+
 # ═══════════════════════════════════════════════════════════════
 # Error Handling
 # ═══════════════════════════════════════════════════════════════

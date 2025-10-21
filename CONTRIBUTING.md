@@ -297,22 +297,27 @@ git status
 
 ```markdown
 ## Summary
+
 Brief description of changes
 
 ## Motivation
+
 Why is this change needed?
 
 ## Changes
+
 - List of specific changes
 - One per line
 
 ## Testing
+
 - [ ] Added unit tests
 - [ ] Tested with bash
 - [ ] Tested with zsh
 - [ ] All tests pass (`just ci`)
 
 ## Checklist
+
 - [ ] Code follows style guidelines
 - [ ] Documentation updated
 - [ ] Commit messages follow convention
@@ -346,6 +351,7 @@ Why is this change needed?
 ### Good First Issues
 
 Look for issues tagged `good-first-issue`:
+
 - Documentation improvements
 - Adding tests to existing features
 - Minor bug fixes

@@ -217,8 +217,13 @@ main() {
 
   case "$cmd" in
     version)
-      # Allow format as positional arg or use global format
-      local cmd_format="${1:-$format}"
+      # Parse format: support both --format FLAG and positional arg
+      local cmd_format="$format"
+      if [[ "${1:-}" == "--format" || "${1:-}" == "-F" ]]; then
+        cmd_format="${2:?--format requires an argument}"
+      elif [[ -n "${1:-}" ]]; then
+        cmd_format="$1"
+      fi
       cmd_version "$cmd_format"
       ;;
     help)
@@ -230,8 +235,34 @@ main() {
     init)
       cmd_init "$@"
       ;;
-    work | goal | ai | git | proj)
-      die "Command '$cmd' not yet implemented. Coming soon in Phase 2+!" 1
+    work)
+      # shellcheck source=lib/work.sh
+      source "$ROOT_DIR/lib/work.sh"
+      subcmd="${1:-status}"
+      shift || true
+      case "$subcmd" in
+        start) work_start "$@" ;;
+        stop) work_stop "$@" ;;
+        status) work_status "$@" ;;
+        *) die "Unknown work command: $subcmd. Try: start, stop, status" 2 ;;
+      esac
+      ;;
+    goal)
+      # shellcheck source=lib/goals.sh
+      source "$ROOT_DIR/lib/goals.sh"
+      subcmd="${1:-show}"
+      shift || true
+      case "$subcmd" in
+        set) goal_set "$@" ;;
+        show) goal_show "$@" ;;
+        progress) goal_update_progress "$@" ;;
+        complete) goal_complete "$@" ;;
+        clear) goal_clear "$@" ;;
+        *) die "Unknown goal command: $subcmd. Try: set, show, progress, complete, clear" 2 ;;
+      esac
+      ;;
+    ai | git | proj)
+      die "Command '$cmd' not yet implemented. Coming soon in Phase 3+!" 1
       ;;
     *)
       die "Unknown command: $cmd. Run 'harm-cli help' for usage." 2
