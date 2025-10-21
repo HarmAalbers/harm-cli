@@ -31,6 +31,12 @@ if [[ -n "${BASH_VERSION:-}" ]] && [[ -f "$HARM_CLI_ROOT/completions/harm-cli.ba
   source "$HARM_CLI_ROOT/completions/harm-cli.bash"
 fi
 
+# Load hook system for advanced features (activity tracking, etc.)
+# Only loads in interactive shells
+if [[ -f "$HARM_CLI_ROOT/lib/hooks.sh" ]]; then
+  source "$HARM_CLI_ROOT/lib/hooks.sh"
+fi
+
 # Optional: Remind about work session if not active
 # Uncomment to enable:
 # if command -v harm-cli >/dev/null 2>&1; then

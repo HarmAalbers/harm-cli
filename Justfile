@@ -157,8 +157,18 @@ scan:
 # Development
 # ═══════════════════════════════════════════════════════════════
 
+# Install harm-cli locally (symlink + shell integration)
+install-local:
+    @echo "🚀 Installing harm-cli locally..."
+    @bash install.sh
+
+# Uninstall harm-cli from local system
+uninstall-local:
+    @echo "🗑️  Uninstalling harm-cli..."
+    @bash uninstall.sh
+
 # Install development dependencies
-install:
+install-deps:
     @echo "📦 Installing development dependencies..."
     @echo ""
     @echo "Required tools:"
