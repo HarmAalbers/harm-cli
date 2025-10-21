@@ -24,12 +24,13 @@ if [[ -z "${_HARM_ERROR_LOADED:-}" ]]; then
   readonly EXIT_MISSING_DEPS=3
   readonly EXIT_PERMISSION=4
   readonly EXIT_NOT_FOUND=5
+  readonly EXIT_INVALID_STATE=6
   readonly EXIT_TIMEOUT=124
   readonly EXIT_CANCELLED=130
 
   # Export for use in subshells
   export EXIT_SUCCESS EXIT_ERROR EXIT_INVALID_ARGS EXIT_MISSING_DEPS
-  export EXIT_PERMISSION EXIT_NOT_FOUND EXIT_TIMEOUT EXIT_CANCELLED
+  export EXIT_PERMISSION EXIT_NOT_FOUND EXIT_INVALID_STATE EXIT_TIMEOUT EXIT_CANCELLED
 
   # Color definitions
   if [[ -t 2 ]] && command -v tput >/dev/null 2>&1 && [[ -z "${NO_COLOR:-}" ]]; then

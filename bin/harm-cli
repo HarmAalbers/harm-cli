@@ -37,7 +37,7 @@ fi
 # ═══════════════════════════════════════════════════════════════
 
 cmd_version() {
-  local format="${1:-text}"
+  local format="${1:-${HARM_CLI_FORMAT:-text}}"
   case "$format" in
     json)
       jq -n \
@@ -175,7 +175,7 @@ EOF
 # ═══════════════════════════════════════════════════════════════
 
 main() {
-  local format="text"
+  local format="${HARM_CLI_FORMAT:-text}"
   local quiet=0
   local debug=0
 
@@ -247,6 +247,30 @@ main() {
       subcmd="${1:-status}"
       shift || true
       case "$subcmd" in
+        --help | -h)
+          cat <<'EOF'
+harm-cli work - Work session management
+
+Usage:
+  harm-cli work [COMMAND]
+
+Commands:
+  start <description>  Start a new work session
+  stop                 Stop current work session
+  status               Show current work session status (default)
+  --help               Show this help
+
+Examples:
+  harm-cli work start "Phase 3 implementation"
+  harm-cli work status
+  harm-cli work stop
+
+Notes:
+  - Only one work session can be active at a time
+  - Sessions are tracked in ~/.harm-cli/work/
+  - Use status to see elapsed time
+EOF
+          ;;
         start) work_start "$@" ;;
         stop) work_stop "$@" ;;
         status) work_status "$@" ;;
@@ -259,6 +283,35 @@ main() {
       subcmd="${1:-show}"
       shift || true
       case "$subcmd" in
+        --help | -h)
+          cat <<'EOF'
+harm-cli goal - Goal tracking and progress management
+
+Usage:
+  harm-cli goal [COMMAND] [ARGS]
+
+Commands:
+  set <description> <duration>  Set a new goal for today
+  show                          Show all goals for today (default)
+  progress <id> <percent>       Update goal progress (0-100)
+  complete <id>                 Mark goal as complete (100%)
+  clear                         Clear all goals (requires --force)
+  --help                        Show this help
+
+Examples:
+  harm-cli goal set "Complete refactoring" 4h
+  harm-cli goal show
+  harm-cli goal progress 1 50
+  harm-cli goal complete 1
+  harm-cli goal clear --force
+
+Notes:
+  - Goals are tracked per day in ~/.harm-cli/goals/
+  - Duration format: 30m, 2h, 1h30m
+  - Use 'show' to see goal IDs for progress/complete commands
+  - Clear requires --force flag for safety
+EOF
+          ;;
         set) goal_set "$@" ;;
         show) goal_show "$@" ;;
         progress) goal_update_progress "$@" ;;
