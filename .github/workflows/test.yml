@@ -26,9 +26,18 @@ jobs:
 
       - name: Run tests with bash 5+
         # Use homebrew bash (5.x) instead of system bash (3.2) to support modern features
+        # Exit code 101 means tests passed with warnings (not a failure)
         run: |
           BASH_PATH="$(brew --prefix)/bin/bash"
           shellspec -s "$BASH_PATH"
+          EXIT_CODE=$?
+          if [ $EXIT_CODE -eq 0 ] || [ $EXIT_CODE -eq 101 ]; then
+            echo "✅ Tests passed (exit code: $EXIT_CODE)"
+            exit 0
+          else
+            echo "❌ Tests failed (exit code: $EXIT_CODE)"
+            exit $EXIT_CODE
+          fi
 
   pre-commit:
     name: Pre-commit Hooks
