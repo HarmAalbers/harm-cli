@@ -217,8 +217,13 @@ main() {
 
   case "$cmd" in
     version)
-      # Allow format as positional arg or use global format
-      local cmd_format="${1:-$format}"
+      # Parse format: support both --format FLAG and positional arg
+      local cmd_format="$format"
+      if [[ "${1:-}" == "--format" || "${1:-}" == "-F" ]]; then
+        cmd_format="${2:?--format requires an argument}"
+      elif [[ -n "${1:-}" ]]; then
+        cmd_format="$1"
+      fi
       cmd_version "$cmd_format"
       ;;
     help)

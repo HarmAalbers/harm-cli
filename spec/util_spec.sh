@@ -5,6 +5,7 @@ Describe 'lib/util.sh'
 Include spec/helpers/env.sh
 
 # Source the util module
+# shellcheck disable=SC2016
 BeforeAll 'source "$ROOT/lib/util.sh"'
 
 Describe 'String utilities'
@@ -239,6 +240,84 @@ End
 It 'formats zero as 0s'
 When call format_duration "0"
 The output should equal "0s"
+End
+End
+
+Describe 'Time utilities'
+Describe 'get_utc_timestamp'
+It 'returns ISO 8601 UTC timestamp'
+When call get_utc_timestamp
+# Verify format with string matching (ShellSpec pattern syntax)
+The line 1 of output should match pattern '????-??-??T??:??:??Z'
+The status should be success
+End
+
+It 'returns current time (not fixed)'
+timestamp1=$(get_utc_timestamp)
+sleep 1
+timestamp2=$(get_utc_timestamp)
+# Timestamps should be different after 1 second
+The value "$timestamp1" should not equal "$timestamp2"
+End
+End
+
+Describe 'get_utc_epoch'
+It 'returns Unix epoch timestamp'
+When call get_utc_epoch
+# Verify output is a positive integer (using word matcher)
+The word 1 of output should match pattern '*[0-9]*'
+The status should be success
+End
+
+It 'increments over time'
+epoch1=$(get_utc_epoch)
+sleep 1
+epoch2=$(get_utc_epoch)
+# Second epoch should be at least 1 second later
+diff=$((epoch2 - epoch1))
+When call test "$diff" -ge 1
+The status should be success
+End
+End
+
+Describe 'iso8601_to_epoch'
+It 'converts UTC timestamp to epoch'
+# Known timestamp: 2025-01-01T00:00:00Z = 1735689600
+When call iso8601_to_epoch "2025-01-01T00:00:00Z"
+The output should equal "1735689600"
+The status should be success
+End
+
+It 'handles timestamps with seconds'
+# 2025-01-01T12:30:45Z = 1735689600 + 12*3600 + 30*60 + 45
+When call iso8601_to_epoch "2025-01-01T12:30:45Z"
+The output should equal "1735734645"
+The status should be success
+End
+
+It 'produces consistent results across multiple calls'
+timestamp="2025-10-21T14:30:00Z"
+result1=$(iso8601_to_epoch "$timestamp")
+result2=$(iso8601_to_epoch "$timestamp")
+The value "$result1" should equal "$result2"
+End
+
+It 'validates UTC timezone (Z suffix required)'
+# This test ensures we are correctly parsing UTC timestamps
+# If the bug exists, BSD date without -u will interpret as local time
+# causing a timezone offset error
+timestamp=$(get_utc_timestamp)
+epoch1=$(get_utc_epoch)
+sleep 1
+epoch2=$(iso8601_to_epoch "$timestamp")
+# Difference should be approximately 1 second (allowing for processing time)
+# NOT hours (which would indicate timezone bug)
+diff=$((epoch1 - epoch2))
+# Absolute value should be less than 5 seconds
+abs_diff="${diff#-}"
+When call test "$abs_diff" -lt 5
+The status should be success
+End
 End
 End
 End

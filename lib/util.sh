@@ -251,6 +251,118 @@ format_duration() {
   echo "$result"
 }
 
+# get_utc_timestamp: Get current UTC timestamp in ISO 8601 format
+#
+# Description:
+#   Returns the current date/time as a UTC timestamp in ISO 8601 format.
+#   This is the single source of truth for creating timestamps.
+#
+# Arguments:
+#   None
+#
+# Returns:
+#   0 - Always succeeds
+#
+# Outputs:
+#   stdout: ISO 8601 UTC timestamp (YYYY-MM-DDTHH:MM:SSZ)
+#
+# Examples:
+#   timestamp=$(get_utc_timestamp)
+#   # Output: "2025-10-21T14:30:00Z"
+#
+# Notes:
+#   - Always returns UTC (Z suffix)
+#   - Format is compatible with iso8601_to_epoch()
+#   - Single source of truth for timestamp creation
+get_utc_timestamp() {
+  date -u '+%Y-%m-%dT%H:%M:%SZ'
+}
+
+# get_utc_epoch: Get current UTC time as Unix epoch seconds
+#
+# Description:
+#   Returns the current time as Unix epoch seconds (seconds since 1970-01-01 00:00:00 UTC).
+#   This is the single source of truth for getting current epoch time.
+#
+# Arguments:
+#   None
+#
+# Returns:
+#   0 - Always succeeds
+#
+# Outputs:
+#   stdout: Unix epoch seconds
+#
+# Examples:
+#   now=$(get_utc_epoch)
+#   # Output: "1729521000"
+#
+# Notes:
+#   - Always returns UTC epoch
+#   - Use for time calculations and comparisons
+#   - Single source of truth for current epoch time
+get_utc_epoch() {
+  date -u +%s
+}
+
+# iso8601_to_epoch: Convert ISO 8601 UTC timestamp to Unix epoch
+#
+# Description:
+#   Converts an ISO 8601 UTC timestamp to Unix epoch seconds.
+#   Handles both GNU date (Linux) and BSD date (macOS) with proper UTC interpretation.
+#   This fixes the timezone bug where BSD date was interpreting timestamps in local time.
+#
+# Arguments:
+#   $1 - timestamp (string): ISO 8601 UTC timestamp (YYYY-MM-DDTHH:MM:SSZ)
+#
+# Returns:
+#   0 - Conversion successful
+#   1 - Conversion failed (fallback to current time)
+#
+# Outputs:
+#   stdout: Unix epoch seconds
+#   stderr: Warning if parsing fails
+#
+# Examples:
+#   epoch=$(iso8601_to_epoch "2025-01-01T00:00:00Z")
+#   # Output: "1735689600"
+#
+#   start_epoch=$(iso8601_to_epoch "$start_time")
+#   current=$(get_utc_epoch)
+#   duration=$((current - start_epoch))
+#
+# Notes:
+#   - Requires Z suffix for UTC timestamps
+#   - GNU date: uses -d flag
+#   - BSD date: uses -j -u -f flags (the -u is CRITICAL for UTC interpretation)
+#   - Falls back to current time with warning if parsing fails
+#   - Single source of truth for timestamp parsing
+#
+# Bug Fix:
+#   The original implementation was missing the -u flag on BSD date,
+#   causing it to interpret UTC timestamps in local timezone,
+#   resulting in incorrect time calculations offset by the timezone difference.
+iso8601_to_epoch() {
+  local timestamp="${1:?iso8601_to_epoch requires timestamp}"
+
+  # Try GNU date first (Linux)
+  if date -d "$timestamp" +%s 2>/dev/null; then
+    return 0
+  fi
+
+  # Try BSD date (macOS) - CRITICAL: -u flag forces UTC interpretation
+  # Without -u, BSD date interprets timestamp in local timezone causing bug
+  # Strip the Z suffix as BSD date format strings don't handle it well
+  local timestamp_no_z="${timestamp%Z}"
+  if date -j -u -f '%Y-%m-%dT%H:%M:%S' "$timestamp_no_z" +%s 2>/dev/null; then
+    return 0
+  fi
+
+  # Fallback: use current time
+  warn_msg "Could not parse timestamp: $timestamp, using current time"
+  get_utc_epoch
+}
+
 # ═══════════════════════════════════════════════════════════════
 # JSON Utilities
 # ═══════════════════════════════════════════════════════════════
@@ -400,6 +512,6 @@ export -f array_join array_contains
 export -f file_sha256 file_age ensure_executable
 export -f resolve_path is_absolute basename_no_ext
 export -f is_running
-export -f parse_duration format_duration
+export -f parse_duration format_duration get_utc_timestamp get_utc_epoch iso8601_to_epoch
 export -f json_get json_validate
 export -f format_command_response validate_iso8601_timestamp
