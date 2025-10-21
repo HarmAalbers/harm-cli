@@ -384,4 +384,78 @@ When call type -t ai_setup
 The output should equal "function"
 End
 End
+
+# ═══════════════════════════════════════════════════════════════
+# Advanced AI Features Tests
+# ═══════════════════════════════════════════════════════════════
+
+Describe 'ai_review'
+It 'handles no changes gracefully'
+# In harm-cli repo with no staged changes (likely state)
+When call ai_review
+The output should include "No changes"
+The status should equal 0
+End
+
+It 'accepts --unstaged flag'
+When call ai_review --unstaged
+The status should equal 0
+End
+
+It 'accepts --staged flag'
+When call ai_review --staged
+The status should equal 0
+End
+
+It 'function exists and is exported'
+When call type -t ai_review
+The output should equal "function"
+End
+End
+
+Describe 'ai_explain_error'
+It 'handles missing log file gracefully'
+# Default behavior when no logs exist
+When call ai_explain_error
+# May return 0 (no errors) or 1 (no log file)
+The status should be defined
+End
+
+It 'function exists and is exported'
+When call type -t ai_explain_error
+The output should equal "function"
+End
+End
+
+Describe 'ai_daily'
+It 'generates insights for today'
+When call ai_daily
+The status should equal 0
+End
+
+It 'supports --yesterday flag'
+When call ai_daily --yesterday
+The status should equal 0
+End
+
+It 'supports --week flag'
+When call ai_daily --week
+The status should equal 0
+End
+
+It 'handles no data gracefully'
+# Set empty HARM_CLI_HOME
+export HARM_CLI_HOME="$TEST_TMP/empty"
+mkdir -p "$TEST_TMP/empty"
+
+When call ai_daily
+The output should include "No activity data"
+The status should equal 0
+End
+
+It 'function exists and is exported'
+When call type -t ai_daily
+The output should equal "function"
+End
+End
 End

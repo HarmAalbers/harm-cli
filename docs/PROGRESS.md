@@ -10,8 +10,8 @@
 
 Migrating 19,000 LOC ZSH Development Environment → Modern Bash 5+ CLI
 
-**Progress:** 3,400 LOC delivered (82% reduction from original)
-**Tests:** 197 ShellSpec tests (100% passing)
+**Progress:** 3,730 LOC delivered (83% reduction from original)
+**Tests:** 208 ShellSpec tests (100% passing)
 **Time Invested:** ~16 hours
 **Estimated Remaining:** 34-54 hours
 
@@ -119,35 +119,50 @@ harm-cli goal {set|show|progress|complete|clear}
 
 ### Phase 3: AI Integration ✅
 
-**Status:** Completed, ready for PR
+**Status:** Completed and merged
 **Branch:** `phase-3/ai-integration`
-**Commits:** 1 commit
+
+**Phase 3.5: Advanced AI Features ✅**
+
+**Status:** Completed, ready for PR
+**Branch:** `phase-3.5/advanced-ai`
+**Commits:** 2 commits (Phase 3 + Phase 3.5)
 
 **Modules:**
 
-1. **lib/ai.sh** (692 LOC, 39 tests)
+1. **lib/ai.sh** (1,022 LOC, 50 tests)
    - Gemini API integration (Google)
    - Secure API key management (5 fallback sources)
    - Response caching (1-hour TTL, configurable)
    - Context building (directory, git, project type)
+   - **Code review with AI**
+   - **Error explanation from logs**
+   - **Daily productivity insights**
    - Comprehensive error handling
    - Pure bash implementation (no Python)
 
 **CLI Commands Added:**
 
 ```bash
+# Phase 3 (Basic)
 harm-cli ai [QUERY]        # Ask AI a question
 harm-cli ai --setup        # Configure API key
 harm-cli ai --context      # Include full context
 harm-cli ai --no-cache     # Skip cache
+
+# Phase 3.5 (Advanced)
+harm-cli ai review         # Review git changes with AI
+harm-cli ai explain-error  # Explain last error from logs
+harm-cli ai daily          # Daily productivity insights
+harm-cli ai daily --week   # Weekly insights
 ```
 
 **Metrics:**
 
-- Production: 692 LOC
-- Tests: 387 LOC
-- Total tests: 39 (100% passing, all mocked - no real API calls)
-- Code reduction: 99% from original (72,812 → 692)
+- Production: 1,022 LOC (Phase 3: 692 + Phase 3.5: 330)
+- Tests: 461 LOC (Phase 3: 387 + Phase 3.5: 74)
+- Total tests: 50 (100% passing, all mocked - no real API calls)
+- Code reduction: 99% from original (72,812 → 1,022)
 
 **Key Achievements:**
 
@@ -157,6 +172,9 @@ harm-cli ai --no-cache     # Skip cache
 - ✅ 100% test coverage with mocked curl
 - ✅ SOLID principles throughout
 - ✅ Offline fallback suggestions
+- ✅ **Code review integration with git**
+- ✅ **Error analysis from logs**
+- ✅ **Productivity insights from work/goals/git data**
 
 ---
 
@@ -232,7 +250,7 @@ harm-cli ai --no-cache     # Skip cache
 | 0         | -            | 1,951      | -         | 8        | ✅      |
 | 1         | 2,707        | 1,100      | 59%       | 101      | ✅      |
 | 2         | 2,395        | 492        | 79%       | 38       | ✅      |
-| 3         | 72,812       | 692        | 99%       | 39       | ✅      |
+| 3         | 72,812       | 1,022      | 99%       | 50       | ✅      |
 | 4         | ~3,000       | ~1,000     | ~67%      | ~55      | ⏳      |
 | 5         | ~4,000       | ~800       | ~80%      | ~45      | ⏳      |
 | 6         | ~3,000       | ~600       | ~80%      | ~30      | ⏳      |
@@ -249,9 +267,9 @@ harm-cli ai --no-cache     # Skip cache
 ✅ Utilities:      40/40   (100%)
 ✅ Work:           18/18   (100%)
 ✅ Goals:          20/20   (100%)
-✅ AI:             39/39   (100%)
+✅ AI:             50/50   (100%)
 ─────────────────────────────────
-   Total:        197/197  (100%)
+   Total:        208/208  (100%)
 ```
 
 ---

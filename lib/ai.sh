@@ -683,10 +683,340 @@ ai_query() {
   return 0
 }
 
+# ═══════════════════════════════════════════════════════════════════
+# Advanced AI Features
+# ═══════════════════════════════════════════════════════════════════
+
+# Review git changes with AI
+# Returns: 0 on success, error code on failure
+ai_review() {
+  local use_staged=1
+
+  # Parse options
+  while [[ $# -gt 0 ]]; do
+    case "$1" in
+      --unstaged | -u)
+        use_staged=0
+        shift
+        ;;
+      --staged | -s)
+        use_staged=1
+        shift
+        ;;
+      *)
+        error_message "Unknown option: $1"
+        return "$EXIT_INVALID_ARGS"
+        ;;
+    esac
+  done
+
+  log_info "ai" "Starting code review" "Type: $([ $use_staged -eq 1 ] && echo 'staged' || echo 'unstaged')"
+
+  # Check if in git repository
+  if ! git rev-parse --git-dir >/dev/null 2>&1; then
+    error_message "Not in a git repository"
+    log_error "ai" "Code review failed" "Not in git repository"
+    return "$EXIT_INVALID_STATE"
+  fi
+
+  # Get diff
+  local diff
+  if [[ $use_staged -eq 1 ]]; then
+    diff=$(git diff --cached 2>/dev/null)
+  else
+    diff=$(git diff 2>/dev/null)
+  fi
+
+  # Check if empty
+  if [[ -z "$diff" ]]; then
+    echo "No changes to review"
+    log_info "ai" "Code review skipped" "No changes found"
+    return 0
+  fi
+
+  # Count lines and truncate if needed
+  local line_count
+  line_count=$(echo "$diff" | wc -l | tr -d ' ')
+  log_debug "ai" "Diff retrieved" "Lines: $line_count"
+
+  if [[ $line_count -gt 200 ]]; then
+    diff=$(echo "$diff" | head -200)
+    echo "⚠️  Diff truncated to 200 lines for analysis (total: $line_count lines)"
+    log_warn "ai" "Diff truncated" "Original: $line_count, Truncated: 200"
+  fi
+
+  # Get git context
+  local branch
+  branch=$(git branch --show-current 2>/dev/null || echo "unknown")
+
+  # Build context
+  local context
+  context="Code Review Request\n"
+  context+="Branch: $branch\n"
+  context+="Lines changed: $line_count\n"
+  context+="Type: $([ $use_staged -eq 1 ] && echo 'staged' || echo 'unstaged')\n\n"
+  context+="Diff:\n\`\`\`diff\n$diff\n\`\`\`"
+
+  # Build prompt
+  local prompt
+  prompt="Review these code changes and provide:\n\n"
+  prompt+="1. **Summary:** What changed\n"
+  prompt+="2. **Issues:** Potential bugs or problems\n"
+  prompt+="3. **Best Practices:** Any violations\n"
+  prompt+="4. **Security:** Any concerns\n"
+  prompt+="5. **Suggestions:** Specific improvements\n\n"
+  prompt+="Be specific and actionable. Format as markdown."
+
+  echo "📝 Reviewing code changes with AI..."
+  log_info "ai" "Sending code review request" "Lines: $line_count"
+
+  # Build full query
+  local full_query="$context\n\n$prompt"
+
+  # Query AI (always bypass cache for reviews)
+  local response
+  if ! response=$(_ai_make_request "$(ai_get_api_key)" "$full_query" ""); then
+    log_error "ai" "Code review failed" "API request error"
+    return $?
+  fi
+
+  # Parse and display
+  local review_text
+  if review_text=$(_ai_parse_response "$response"); then
+    echo ""
+    echo "$review_text"
+    echo ""
+    log_info "ai" "Code review completed" "Lines reviewed: $line_count"
+    return 0
+  else
+    log_error "ai" "Failed to parse review response"
+    return "$EXIT_AI_INVALID_RESPONSE"
+  fi
+}
+
+# Explain last error from logs with AI assistance
+# Returns: 0 on success, 1 if no error found
+ai_explain_error() {
+  log_info "ai" "Explaining last error from logs"
+
+  # Find log file
+  local log_file="${HARM_CLI_HOME:-$HOME/.harm-cli}/logs/harm-cli.log"
+
+  if [[ ! -f "$log_file" ]]; then
+    error_message "Log file not found"
+    log_warn "ai" "Cannot explain error" "Log file not found: $log_file"
+    return 1
+  fi
+
+  # Extract last ERROR entry
+  local last_error
+  last_error=$(grep '\[ERROR\]' "$log_file" | tail -1)
+
+  if [[ -z "$last_error" ]]; then
+    success_message "No recent errors found! 🎉"
+    log_info "ai" "No errors to explain"
+    return 0
+  fi
+
+  log_debug "ai" "Found error in logs" "Entry: $last_error"
+
+  # Parse error components
+  local error_time
+  error_time=$(echo "$last_error" | grep -o '^\[[-0-9: ]*\]' | head -1 | tr -d '[]')
+  local error_component
+  error_component=$(echo "$last_error" | grep -o '\[[a-z_-]*\]' | head -1 | tr -d '[]')
+  local error_msg
+  error_msg=$(echo "$last_error" | sed 's/.*\] \[ERROR\] \[[^]]*\] //' | sed 's/ |.*//')
+
+  # Build context
+  local context
+  context="Error Analysis Request\n\n"
+  context+="Time: $error_time\n"
+  context+="Component: $error_component\n"
+  context+="Error: $error_msg\n"
+
+  # Build prompt
+  local prompt
+  prompt="Explain this error and provide solutions:\n\n"
+  prompt+="1. **What it means:** Explain the error in simple terms\n"
+  prompt+="2. **Common causes:** Why this happens\n"
+  prompt+="3. **How to fix:** Specific commands to run\n"
+  prompt+="4. **Prevention:** How to avoid this in future\n\n"
+  prompt+="Be specific and actionable."
+
+  echo "🔍 Analyzing last error..."
+  echo "Error: $error_msg"
+  echo ""
+  log_info "ai" "Sending error explanation request"
+
+  # Build full query
+  local full_query="$context\n\n$prompt"
+
+  # Query AI (bypass cache)
+  local response
+  if ! response=$(_ai_make_request "$(ai_get_api_key)" "$full_query" ""); then
+    log_error "ai" "Error explanation failed" "API request error"
+    return $?
+  fi
+
+  # Parse and display
+  local explanation
+  if explanation=$(_ai_parse_response "$response"); then
+    echo "$explanation"
+    echo ""
+    log_info "ai" "Error explanation completed"
+    return 0
+  else
+    log_error "ai" "Failed to parse explanation response"
+    return "$EXIT_AI_INVALID_RESPONSE"
+  fi
+}
+
+# Generate daily productivity insights
+# Returns: 0 on success
+ai_daily() {
+  local period="today"
+  local period_days=0
+
+  # Parse options
+  while [[ $# -gt 0 ]]; do
+    case "$1" in
+      --yesterday | -y)
+        period="yesterday"
+        period_days=1
+        shift
+        ;;
+      --week | -w)
+        period="week"
+        period_days=7
+        shift
+        ;;
+      *)
+        shift
+        ;;
+    esac
+  done
+
+  log_info "ai" "Generating daily insights" "Period: $period"
+
+  echo "🤖 Analyzing your productivity for $period..."
+  echo ""
+
+  # Build context from multiple sources
+  local context=""
+  local has_data=0
+
+  # 1. Work sessions
+  local work_archive="${HARM_CLI_HOME:-$HOME/.harm-cli}/work/archive.jsonl"
+  if [[ -f "$work_archive" ]]; then
+    local cutoff_date
+    if [[ $period_days -gt 0 ]]; then
+      cutoff_date=$(date -v-${period_days}d +%Y-%m-%d 2>/dev/null || date -d "${period_days} days ago" +%Y-%m-%d 2>/dev/null)
+    else
+      cutoff_date=$(date +%Y-%m-%d)
+    fi
+
+    local work_summary
+    work_summary=$(grep "\"started_at\":\"$cutoff_date" "$work_archive" 2>/dev/null \
+      | jq -r '.goal + " (" + (.duration_seconds/60|floor|tostring) + "m)"' 2>/dev/null || echo "")
+
+    if [[ -n "$work_summary" ]]; then
+      context+="Work sessions:\n$work_summary\n\n"
+      has_data=1
+      log_debug "ai" "Added work session data to context"
+    fi
+  fi
+
+  # 2. Goals
+  local goal_date
+  if [[ $period_days -eq 1 ]]; then
+    goal_date=$(date -v-1d +%Y-%m-%d 2>/dev/null || date -d "yesterday" +%Y-%m-%d 2>/dev/null)
+  else
+    goal_date=$(date +%Y-%m-%d)
+  fi
+
+  local goal_file="${HARM_CLI_HOME:-$HOME/.harm-cli}/goals/$goal_date.jsonl"
+  if [[ -f "$goal_file" ]]; then
+    local completed_goals
+    completed_goals=$(jq -r 'select(.completed==true) | "✓ " + .goal' "$goal_file" 2>/dev/null || echo "")
+
+    if [[ -n "$completed_goals" ]]; then
+      context+="Completed goals:\n$completed_goals\n\n"
+      has_data=1
+      log_debug "ai" "Added goal data to context"
+    fi
+  fi
+
+  # 3. Git activity
+  if git rev-parse --git-dir >/dev/null 2>&1; then
+    local since_date
+    if [[ $period_days -gt 0 ]]; then
+      since_date="${period_days} days ago"
+    else
+      since_date="today"
+    fi
+
+    local commits_count
+    commits_count=$(git log --since="$since_date" --oneline 2>/dev/null | wc -l | tr -d ' ')
+
+    if [[ $commits_count -gt 0 ]]; then
+      context+="Git commits: $commits_count\n"
+      local commit_msgs
+      commit_msgs=$(git log --since="$since_date" --pretty=format:"- %s" 2>/dev/null | head -20)
+      context+="Commits:\n$commit_msgs\n\n"
+      has_data=1
+      log_debug "ai" "Added git activity to context"
+    fi
+  fi
+
+  # Check if we have any data
+  if [[ $has_data -eq 0 ]]; then
+    echo "No activity data available for $period"
+    log_info "ai" "Daily insights skipped" "No data for period: $period"
+    return 0
+  fi
+
+  # Build prompt
+  local prompt
+  prompt="Based on my development activity for $period, provide:\n\n"
+  prompt+="1. **Productivity Summary:** What I accomplished\n"
+  prompt+="2. **Insights:** Patterns or observations\n"
+  prompt+="3. **Next Steps:** What to focus on next\n"
+  prompt+="4. **Learning:** Skills to develop\n\n"
+  prompt+="Be encouraging, specific, and actionable. Format as markdown."
+
+  log_info "ai" "Sending daily insights request" "Period: $period"
+
+  # Build full query
+  local full_query="$context\n\n$prompt"
+
+  # Query AI (bypass cache for personalized insights)
+  local response
+  if ! response=$(_ai_make_request "$(ai_get_api_key)" "$full_query" ""); then
+    log_error "ai" "Daily insights failed" "API request error"
+    return $?
+  fi
+
+  # Parse and display
+  local insights
+  if insights=$(_ai_parse_response "$response"); then
+    echo "$insights"
+    echo ""
+    log_info "ai" "Daily insights completed" "Period: $period"
+    return 0
+  else
+    log_error "ai" "Failed to parse insights response"
+    return "$EXIT_AI_INVALID_RESPONSE"
+  fi
+}
+
 # Export public functions
 export -f ai_query
 export -f ai_check_requirements
 export -f ai_setup
+export -f ai_review
+export -f ai_explain_error
+export -f ai_daily
 
 # Mark module as loaded
 readonly _HARM_AI_LOADED=1
