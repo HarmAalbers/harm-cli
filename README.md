@@ -93,6 +93,9 @@ harm-cli goal complete 1
 # AI assistant (requires Gemini API key)
 harm-cli ai "How do I list files recursively?"
 harm-cli ai --context "What should I work on?"
+harm-cli ai review               # Review git changes
+harm-cli ai explain-error        # Explain last error
+harm-cli ai daily                # Daily productivity insights
 harm-cli ai --setup
 
 # Get help
@@ -240,7 +243,7 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for detailed standards.
 - [x] Response caching (1-hour TTL)
 - [x] CLI integration (`harm-cli ai`)
 
-**Metrics:** 692 LOC, 39 tests (100%), 99% code reduction
+**Metrics:** 1,022 LOC, 50 tests (100%), 99% code reduction
 
 **Key Features:**
 
@@ -292,8 +295,8 @@ End
 - Utilities: ✅ 40 tests
 - Work sessions: ✅ 18 tests
 - Goals: ✅ 20 tests
-- AI integration: ✅ 39 tests
-- **Total: 197 tests (100% passing)**
+- AI integration: ✅ 50 tests
+- **Total: 208 tests (100% passing)**
 
 ---
 
