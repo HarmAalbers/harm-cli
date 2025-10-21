@@ -406,8 +406,79 @@ goal_clear() {
 }
 
 # ═══════════════════════════════════════════════════════════════
+# AI Goal Validation
+# ═══════════════════════════════════════════════════════════════
+
+# goal_validate: Validate goal with AI assistance
+#
+# Description:
+#   Uses AI to validate if a goal is realistic, well-defined, and
+#   appropriately scoped. Provides suggestions for improvement and
+#   time estimates.
+#
+# Arguments:
+#   $1 - goal (string): Goal description to validate
+#
+# Returns:
+#   0 - Validation completed
+#   EXIT_INVALID_ARGS - No goal provided
+#   EXIT_AI_NO_KEY - AI not available
+#
+# Outputs:
+#   stdout: AI validation feedback
+#   stderr: Log messages
+#
+# Examples:
+#   goal_validate "Complete Phase 6"
+#   goal_validate "Fix all bugs"
+#   harm-cli goal validate "Build new feature"
+#
+# Notes:
+#   - Requires lib/ai.sh loaded
+#   - Uses AI to analyze goal
+#   - Provides realistic time estimates
+#   - Suggests breaking down large goals
+#
+# Performance:
+#   - 2-5s (AI latency)
+goal_validate() {
+  local goal="${1:?goal_validate requires goal description}"
+
+  log_info "goals" "Validating goal with AI" "Goal: $goal"
+
+  # Check if AI module available
+  if ! type ai_query >/dev/null 2>&1; then
+    error_msg "AI module not available"
+    echo "Load AI module first or use: harm-cli goal validate"
+    return "$EXIT_DEPENDENCY_MISSING"
+  fi
+
+  # Build validation prompt
+  local prompt
+  prompt="Validate this goal and provide feedback:\n\n"
+  prompt+="Goal: \"$goal\"\n\n"
+  prompt+="Analyze:\n"
+  prompt+="1. **Clarity**: Is it specific and well-defined?\n"
+  prompt+="2. **Scope**: Is it appropriately sized (not too big/small)?\n"
+  prompt+="3. **Realistic**: Can it be completed?\n"
+  prompt+="4. **Time Estimate**: How long will it take?\n"
+  prompt+="5. **Suggestions**: How to improve this goal?\n\n"
+  prompt+="Be honest and helpful. If too large, suggest breaking it down."
+
+  echo "🤖 Validating goal with AI..."
+
+  # Query AI (bypass cache)
+  local context="Goal Validation Request"
+  ai_query "$prompt" --no-cache
+
+  log_info "goals" "Goal validation completed"
+  return 0
+}
+
+# ═══════════════════════════════════════════════════════════════
 # Exports
 # ═══════════════════════════════════════════════════════════════
 
 export -f goal_file_for_today goal_exists_today
 export -f goal_set goal_show goal_update_progress goal_complete goal_clear
+export -f goal_validate
