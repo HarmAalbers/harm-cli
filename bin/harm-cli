@@ -80,6 +80,7 @@ Commands:
   docker                  Docker and Docker Compose management
   python                  Python development environment
   gcloud                  Google Cloud SDK integration
+  health                  System and project health checks
 
 Run 'harm-cli COMMAND --help' for more information on a command.
 
@@ -583,6 +584,11 @@ EOF
           exit "$EXIT_INVALID_ARGS"
           ;;
       esac
+      ;;
+    health)
+      # shellcheck source=lib/health.sh
+      source "$ROOT_DIR/lib/health.sh"
+      health_check "$@"
       ;;
     *)
       die "Unknown command: $cmd. Run 'harm-cli help' for usage." 2
