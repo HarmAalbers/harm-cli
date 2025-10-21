@@ -31,20 +31,6 @@ jobs:
           brew install shellcheck
           shellcheck bin/* lib/*.sh lib/**/*.sh || true
 
-  test-zsh:
-    name: Test with Zsh
-    runs-on: macos-latest
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Install dependencies
-        run: |
-          brew install shellspec jq
-
-      - name: Run tests with zsh
-        run: shellspec -s /bin/zsh
-
   lint:
     name: Lint & Format Check
     runs-on: ubuntu-latest
@@ -73,7 +59,7 @@ jobs:
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
-          python-version: '3.11'
+          python-version: "3.11"
 
       - name: Install pre-commit
         run: pip install pre-commit

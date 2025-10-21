@@ -192,6 +192,7 @@ Before submitting code:
 ### Future Plans
 
 If cryptography is added:
+
 - Industry-standard algorithms only
 - External libraries (OpenSSL, libsodium)
 - No custom crypto implementations
@@ -206,6 +207,7 @@ If cryptography is added:
 **PGP Key:** Coming soon
 
 **Response SLA:**
+
 - Critical: 24-48 hours
 - High: 1 week
 - Medium: 1 month

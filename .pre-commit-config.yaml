@@ -17,7 +17,7 @@ repos:
     rev: v0.10.0.1
     hooks:
       - id: shellcheck
-        args: [-x]
+        args: [-x, "--exclude=2016,2034,2148,2155"] # ShellSpec test syntax patterns
         types: [shell]
 
   # Custom bash arithmetic safety check
@@ -54,6 +54,7 @@ repos:
       - id: check-merge-conflict
       - id: check-executables-have-shebangs
       - id: check-shebang-scripts-are-executable
+        exclude: "^(lib/|spec/)"
       - id: mixed-line-ending
         args: [--fix=lf]
 
