@@ -78,6 +78,7 @@ Commands:
   git                     Enhanced git workflows with AI
   proj                    Project management and switching
   docker                  Docker and Docker Compose management
+  python                  Python development environment
 
 Run 'harm-cli COMMAND --help' for more information on a command.
 
@@ -489,6 +490,59 @@ EOF
         *)
           error_msg "Unknown docker command: $subcmd"
           echo "Try: harm-cli docker --help"
+          exit "$EXIT_INVALID_ARGS"
+          ;;
+      esac
+      ;;
+    python)
+      # shellcheck source=lib/python.sh
+      source "$ROOT_DIR/lib/python.sh"
+      subcmd="${1:-status}"
+      shift || true
+      case "$subcmd" in
+        --help | -h)
+          cat <<'EOF'
+harm-cli python - Python development environment
+
+Usage:
+  harm-cli python [COMMAND] [ARGS]
+
+Commands:
+  status         Show Python environment status (default)
+  test           Run test suite (pytest/unittest)
+  lint           Run linters (ruff/flake8)
+  format         Format code (ruff/black)
+  --help         Show this help
+
+Examples:
+  harm-cli python status
+  harm-cli python test
+  harm-cli python test -v
+  harm-cli python lint
+  harm-cli python format
+
+Notes:
+  - Auto-detects Poetry projects (pyproject.toml)
+  - Auto-detects Django projects (manage.py)
+  - Prefers modern tools (ruff over flake8)
+  - Shows venv activation suggestions
+EOF
+          ;;
+        status)
+          python_status "$@"
+          ;;
+        test | t)
+          python_test "$@"
+          ;;
+        lint | l)
+          python_lint "$@"
+          ;;
+        format | fmt)
+          python_format "$@"
+          ;;
+        *)
+          error_msg "Unknown python command: $subcmd"
+          echo "Try: harm-cli python --help"
           exit "$EXIT_INVALID_ARGS"
           ;;
       esac
