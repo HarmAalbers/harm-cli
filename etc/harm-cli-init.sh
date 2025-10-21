@@ -37,6 +37,11 @@ if [[ -f "$HARM_CLI_ROOT/lib/hooks.sh" ]]; then
   source "$HARM_CLI_ROOT/lib/hooks.sh"
 fi
 
+# Load activity tracking (uses hooks for automatic logging)
+if [[ -f "$HARM_CLI_ROOT/lib/activity.sh" ]]; then
+  source "$HARM_CLI_ROOT/lib/activity.sh"
+fi
+
 # Optional: Remind about work session if not active
 # Uncomment to enable:
 # if command -v harm-cli >/dev/null 2>&1; then
