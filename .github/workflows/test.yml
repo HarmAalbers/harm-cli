@@ -26,7 +26,8 @@ jobs:
 
       - name: Run tests with bash 5+
         # Use homebrew bash (5.x) instead of system bash (3.2) to support modern features
-        # Exit code 101 means tests passed with warnings (not a failure)
+        # Note: ShellSpec exits with code 101 for warnings (not failures)
+        # We treat warnings as acceptable (0 failures = success)
         run: |
           BASH_PATH="$(brew --prefix)/bin/bash"
           shellspec -s "$BASH_PATH"

@@ -19,6 +19,7 @@
 
 ## Warnings
 # Warnings are informational only (stderr output expected in complex tests)
+# Exit codes: 0 = success, 1 = failures, 101 = warnings (not failures)
 
 ## Execution
 --jobs 1
