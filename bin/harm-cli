@@ -81,6 +81,7 @@ Commands:
   python                  Python development environment
   gcloud                  Google Cloud SDK integration
   health                  System and project health checks
+  safe                    Safety wrappers for dangerous operations
 
 Run 'harm-cli COMMAND --help' for more information on a command.
 
@@ -589,6 +590,31 @@ EOF
       # shellcheck source=lib/health.sh
       source "$ROOT_DIR/lib/health.sh"
       health_check "$@"
+      ;;
+    safe)
+      # shellcheck source=lib/safety.sh
+      source "$ROOT_DIR/lib/safety.sh"
+      subcmd="${1:-help}"
+      shift || true
+      case "$subcmd" in
+        rm)
+          safe_rm "$@"
+          ;;
+        docker-prune)
+          safe_docker_prune "$@"
+          ;;
+        git-reset)
+          safe_git_reset "$@"
+          ;;
+        *)
+          echo "harm-cli safe - Safety wrappers for dangerous operations"
+          echo ""
+          echo "Commands:"
+          echo "  rm <files>         Safe file deletion"
+          echo "  docker-prune       Safe Docker cleanup"
+          echo "  git-reset [ref]    Safe git reset with backup"
+          ;;
+      esac
       ;;
     *)
       die "Unknown command: $cmd. Run 'harm-cli help' for usage." 2
