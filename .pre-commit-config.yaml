@@ -9,7 +9,7 @@ repos:
     rev: v3.8.0-1
     hooks:
       - id: shfmt
-        args: [-w, -i, '2', -ci, -bn]
+        args: [-w, -i, "2", -ci, -bn]
         types: [shell]
 
   # Shell script linting
@@ -20,12 +20,22 @@ repos:
         args: [-x]
         types: [shell]
 
+  # Custom bash arithmetic safety check
+  - repo: local
+    hooks:
+      - id: check-bash-arithmetic
+        name: Check dangerous bash arithmetic patterns
+        entry: .pre-commit-hooks/check-bash-arithmetic.sh
+        language: script
+        types: [shell]
+        description: Detects ((var++)) and ((var--)) that fail with set -e
+
   # Spell checking
   - repo: https://github.com/codespell-project/codespell
     rev: v2.2.6
     hooks:
       - id: codespell
-        args: [--ignore-words-list, 'crate,ect,hist,nd,te,thru']
+        args: [--ignore-words-list, "crate,ect,hist,nd,te,thru,afterall"]
         exclude: '^(\.git/|spec/golden/)'
 
   # General file checks
@@ -33,9 +43,9 @@ repos:
     rev: v4.5.0
     hooks:
       - id: trailing-whitespace
-        exclude: '^spec/golden/'
+        exclude: "^spec/golden/"
       - id: end-of-file-fixer
-        exclude: '^spec/golden/'
+        exclude: "^spec/golden/"
       - id: check-yaml
       - id: check-json
       - id: check-added-large-files

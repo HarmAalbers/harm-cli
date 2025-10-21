@@ -1,4 +1,3 @@
-#!/usr/bin/env bash
 # shellcheck shell=bash
 # error.sh - Production-grade error handling for harm-cli
 # Ported from: ~/.zsh/00_error_handling.zsh
@@ -135,7 +134,7 @@ error_with_code() {
     echo "${DIM}Stack trace:${RESET}" >&2
     local i=0
     while caller $i >&2 2>/dev/null; do
-      ((i++))
+      ((++i)) # Pre-increment to avoid exit code 1 with set -e when i=0
     done
   fi
 
@@ -219,7 +218,7 @@ error_trap_handler() {
     echo "${DIM}Stack trace:${RESET}" >&2
     local i=0
     while caller $i >&2 2>/dev/null; do
-      ((i++))
+      ((++i)) # Pre-increment to avoid exit code 1 with set -e when i=0
     done
   fi
 
