@@ -21,34 +21,6 @@ jobs:
       - name: Run tests with bash
         run: shellspec -s /bin/bash
 
-      - name: Check formatting
-        run: |
-          brew install shfmt
-          shfmt -d -i 2 -ci -bn bin/* lib/*.sh lib/**/*.sh spec/*.sh spec/**/*.sh
-
-      - name: Run shellcheck
-        run: |
-          brew install shellcheck
-          shellcheck bin/* lib/*.sh lib/**/*.sh || true
-
-  lint:
-    name: Lint & Format Check
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Install dependencies
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y shellcheck shfmt
-
-      - name: Run shellcheck
-        run: shellcheck bin/* lib/*.sh lib/**/*.sh || true
-
-      - name: Check formatting
-        run: shfmt -d -i 2 -ci -bn bin/* lib/*.sh lib/**/*.sh spec/*.sh spec/**/*.sh
-
   pre-commit:
     name: Pre-commit Hooks
     runs-on: ubuntu-latest
