@@ -51,6 +51,7 @@ It 'sets a new goal'
 export HARM_CLI_FORMAT=text
 When call goal_set "Complete refactoring"
 The status should be success
+The output should include "Goal: Complete refactoring"
 The error should include "Goal set"
 The file "$(goal_file_for_today)" should be exist
 End
@@ -75,6 +76,7 @@ When call goal_set "Test goal" 60
 The output should include '"status"'
 The output should include '"goal"'
 The output should include '"estimated_minutes"'
+The error should include "[INFO]"
 End
 
 Describe 'Duration format parsing'
@@ -114,6 +116,7 @@ export HARM_CLI_FORMAT=text
 rm -f "$(goal_file_for_today)"
 When call goal_set "Test goal" "2h"
 The output should include "Estimated time: 2h"
+The error should include "Goal set"
 End
 
 It 'rejects invalid duration format'

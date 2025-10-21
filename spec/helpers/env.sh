@@ -3,7 +3,9 @@
 
 setup() {
   # Project paths
-  export ROOT="$(cd -- "$(dirname -- "$SHELLSPEC_SPECFILE")/.." && pwd -P)"
+  # Use SHELLSPEC_SPECFILE if available, otherwise use a fallback
+  local spec_file="${SHELLSPEC_SPECFILE:-${BASH_SOURCE[0]}}"
+  export ROOT="$(cd -- "$(dirname -- "$spec_file")/.." && pwd -P)"
   export CLI="$ROOT/bin/harm-cli"
   export LIB="$ROOT/lib"
 

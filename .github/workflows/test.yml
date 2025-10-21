@@ -16,10 +16,11 @@ jobs:
 
       - name: Install dependencies
         run: |
-          brew install shellspec jq
+          brew install bash shellspec jq
 
-      - name: Run tests with bash
-        run: shellspec -s /bin/bash
+      - name: Run tests with bash 5+
+        # Use homebrew bash (5.x) instead of system bash (3.2) to support modern features
+        run: shellspec
 
   pre-commit:
     name: Pre-commit Hooks

@@ -59,6 +59,7 @@ It 'starts a new work session'
 export HARM_CLI_FORMAT=text
 When call work_start "Test goal"
 The status should be success
+The output should include "Goal: Test goal"
 The error should include "Work session started"
 The file "$HARM_WORK_STATE_FILE" should be exist
 End
@@ -75,6 +76,7 @@ export HARM_CLI_FORMAT=json
 When call work_start "Test goal"
 The output should include '"status"'
 The output should include '"goal"'
+The error should include "[INFO]"
 End
 
 It 'fails if session already active'
@@ -108,8 +110,8 @@ It 'outputs JSON format'
 export HARM_CLI_FORMAT=json
 work_start "Test goal" >/dev/null 2>&1
 When call work_status
-The output should include '"goal"'
 The output should include '"status"'
+The output should include '"goal"'
 The output should include '"elapsed_seconds"'
 End
 
@@ -169,6 +171,7 @@ The output should include '"status"'
 The output should include '"duration_seconds"'
 The error should include "[INFO]"
 End
+
 It 'calculates duration accurately (timezone bug test)'
 # This test verifies the timezone bug is fixed by checking actual duration
 export HARM_CLI_FORMAT=json
