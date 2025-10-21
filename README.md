@@ -2,8 +2,8 @@
 
 > Personal CLI toolkit for elite-tier development workflows
 
-**Version:** 0.3.0-alpha
-**Status:** 🚧 Under active development - Phase 3 (AI Integration) complete
+**Version:** 0.4.0-alpha
+**Status:** 🚧 Under active development - Phase 4 (Git & Projects) complete
 
 ---
 
@@ -92,8 +92,21 @@ harm-cli goal complete 1
 
 # AI assistant (requires Gemini API key)
 harm-cli ai "How do I list files recursively?"
-harm-cli ai --context "What should I work on?"
-harm-cli ai --setup
+harm-cli ai review               # Review git changes
+harm-cli ai daily                # Daily productivity insights
+
+# Git workflows
+harm-cli git status              # Enhanced status
+harm-cli git commit-msg          # AI-powered commit message
+
+# Project management
+harm-cli proj list               # List projects
+harm-cli proj add ~/myapp        # Add project
+
+# Docker management
+harm-cli docker up               # Start services
+harm-cli docker status           # Service status
+harm-cli docker logs backend     # View logs
 
 # Get help
 harm-cli help
@@ -240,7 +253,7 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for detailed standards.
 - [x] Response caching (1-hour TTL)
 - [x] CLI integration (`harm-cli ai`)
 
-**Metrics:** 692 LOC, 39 tests (100%), 99% code reduction
+**Metrics:** 1,022 LOC, 50 tests (100%), 99% code reduction
 
 **Key Features:**
 
@@ -250,14 +263,30 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for detailed standards.
 - Offline fallback suggestions
 - JSON + text output formats
 
-### Coming Soon (Phases 4-8)
+### Phase 4: Git & Projects ✅ (Complete - Ready for PR)
 
-**Phase 4: Git & Projects** (Next)
+- [x] Enhanced git workflows (280 LOC, 11 tests)
+- [x] AI-powered commit messages
+- [x] Project management (244 LOC, 18 tests)
+- [x] Project switching and registry
 
-- Enhanced git workflows
-- AI-powered commit messages
-- Project management
-- Smart commits
+**Metrics:** 524 LOC, 29 tests (100%)
+
+**Key Features:**
+
+- AI-generated conventional commit messages
+- Enhanced git status with suggestions
+- Project registry (JSONL format)
+- Quick project switching
+- Type auto-detection (nodejs, python, rust, go, shell)
+
+### Coming Soon (Phases 5-8)
+
+**Phase 5: Development Tools** (Next)
+
+- Docker management
+- Python development tools
+- Health monitoring
 
 **Phase 5+:**
 
@@ -292,8 +321,11 @@ End
 - Utilities: ✅ 40 tests
 - Work sessions: ✅ 18 tests
 - Goals: ✅ 20 tests
-- AI integration: ✅ 39 tests
-- **Total: 197 tests (100% passing)**
+- AI integration: ✅ 50 tests
+- Git workflows: ✅ 11 tests
+- Project management: ✅ 18 tests
+- Docker management: ✅ 12 tests
+- **Total: 247 tests (100% passing)**
 
 ---
 

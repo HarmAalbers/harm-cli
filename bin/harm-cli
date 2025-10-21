@@ -75,8 +75,9 @@ Commands:
   work                    Work session management
   goal                    Goal tracking and progress
   ai                      AI assistant commands (Gemini)
-  git                     Enhanced git workflows (coming soon)
-  proj                    Project management (coming soon)
+  git                     Enhanced git workflows with AI
+  proj                    Project management and switching
+  docker                  Docker and Docker Compose management
 
 Run 'harm-cli COMMAND --help' for more information on a command.
 
@@ -273,23 +274,31 @@ main() {
 harm-cli ai - AI-powered development assistant
 
 Usage:
-  harm-cli ai [OPTIONS] [QUERY]
+  harm-cli ai [COMMAND] [OPTIONS]
+
+Commands:
+  query          Ask AI a question (default)
+  review         Review git changes with AI
+  explain-error  Explain last error from logs
+  daily          Daily productivity insights
+  --setup        Configure API key
+  --help         Show this help
 
 Options:
-  -h, --help        Show this help
-  --setup           Configure API key
-  --no-cache        Skip cache
-  -c, --context     Include full context
-
-Query:
-  Ask the AI a question or request suggestions.
-  If no query provided, gets context-aware suggestions.
+  -c, --context     Include full context (query)
+  --no-cache        Skip cache (query)
+  -u, --unstaged    Review unstaged changes (review)
+  -y, --yesterday   Yesterday's insights (daily)
+  -w, --week        Weekly insights (daily)
 
 Examples:
   harm-cli ai "How do I list files recursively?"
-  harm-cli ai -c "What should I work on?"
+  harm-cli ai review
+  harm-cli ai review --unstaged
+  harm-cli ai explain-error
+  harm-cli ai daily
+  harm-cli ai daily --week
   harm-cli ai --setup
-  harm-cli --format json ai "test"
 
 API Key Setup:
   1. Get key: https://aistudio.google.com/app/apikey
@@ -297,13 +306,26 @@ API Key Setup:
   3. Or: export GEMINI_API_KEY="your-key"
 
 Cache:
-  - Responses cached for 1 hour (configurable)
-  - Speeds up repeated queries
+  - Query responses cached for 1 hour
+  - Review/explain/daily always fresh
   - Clear: rm -rf ~/.harm-cli/ai-cache
 EOF
           ;;
         --setup)
           ai_setup
+          ;;
+        review)
+          ai_review "$@"
+          ;;
+        explain-error | explain)
+          ai_explain_error "$@"
+          ;;
+        daily)
+          ai_daily "$@"
+          ;;
+        query)
+          shift
+          ai_query "$@"
           ;;
         *)
           # Everything else is a query (including --no-cache, --context flags)
@@ -311,8 +333,165 @@ EOF
           ;;
       esac
       ;;
-    git | proj)
-      die "Command '$cmd' not yet implemented. Coming soon in Phase 4+!" 1
+    git)
+      # shellcheck source=lib/git.sh
+      source "$ROOT_DIR/lib/git.sh"
+      subcmd="${1:-status}"
+      shift || true
+      case "$subcmd" in
+        --help | -h)
+          cat <<'EOF'
+harm-cli git - Enhanced git workflows with AI
+
+Usage:
+  harm-cli git [COMMAND]
+
+Commands:
+  status         Enhanced git status with suggestions
+  commit-msg     Generate AI commit message from staged changes
+  --help         Show this help
+
+Examples:
+  harm-cli git status
+  git add lib/*.sh && harm-cli git commit-msg
+  msg=$(harm-cli git commit-msg) && git commit -m "$msg"
+
+Notes:
+  - commit-msg requires staged changes
+  - commit-msg uses AI (requires API key)
+  - status works in any git repository
+EOF
+          ;;
+        commit-msg | commit)
+          git_commit_msg "$@"
+          ;;
+        status | st)
+          git_status_enhanced "$@"
+          ;;
+        *)
+          error_msg "Unknown git command: $subcmd"
+          echo "Try: harm-cli git --help"
+          exit "$EXIT_INVALID_ARGS"
+          ;;
+      esac
+      ;;
+    proj)
+      # shellcheck source=lib/proj.sh
+      source "$ROOT_DIR/lib/proj.sh"
+      subcmd="${1:-list}"
+      shift || true
+      case "$subcmd" in
+        --help | -h)
+          cat <<'EOF'
+harm-cli proj - Project management and switching
+
+Usage:
+  harm-cli proj [COMMAND] [ARGS]
+
+Commands:
+  list                List all registered projects
+  add <path> [name]   Add project to registry
+  remove <name>       Remove project from registry
+  switch <name>       Output cd command to switch to project
+  --help              Show this help
+
+Examples:
+  harm-cli proj list
+  harm-cli proj add ~/harm-cli
+  harm-cli proj add ~/myapp myapp
+  harm-cli proj switch myapp
+  eval "$(harm-cli proj switch myapp)"  # Actually switch
+
+Notes:
+  - Projects stored in: ~/.harm-cli/projects/registry.jsonl
+  - Project type auto-detected (nodejs, python, rust, go, shell)
+  - Switch outputs cd command (shell limitation)
+
+Shell Function (add to ~/.bashrc):
+  proj() { eval "$(harm-cli proj switch "$@")"; }
+EOF
+          ;;
+        list | ls)
+          proj_list "$@"
+          ;;
+        add)
+          proj_add "$@"
+          ;;
+        remove | rm)
+          proj_remove "$@"
+          ;;
+        switch | sw)
+          proj_switch "$@"
+          ;;
+        *)
+          error_msg "Unknown proj command: $subcmd"
+          echo "Try: harm-cli proj --help"
+          exit "$EXIT_INVALID_ARGS"
+          ;;
+      esac
+      ;;
+    docker)
+      # shellcheck source=lib/docker.sh
+      source "$ROOT_DIR/lib/docker.sh"
+      subcmd="${1:-status}"
+      shift || true
+      case "$subcmd" in
+        --help | -h)
+          cat <<'EOF'
+harm-cli docker - Docker and Docker Compose management
+
+Usage:
+  harm-cli docker [COMMAND] [ARGS]
+
+Commands:
+  status         Show service status (default)
+  up [services]  Start services (detached)
+  down           Stop and remove services
+  logs <service> View service logs
+  shell <service> Open shell in container
+  health         Check Docker environment health
+  --help         Show this help
+
+Examples:
+  harm-cli docker status
+  harm-cli docker up
+  harm-cli docker up backend database
+  harm-cli docker down
+  harm-cli docker logs backend
+  harm-cli docker shell backend
+  harm-cli docker health
+
+Notes:
+  - Auto-detects compose.yaml or docker-compose.yml
+  - Requires Docker daemon running
+  - Services start in detached mode (-d)
+  - Logs follow by default (-f)
+EOF
+          ;;
+        up)
+          docker_up "$@"
+          ;;
+        down)
+          docker_down "$@"
+          ;;
+        status | ps)
+          docker_status "$@"
+          ;;
+        logs)
+          docker_logs "$@"
+          ;;
+        shell | sh)
+          docker_shell "$@"
+          ;;
+        health)
+          docker_health "$@"
+          ;;
+        *)
+          error_msg "Unknown docker command: $subcmd"
+          echo "Try: harm-cli docker --help"
+          exit "$EXIT_INVALID_ARGS"
+          ;;
+      esac
       ;;
     *)
       die "Unknown command: $cmd. Run 'harm-cli help' for usage." 2
