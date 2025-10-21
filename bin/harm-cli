@@ -79,6 +79,7 @@ Commands:
   proj                    Project management and switching
   docker                  Docker and Docker Compose management
   python                  Python development environment
+  gcloud                  Google Cloud SDK integration
 
 Run 'harm-cli COMMAND --help' for more information on a command.
 
@@ -543,6 +544,42 @@ EOF
         *)
           error_msg "Unknown python command: $subcmd"
           echo "Try: harm-cli python --help"
+          exit "$EXIT_INVALID_ARGS"
+          ;;
+      esac
+      ;;
+    gcloud)
+      # shellcheck source=lib/gcloud.sh
+      source "$ROOT_DIR/lib/gcloud.sh"
+      subcmd="${1:-status}"
+      shift || true
+      case "$subcmd" in
+        --help | -h)
+          cat <<'EOF'
+harm-cli gcloud - Google Cloud SDK integration
+
+Usage:
+  harm-cli gcloud [COMMAND]
+
+Commands:
+  status         Show GCloud SDK status (default)
+  --help         Show this help
+
+Examples:
+  harm-cli gcloud status
+
+Notes:
+  - Shows SDK installation and configuration
+  - Provides setup instructions if needed
+  - Checks account and project settings
+EOF
+          ;;
+        status)
+          gcloud_status "$@"
+          ;;
+        *)
+          error_msg "Unknown gcloud command: $subcmd"
+          echo "Try: harm-cli gcloud --help"
           exit "$EXIT_INVALID_ARGS"
           ;;
       esac
