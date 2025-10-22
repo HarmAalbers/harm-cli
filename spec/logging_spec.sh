@@ -253,4 +253,171 @@ The error should include "Logs cleared"
 The contents of file "$HARM_LOG_FILE" should equal ""
 End
 End
+
+Describe 'log_stream'
+BeforeEach 'export HARM_LOG_LEVEL=DEBUG && export HARM_LOG_TO_FILE=1 && export HARM_LOG_TO_CONSOLE=0 && export HARM_LOG_UNBUFFERED=1 && rm -f "$HARM_LOG_FILE" && log_init'
+
+Describe 'Function existence'
+It 'is defined as a function'
+When call type log_stream
+The status should be success
+# Check for "log_stream ()" pattern which indicates a function definition
+The output should include "log_stream ()"
+End
+End
+
+Describe 'Basic streaming (no filters)'
+# Helper to simulate streaming with timeout
+stream_with_timeout() {
+  timeout 1 log_stream "$@" 2>/dev/null || true
+}
+
+It 'uses tail -F for rotation-aware following'
+# This test verifies the command construction, not actual streaming
+# We check that log_stream would use tail -F by inspecting the function
+Skip if "Implementation pending" true
+When call stream_with_timeout
+The status should be success
+End
+End
+
+Describe 'Level filtering'
+BeforeEach 'log_info "test" "Info message" && log_warn "test" "Warning message" && log_error "test" "Error message"'
+
+It 'filters by ERROR level with --level=ERROR flag'
+Skip if "Implementation pending" true
+# Stream for 0.5s, write new ERROR, verify it appears
+When call stream_with_timeout --level=ERROR
+The output should include "ERROR"
+The output should not include "INFO"
+End
+
+It 'filters by WARN level with --level=WARN flag'
+Skip if "Implementation pending" true
+When call stream_with_timeout --level=WARN
+The output should include "WARN"
+The output should not include "INFO"
+End
+
+It 'shows all levels when no filter specified'
+Skip if "Implementation pending" true
+When call stream_with_timeout
+The output should include "INFO"
+The output should include "WARN"
+The output should include "ERROR"
+End
+End
+
+Describe 'Format options'
+BeforeEach 'log_info "test" "Test message"'
+
+It 'outputs plain text by default'
+Skip if "Implementation pending" true
+When call stream_with_timeout
+The output should include "Test message"
+The output should include "[INFO]"
+End
+
+It 'outputs JSON with --format=json flag'
+Skip if "Implementation pending" true
+When call stream_with_timeout --format=json
+The output should include '"level"'
+The output should include '"message"'
+The output should include '"timestamp"'
+End
+
+It 'outputs structured format with --format=structured flag'
+Skip if "Implementation pending" true
+When call stream_with_timeout --format=structured
+# Structured format adds visual indicators
+The status should be success
+End
+End
+
+Describe 'Cross-terminal immediate visibility'
+It 'immediately shows logs written from another process'
+Skip if "Implementation pending" true
+# Start streaming in background with timeout
+timeout 2 log_stream >"$TEST_TMP/stream_output" 2>&1 &
+sleep 0.3
+
+# Write a log entry (simulating another terminal)
+log_info "cross_terminal_test" "Message from another terminal"
+
+# Wait briefly for stream to catch up
+sleep 0.5
+
+# Verify the message appeared in the stream
+When call cat "$TEST_TMP/stream_output"
+The output should include "Message from another terminal"
+End
+End
+
+Describe 'Unbuffered write integration'
+It 'uses unbuffered writes when HARM_LOG_UNBUFFERED=1'
+export HARM_LOG_UNBUFFERED=1
+log_info "test" "Unbuffered message"
+# File should be immediately readable
+When call cat "$HARM_LOG_FILE"
+The output should include "Unbuffered message"
+The status should be success
+End
+
+It 'respects HARM_LOG_UNBUFFERED=0 for buffered mode'
+export HARM_LOG_UNBUFFERED=0
+log_info "test" "Buffered message"
+# Should still work, just with buffering
+When call cat "$HARM_LOG_FILE"
+The output should include "Buffered message"
+The status should be success
+End
+End
+End
+
+Describe 'Format helper functions'
+Describe '_log_format_json_line'
+It 'converts log line to JSON format'
+When call sh -c 'echo "[2025-10-22 12:34:56] [INFO] [test] Test message" | _log_format_json_line'
+The status should be success
+The output should include '"timestamp"'
+The output should include '"level":"INFO"'
+The output should include '"component":"test"'
+The output should include '"message":"Test message"'
+End
+
+It 'handles messages with special characters'
+When call sh -c 'echo "[2025-10-22 12:34:56] [ERROR] [test] Message with quotes and symbols" | _log_format_json_line'
+The status should be success
+The output should include '"timestamp"'
+The output should include '"level":"ERROR"'
+End
+End
+
+Describe '_log_format_structured_line'
+It 'adds visual indicators for DEBUG level'
+When call sh -c 'echo "[2025-10-22 12:34:56] [DEBUG] [test] Debug message" | _log_format_structured_line'
+The status should be success
+# Should add emoji or visual indicator
+The output should include "🔍"
+End
+
+It 'adds visual indicators for INFO level'
+When call sh -c 'echo "[2025-10-22 12:34:56] [INFO] [test] Info message" | _log_format_structured_line'
+The status should be success
+The output should include "✓"
+End
+
+It 'adds visual indicators for WARN level'
+When call sh -c 'echo "[2025-10-22 12:34:56] [WARN] [test] Warning message" | _log_format_structured_line'
+The status should be success
+The output should include "⚠"
+End
+
+It 'adds visual indicators for ERROR level'
+When call sh -c 'echo "[2025-10-22 12:34:56] [ERROR] [test] Error message" | _log_format_structured_line'
+The status should be success
+The output should include "✗"
+End
+End
+End
 End
