@@ -363,6 +363,33 @@ log_perf_end() {
 # Streaming Functions (Cross-Terminal Real-Time Log Viewing)
 # ═══════════════════════════════════════════════════════════════
 
+# _log_build_level_filter: Build grep pattern for minimum level filtering
+# Usage: _log_build_level_filter "INFO"
+# Returns: grep pattern that matches INFO, WARN, ERROR (but not DEBUG)
+_log_build_level_filter() {
+  local min_level="${1:?_log_build_level_filter requires level}"
+
+  # Validate level
+  if [[ -z "${LOG_LEVELS[$min_level]:-}" ]]; then
+    echo "cat" # Invalid level, show everything
+    return 1
+  fi
+
+  local min_priority="${LOG_LEVELS[$min_level]}"
+  local pattern=""
+
+  # Build pattern for all levels >= min_priority
+  for lvl in DEBUG INFO WARN ERROR; do
+    local lvl_priority="${LOG_LEVELS[$lvl]}"
+    if ((lvl_priority >= min_priority)); then
+      pattern="${pattern:+$pattern|}\\[$lvl\\]"
+    fi
+  done
+
+  # Return grep command with pattern
+  echo "grep --line-buffered -E '($pattern)'"
+}
+
 # _log_format_json_line: Convert log line to JSON format
 # Usage: echo "log line" | _log_format_json_line
 _log_format_json_line() {
@@ -396,27 +423,53 @@ _log_format_structured_line() {
   '
 }
 
+# _log_format_colored_line: Add color to log lines based on level
+# Usage: echo "log line" | _log_format_colored_line
+_log_format_colored_line() {
+  awk '
+    /\[DEBUG\]/ { print "\033[2m" $0 "\033[0m"; next }
+    /\[INFO\]/  { print "\033[34m" $0 "\033[0m"; next }
+    /\[WARN\]/  { print "\033[33m" $0 "\033[0m"; next }
+    /\[ERROR\]/ { print "\033[31m" $0 "\033[0m"; next }
+    { print $0 }
+  '
+}
+
 # log_stream: Stream logs in real-time with cross-terminal support
-# Usage: log_stream [--level=LEVEL] [--format=FORMAT]
+# Usage: log_stream [--level=LEVEL] [--format=FORMAT] [--color=auto|always|never]
 #
 # Options:
-#   --level=LEVEL      Filter by log level (DEBUG|INFO|WARN|ERROR)
-#   --format=FORMAT    Output format (plain|json|structured)
+#   --level=LEVEL      Filter by minimum log level (shows level and above)
+#                      DEBUG shows: DEBUG, INFO, WARN, ERROR
+#                      INFO shows:  INFO, WARN, ERROR
+#                      WARN shows:  WARN, ERROR
+#                      ERROR shows: ERROR only
+#   --format=FORMAT    Output format (plain|json|structured|color)
+#                      plain: Raw log lines
+#                      json: JSON formatted output
+#                      structured: Visual indicators (✓ ⚠ ✗ 🔍)
+#                      color: Colored plain text
+#   --color=WHEN       Colorize output (auto|always|never)
+#                      auto: Color if terminal supports it (default)
+#                      always: Always colorize
+#                      never: Never colorize
 #
 # Examples:
 #   log_stream                           # Stream all logs
-#   log_stream --level=ERROR             # Stream only errors
+#   log_stream --level=INFO              # Stream INFO, WARN, ERROR (not DEBUG)
+#   log_stream --level=WARN --color=always   # Stream WARN+ERROR with colors
 #   log_stream --format=json             # Stream in JSON format
-#   log_stream --level=INFO --format=structured  # Combined options
+#   log_stream --level=ERROR --format=structured  # Errors with visual indicators
 #
 # Features:
 #   - Uses tail -F for rotation-aware following
 #   - Cross-terminal streaming (unbuffered writes)
 #   - Multiple output formats
-#   - Level filtering with immediate response
+#   - Minimum level filtering (industry standard behavior)
 log_stream() {
   local level=""
   local format="plain"
+  local color="auto"
 
   # Parse flags
   while [[ $# -gt 0 ]]; do
@@ -429,6 +482,10 @@ log_stream() {
         format="${1#*=}"
         shift
         ;;
+      --color=*)
+        color="${1#*=}"
+        shift
+        ;;
       --level)
         level="${2:?--level requires an argument}"
         shift 2
@@ -437,18 +494,24 @@ log_stream() {
         format="${2:?--format requires an argument}"
         shift 2
         ;;
+      --color)
+        color="${2:?--color requires an argument}"
+        shift 2
+        ;;
       *)
         shift
         ;;
     esac
   done
 
-  local log_file="$HARM_LOG_FILE"
-
-  # Use debug log if streaming debug level
-  if [[ "$level" == "DEBUG" ]]; then
-    log_file="$HARM_DEBUG_LOG_FILE"
+  # Validate log level if provided
+  if [[ -n "$level" && -z "${LOG_LEVELS[$level]:-}" ]]; then
+    error_msg "Invalid log level: $level (must be DEBUG, INFO, WARN, or ERROR)"
+    return 1
   fi
+
+  # Determine log file (use main log, debug logs are also in main when level >= DEBUG)
+  local log_file="$HARM_LOG_FILE"
 
   # Verify log file exists
   if [[ ! -f "$log_file" ]]; then
@@ -460,11 +523,17 @@ log_stream() {
   # KEY: Use tail -F (capital F) for rotation-aware following
   local tail_cmd="tail -F -n 0"
 
-  # Add level filtering if specified
+  # Add level filtering if specified (MINIMUM LEVEL - shows level and above)
   local filter_cmd="cat"
   if [[ -n "$level" ]]; then
-    # Use --line-buffered for immediate output
-    filter_cmd="grep --line-buffered -E '\\[$level\\]'"
+    filter_cmd=$(_log_build_level_filter "$level")
+  fi
+
+  # Handle format and color interaction
+  # If format=color, treat as plain+color
+  if [[ "$format" == "color" ]]; then
+    format="plain"
+    color="always"
   fi
 
   # Add format conversion
@@ -472,9 +541,28 @@ log_stream() {
   case "$format" in
     json)
       format_cmd="_log_format_json_line"
+      color="never" # JSON doesn't use colors
       ;;
     structured)
       format_cmd="_log_format_structured_line"
+      color="never" # Structured already has colors built-in
+      ;;
+    plain)
+      # Check if we should colorize
+      case "$color" in
+        always)
+          format_cmd="_log_format_colored_line"
+          ;;
+        auto)
+          # Check if stdout is a terminal
+          if [[ -t 1 ]]; then
+            format_cmd="_log_format_colored_line"
+          fi
+          ;;
+        never)
+          format_cmd="cat"
+          ;;
+      esac
       ;;
   esac
 
@@ -482,7 +570,9 @@ log_stream() {
   # Use stdbuf if available to eliminate buffering
   if command -v stdbuf >/dev/null 2>&1; then
     # stdbuf -o0 disables output buffering
-    if [[ "$format_cmd" == "_log_format_json_line" ]] || [[ "$format_cmd" == "_log_format_structured_line" ]]; then
+    if [[ "$format_cmd" == "_log_format_json_line" ]] \
+      || [[ "$format_cmd" == "_log_format_structured_line" ]] \
+      || [[ "$format_cmd" == "_log_format_colored_line" ]]; then
       # For shell functions, use while-read loop
       eval "stdbuf -o0 $tail_cmd '$log_file' | stdbuf -o0 $filter_cmd" | while IFS= read -r line; do
         $format_cmd <<<"$line"
@@ -493,7 +583,9 @@ log_stream() {
     fi
   else
     # Fallback without stdbuf
-    if [[ "$format_cmd" == "_log_format_json_line" ]] || [[ "$format_cmd" == "_log_format_structured_line" ]]; then
+    if [[ "$format_cmd" == "_log_format_json_line" ]] \
+      || [[ "$format_cmd" == "_log_format_structured_line" ]] \
+      || [[ "$format_cmd" == "_log_format_colored_line" ]]; then
       eval "$tail_cmd '$log_file' | $filter_cmd" | while IFS= read -r line; do
         $format_cmd <<<"$line"
       done
@@ -512,7 +604,8 @@ export -f log_debug log_info log_warn log_error
 export -f log_rotate_check log_rotate
 export -f log_tail log_search log_clear log_stats
 export -f log_perf_start log_perf_end
-export -f log_stream _log_format_json_line _log_format_structured_line
+export -f log_stream _log_build_level_filter
+export -f _log_format_json_line _log_format_structured_line _log_format_colored_line
 
 # Initialize on load
 log_init
