@@ -15,11 +15,41 @@ Complete guide for installing and configuring harm-cli on your system.
 This interactive script will:
 
 1. ✅ Check all required dependencies
-2. ✅ Create symlink in `~/.local/bin`
-3. ✅ Ask for your preferred shortcut style
-4. ✅ Install shell completions (bash or zsh)
-5. ✅ Update your shell config automatically
-6. ✅ Test the installation
+2. ✅ Choose installation mode (Quick or Custom)
+3. ✅ Configure all settings (paths, logging, AI, features)
+4. ✅ Create symlink in `~/.local/bin`
+5. ✅ Ask for your preferred shortcut style
+6. ✅ Generate configuration file (`~/.harm-cli/config.sh`)
+7. ✅ Install shell completions (bash or zsh)
+8. ✅ Update your shell config automatically
+9. ✅ Test the installation
+
+### Installation Modes
+
+The installer offers two modes:
+
+#### 1️⃣ **Quick Install** (Recommended for Most Users)
+
+Uses sensible defaults for everything. Perfect if you just want to get started quickly.
+
+**Defaults:**
+
+- Installation: `~/.local/bin`
+- Data directory: `~/.harm-cli`
+- Log level: `INFO`
+- Log max size: `10MB`
+- AI cache: `1 hour`
+- Completions: Enabled
+- PATH: Auto-added
+
+#### 2️⃣ **Custom Install** (For Power Users)
+
+Interactively configure every setting. Choose this if you need:
+
+- Custom installation paths
+- Specific logging behavior
+- Fine-tuned AI settings
+- Selective feature installation
 
 ### Or Use Just
 
@@ -95,11 +125,279 @@ h python test
 
 ---
 
+## 🛡️ Alias Conflict Detection
+
+### Overview
+
+The installer automatically checks for existing aliases that would conflict with harm-cli shortcuts. This prevents accidentally overriding your existing shell aliases.
+
+### How It Works
+
+1. **After you choose a shortcut style**, the installer scans your shell config file
+2. **If conflicts are found**, you'll see exactly which aliases conflict
+3. **You choose how to handle them** with 4 options
+
+### Example Conflict Detection
+
+```bash
+▶ Choose your shortcut style
+
+Enter your choice [1-4] (default: 4): 4
+
+⚠ Found existing aliases in ~/.bashrc:
+
+  • h
+    Current: alias h='history | tail -20'
+  • work
+    Current: alias work='cd ~/work'
+  • ai
+    Current: alias ai='python ~/scripts/ai.py'
+
+How would you like to proceed?
+
+  1) Override - Replace existing aliases with harm-cli aliases
+     ⚠  This will comment out your existing aliases
+
+  2) Skip - Keep existing aliases, don't add harm-cli aliases
+     ℹ  You can manually add later or use full commands
+
+  3) Choose Different Style - Pick a shortcut style without conflicts
+
+  4) Cancel - Exit installation
+
+Enter your choice [1-4] (default: 2):
+```
+
+### Conflict Resolution Options
+
+#### 1️⃣ **Override** - Replace Existing Aliases
+
+- ✅ Comments out your existing aliases with `# [harm-cli override]`
+- ✅ Creates timestamped backup: `.bashrc.backup-20251022-143025`
+- ✅ Adds harm-cli aliases
+- ⚠️ Your old aliases are preserved but inactive
+
+**Choose this if:** You want to use harm-cli shortcuts and rarely use the old aliases.
+
+#### 2️⃣ **Skip** - Keep Existing Aliases (Default)
+
+- ✅ Keeps your existing aliases unchanged
+- ✅ Skips adding harm-cli aliases
+- ✅ Adds comment to shell config about manual setup
+- ℹ️ You can still use full commands like `harm-cli work start`
+
+**Choose this if:** Your existing aliases are important and you don't mind typing full commands.
+
+#### 3️⃣ **Choose Different Style** - Avoid Conflicts
+
+- ✅ Returns to shortcut selection
+- ✅ Try a different style that doesn't conflict
+- 📝 Example: Switch from Hybrid to Minimal (`h` only)
+
+**Choose this if:** You want shortcuts but with minimal conflicts.
+
+#### 4️⃣ **Cancel** - Exit Installation
+
+- Exits the installer cleanly
+- No changes made to your system
+
+**Choose this if:** You need to review your aliases first.
+
+### After Override: What Happened
+
+If you chose **Override**, your `.bashrc` is modified like this:
+
+**Before:**
+
+```bash
+alias h='history | tail -20'
+alias work='cd ~/work'
+alias ai='python ~/scripts/ai.py'
+```
+
+**After:**
+
+```bash
+# [harm-cli override] alias h='history | tail -20'
+# [harm-cli override] alias work='cd ~/work'
+# [harm-cli override] alias ai='python ~/scripts/ai.py'
+
+# ═══════════════════════════════════════════════════════════════
+# harm-cli: Shell Integration
+# ═══════════════════════════════════════════════════════════════
+
+alias h='harm-cli'
+alias work='harm-cli work'
+alias ai='harm-cli ai'
+# ... etc
+```
+
+### Restoring Overridden Aliases
+
+If you change your mind later:
+
+```bash
+# Use the backup file
+cp ~/.bashrc.backup-20251022-143025 ~/.bashrc
+
+# Or manually uncomment in ~/.bashrc
+# Remove "# [harm-cli override] " prefix from lines
+```
+
+### Manual Alias Setup (If Skipped)
+
+If you chose **Skip** during installation, you can manually add aliases later:
+
+```bash
+# Edit your shell config
+vim ~/.bashrc
+
+# Add selected harm-cli aliases (avoid conflicts)
+alias hcli='harm-cli'        # Different name to avoid conflict
+alias hwork='harm-cli work'  # Prefix with 'h'
+alias hgoal='harm-cli goal'
+alias hai='harm-cli ai'
+```
+
+---
+
+## ⚙️ Configuration File
+
+### Overview
+
+The installer creates `~/.harm-cli/config.sh` which contains all your settings. This file is:
+
+- ✅ **Automatically sourced** on every harm-cli command
+- ✅ **Human-editable** - you can modify values manually
+- ✅ **Version-controllable** - add to your dotfiles repo
+- ✅ **Safe defaults** - uses fallback values if not set
+
+### Configurable Settings
+
+The installer prompts for these settings in **Custom Install** mode:
+
+#### 📂 Path Configuration
+
+| Setting         | Default            | Description                                |
+| --------------- | ------------------ | ------------------------------------------ |
+| `LOCAL_BIN`     | `~/.local/bin`     | Where symlink is created                   |
+| `HARM_CLI_HOME` | `~/.harm-cli`      | Data directory (goals, projects, sessions) |
+| `HARM_LOG_DIR`  | `~/.harm-cli/logs` | Log file directory                         |
+
+#### 📝 Logging Configuration
+
+| Setting              | Default       | Description                                  |
+| -------------------- | ------------- | -------------------------------------------- |
+| `HARM_LOG_LEVEL`     | `INFO`        | Log level (`DEBUG`, `INFO`, `WARN`, `ERROR`) |
+| `HARM_LOG_TO_FILE`   | `1` (enabled) | Write logs to file (0=disabled, 1=enabled)   |
+| `HARM_LOG_MAX_SIZE`  | `10MB`        | Maximum log file size before rotation        |
+| `HARM_LOG_MAX_FILES` | `5`           | Number of rotated log files to keep          |
+
+**Example:** Set `DEBUG` level for troubleshooting, `WARN` for quiet operation.
+
+#### 🤖 AI Configuration
+
+| Setting                  | Default         | Description                           |
+| ------------------------ | --------------- | ------------------------------------- |
+| `HARM_CLI_AI_CACHE_TTL`  | `3600` (1 hour) | AI response cache duration in seconds |
+| `HARM_CLI_AI_TIMEOUT`    | `20`            | AI request timeout in seconds         |
+| `HARM_CLI_AI_MAX_TOKENS` | `2048`          | Maximum tokens per AI request         |
+
+**Example:** Set cache to `0` to disable caching, or `7200` for 2-hour cache.
+
+#### 🎯 Feature Configuration
+
+| Setting                        | Default       | Description                              |
+| ------------------------------ | ------------- | ---------------------------------------- |
+| `HARM_CLI_FORMAT`              | `text`        | Default output format (`text` or `json`) |
+| `HARM_CLI_COMPLETIONS_ENABLED` | `1` (enabled) | Shell completions (set during install)   |
+
+### Editing Configuration Later
+
+You can modify settings in three ways:
+
+#### 1. **Edit the config file directly**
+
+```bash
+# Open in your editor
+vim ~/.harm-cli/config.sh
+
+# Example changes:
+export HARM_LOG_LEVEL="DEBUG"           # Enable debug logging
+export HARM_CLI_AI_CACHE_TTL="7200"     # Cache for 2 hours
+export HARM_CLI_FORMAT="json"           # Default to JSON output
+```
+
+#### 2. **Set environment variables in your shell**
+
+```bash
+# Add to ~/.bashrc or ~/.zshrc (overrides config.sh)
+export HARM_LOG_LEVEL="DEBUG"
+export HARM_CLI_FORMAT="json"
+```
+
+#### 3. **Re-run the installer**
+
+```bash
+# Uninstall first (keeps your data by default)
+./uninstall.sh
+
+# Run installer again to reconfigure
+./install.sh
+```
+
+### Example config.sh File
+
+```bash
+#!/usr/bin/env bash
+# ~/.harm-cli/config.sh
+# Generated by install.sh on 2025-10-22
+
+# ═══════════════════════════════════════════════════════════════
+# Path Configuration
+# ═══════════════════════════════════════════════════════════════
+
+export HARM_CLI_HOME="${HARM_CLI_HOME:-$HOME/.harm-cli}"
+export HARM_LOG_DIR="${HARM_LOG_DIR:-$HOME/.harm-cli/logs}"
+
+# ═══════════════════════════════════════════════════════════════
+# Logging Configuration
+# ═══════════════════════════════════════════════════════════════
+
+export HARM_LOG_LEVEL="${HARM_LOG_LEVEL:-INFO}"
+export HARM_LOG_TO_FILE="${HARM_LOG_TO_FILE:-1}"
+export HARM_LOG_MAX_SIZE="${HARM_LOG_MAX_SIZE:-10485760}"  # 10MB
+export HARM_LOG_MAX_FILES="${HARM_LOG_MAX_FILES:-5}"
+
+# ═══════════════════════════════════════════════════════════════
+# AI Configuration
+# ═══════════════════════════════════════════════════════════════
+
+export HARM_CLI_AI_CACHE_TTL="${HARM_CLI_AI_CACHE_TTL:-3600}"
+export HARM_CLI_AI_TIMEOUT="${HARM_CLI_AI_TIMEOUT:-20}"
+export HARM_CLI_AI_MAX_TOKENS="${HARM_CLI_AI_MAX_TOKENS:-2048}"
+
+# ═══════════════════════════════════════════════════════════════
+# Output Configuration
+# ═══════════════════════════════════════════════════════════════
+
+export HARM_CLI_FORMAT="${HARM_CLI_FORMAT:-text}"
+
+# ═══════════════════════════════════════════════════════════════
+# Feature Flags
+# ═══════════════════════════════════════════════════════════════
+
+export HARM_CLI_COMPLETIONS_ENABLED="${HARM_CLI_COMPLETIONS_ENABLED:-1}"
+```
+
+---
+
 ## 📦 What Gets Installed
 
 ### Files Created
 
 - **Symlink:** `~/.local/bin/harm-cli` → `~/harm-cli/bin/harm-cli`
+- **Configuration:** `~/.harm-cli/config.sh` (all your settings)
 - **Shell Integration:** Added to `~/.zshrc` or `~/.bashrc`
 
 ### Shell Config Additions
@@ -111,6 +409,11 @@ Example for **Hybrid** style in `.zshrc`:
 # harm-cli: Shell Integration
 # Generated by install.sh
 # ═══════════════════════════════════════════════════════════════
+
+# Source harm-cli configuration
+if [[ -f "$HOME/.harm-cli/config.sh" ]]; then
+  source "$HOME/.harm-cli/config.sh"
+fi
 
 # harm-cli: Main alias for less common commands
 alias h='harm-cli'
@@ -155,7 +458,21 @@ harm-cli doctor
 # Checks all dependencies
 ```
 
-### 3. Test Your Shortcuts
+### 3. Check Your Configuration
+
+```bash
+# View your configuration
+cat ~/.harm-cli/config.sh
+
+# Test that environment variables are set
+echo $HARM_CLI_HOME
+# Output: /Users/harm/.harm-cli
+
+echo $HARM_LOG_LEVEL
+# Output: INFO (or your custom value)
+```
+
+### 4. Test Your Shortcuts
 
 ```bash
 # If you chose Hybrid style:
@@ -168,7 +485,7 @@ goal set "learn harm-cli" 30m
 ai "what are best practices for bash scripts?"
 ```
 
-### 4. Tab Completion
+### 5. Tab Completion
 
 ```bash
 harm-cli <TAB>      # Shows all commands
