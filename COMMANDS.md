@@ -1047,6 +1047,84 @@ harm-cli work stop && harm-cli ai daily
 
 ---
 
+## 📚 Interactive Learning & Discovery
+
+### Learn Command - AI-Powered Tutorials
+
+Get comprehensive tutorial on any topic
+
+```bash
+harm-cli learn git          # Git workflows
+harm-cli learn docker       # Docker & containers
+harm-cli learn python       # Python development
+harm-cli learn bash         # Shell scripting
+harm-cli learn productivity # Time management
+harm-cli learn harm-cli     # Advanced harm-cli usage
+```
+
+List all available topics
+
+```bash
+harm-cli learn --list
+```
+
+### Discover - Feature Suggestions
+
+Get personalized feature recommendations
+
+```bash
+harm-cli discover
+```
+
+**How it works:**
+- Analyzes your command patterns from activity tracking
+- AI suggests harm-cli features that match your workflow
+- Shows specific examples for your use cases
+
+Example output:
+```
+🔍 Discovering harm-cli Features...
+
+Based on your git usage, here are features to try:
+
+1. **AI Commit Messages** - Generate conventional commits
+   Try: harm-cli git commit-msg
+
+2. **Insights** - See your git patterns
+   Try: harm-cli insights show week
+
+3. **Work Enforcement** - Stay focused on one branch
+   Try: harm-cli work set-mode strict
+```
+
+### Unused - Find What You're Missing
+
+Discover commands you haven't tried
+
+```bash
+harm-cli unused
+```
+
+Shows:
+- All harm-cli commands you've never used
+- Suggestions to explore new features
+- Helps maximize your productivity
+
+### Cheat - Quick Reference
+
+Get instant command examples
+
+```bash
+harm-cli cheat curl        # curl examples
+harm-cli cheat git         # git examples
+harm-cli cheat docker      # docker examples
+harm-cli cheat tar         # tar examples
+```
+
+**Powered by:** https://cheat.sh
+
+---
+
 ## 🪝 Shell Hooks (Advanced)
 
 harm-cli includes a powerful shell hooks system for automation and advanced features.
@@ -1140,6 +1218,8 @@ export HARM_HOOKS_DEBUG=1
 | **Insights**    | `harm-cli insights show week` | Productivity insights   |
 | **Focus**       | `harm-cli focus check`        | Focus monitoring        |
 | **AI**          | `harm-cli ai "question"`      | Ask AI assistant        |
+| **Learn**       | `harm-cli learn git`          | Interactive tutorials   |
+| **Discover**    | `harm-cli discover`           | Feature suggestions     |
 | **Git**         | `harm-cli git commit-msg`     | Generate commit message |
 | **Projects**    | `harm-cli proj list`          | List all projects       |
 | **Docker**      | `harm-cli docker up`          | Start services          |

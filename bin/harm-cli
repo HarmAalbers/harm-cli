@@ -78,6 +78,10 @@ Commands:
   insights                Productivity insights and analytics
   focus                   Focus monitoring and pomodoro timer
   ai                      AI assistant commands (Gemini)
+  learn                   Interactive learning modules
+  discover                Discover helpful features
+  unused                  Find unused commands
+  cheat                   Quick command reference (cheat.sh)
   git                     Enhanced git workflows with AI
   proj                    Project management and switching
   docker                  Docker and Docker Compose management
@@ -569,6 +573,118 @@ EOF
           ai_query "$subcmd" "$@"
           ;;
       esac
+      ;;
+    learn)
+      # shellcheck source=lib/learn.sh
+      source "$ROOT_DIR/lib/learn.sh"
+      topic="${1:-}"
+      if [[ -z "$topic" || "$topic" == "--help" || "$topic" == "-h" ]]; then
+        cat <<'EOF'
+harm-cli learn - Interactive learning modules
+
+Usage:
+  harm-cli learn <topic>
+  harm-cli learn --list
+
+Topics:
+  git          Advanced git workflows and commands
+  docker       Container management and orchestration
+  python       Python development, testing, and tools
+  bash         Shell scripting and Bash features
+  productivity Time management and focus techniques
+  harm-cli     Advanced harm-cli features and workflows
+
+Examples:
+  harm-cli learn git
+  harm-cli learn docker
+  harm-cli learn --list
+
+Note: Uses AI to provide interactive, personalized tutorials.
+EOF
+      elif [[ "$topic" == "--list" ]]; then
+        learn_list
+      else
+        learn_topic "$topic"
+      fi
+      ;;
+    discover)
+      # shellcheck source=lib/learn.sh
+      source "$ROOT_DIR/lib/learn.sh"
+      if [[ "${1:-}" == "--help" || "${1:-}" == "-h" ]]; then
+        cat <<'EOF'
+harm-cli discover - Discover helpful features
+
+Usage:
+  harm-cli discover
+
+Description:
+  Analyzes your command patterns and suggests harm-cli features
+  that would be helpful for your workflow.
+
+  Uses AI to provide personalized recommendations based on
+  your actual usage patterns from activity tracking.
+
+Examples:
+  harm-cli discover
+
+Note: Requires activity tracking to be enabled.
+EOF
+      else
+        discover_features
+      fi
+      ;;
+    unused)
+      # shellcheck source=lib/learn.sh
+      source "$ROOT_DIR/lib/learn.sh"
+      if [[ "${1:-}" == "--help" || "${1:-}" == "-h" ]]; then
+        cat <<'EOF'
+harm-cli unused - Find unused commands
+
+Usage:
+  harm-cli unused
+
+Description:
+  Shows harm-cli commands you haven't tried yet.
+
+  Analyzes your activity log to identify features you might
+  be missing out on. Great for discovering new capabilities!
+
+Examples:
+  harm-cli unused
+
+Note: Requires activity tracking to be enabled.
+      Shows commands from last 90 days of activity.
+EOF
+      else
+        find_unused_commands
+      fi
+      ;;
+    cheat)
+      # shellcheck source=lib/learn.sh
+      source "$ROOT_DIR/lib/learn.sh"
+      query="${1:-}"
+      if [[ -z "$query" || "$query" == "--help" || "$query" == "-h" ]]; then
+        cat <<'EOF'
+harm-cli cheat - Quick command reference
+
+Usage:
+  harm-cli cheat <command>
+
+Description:
+  Fetches cheat sheet from cheat.sh for any command.
+  Quick reference for syntax, options, and examples.
+
+Examples:
+  harm-cli cheat curl
+  harm-cli cheat git
+  harm-cli cheat docker
+  harm-cli cheat tar
+
+Source: https://cheat.sh
+EOF
+      else
+        cheat_lookup "$query"
+      fi
       ;;
     git)
       # shellcheck source=lib/git.sh
