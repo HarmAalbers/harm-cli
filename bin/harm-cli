@@ -74,6 +74,7 @@ Commands:
 
   work                    Work session management
   goal                    Goal tracking and progress
+  activity                Activity tracking and command logging
   ai                      AI assistant commands (Gemini)
   git                     Enhanced git workflows with AI
   proj                    Project management and switching
@@ -275,6 +276,56 @@ EOF
         stop) work_stop "$@" ;;
         status) work_status "$@" ;;
         *) die "Unknown work command: $subcmd. Try: start, stop, status" 2 ;;
+      esac
+      ;;
+    activity)
+      # shellcheck source=lib/activity.sh
+      source "$ROOT_DIR/lib/activity.sh"
+      subcmd="${1:-query}"
+      shift || true
+      case "$subcmd" in
+        --help | -h)
+          cat <<'EOF'
+harm-cli activity - Activity tracking and command logging
+
+Usage:
+  harm-cli activity [COMMAND] [ARGS]
+
+Commands:
+  query <period>    Query activity log (default)
+                    Periods: today, yesterday, week, month, all
+  stats <period>    Show activity statistics
+  clear             Clear all activity data (use with caution!)
+  cleanup           Remove old entries (older than 90 days)
+  --help            Show this help
+
+Examples:
+  harm-cli activity query today
+  harm-cli activity query week | jq -r '.command'
+  harm-cli activity stats today
+  harm-cli activity stats week
+
+Note: Activity tracking is automatic via shell hooks.
+      Logs: ~/.harm-cli/activity/activity.jsonl
+EOF
+          ;;
+        query)
+          period="${1:-today}"
+          activity_query "$period"
+          ;;
+        stats)
+          period="${1:-today}"
+          activity_stats "$period"
+          ;;
+        clear)
+          activity_clear
+          ;;
+        cleanup)
+          activity_cleanup
+          ;;
+        *)
+          die "Unknown activity command: $subcmd. Try: query, stats, clear, cleanup" 2
+          ;;
       esac
       ;;
     goal)

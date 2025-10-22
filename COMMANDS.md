@@ -230,6 +230,97 @@ harm-cli work stop
 
 ---
 
+## 📊 Activity Tracking
+
+Query activity log for today
+
+```bash
+harm-cli activity query today
+```
+
+Query activity for specific period
+
+```bash
+harm-cli activity query week        # Last 7 days
+harm-cli activity query month       # Last 30 days
+harm-cli activity query all         # All recorded activity
+```
+
+Show activity statistics
+
+```bash
+harm-cli activity stats today
+harm-cli activity stats week
+```
+
+Clear all activity data
+
+```bash
+harm-cli activity clear
+```
+
+Clean up old entries (>90 days)
+
+```bash
+harm-cli activity cleanup
+```
+
+### Query Activity Data with jq
+
+Extract commands only
+
+```bash
+harm-cli activity query today | jq -r '.command'
+```
+
+Find failed commands
+
+```bash
+harm-cli activity query week | jq 'select(.exit_code != 0)'
+```
+
+Find slow commands (>1 second)
+
+```bash
+harm-cli activity query today | jq 'select(.duration_ms > 1000)'
+```
+
+Get commands by project
+
+```bash
+harm-cli activity query week | jq 'select(.project == "myapp")'
+```
+
+### Configuration
+
+Enable/disable activity tracking
+
+```bash
+export HARM_ACTIVITY_ENABLED=1     # Enable (default)
+export HARM_ACTIVITY_ENABLED=0     # Disable
+```
+
+Set minimum duration threshold (ms)
+
+```bash
+export HARM_ACTIVITY_MIN_DURATION_MS=100  # Default
+export HARM_ACTIVITY_MIN_DURATION_MS=500  # Only log slow commands
+```
+
+Exclude specific commands
+
+```bash
+export HARM_ACTIVITY_EXCLUDE="ls cd pwd clear"  # Default
+```
+
+Set retention period (days)
+
+```bash
+export HARM_ACTIVITY_RETENTION_DAYS=90  # Default
+```
+
+---
+
 ## 🎯 Goal Tracking
 
 Set a new goal with estimated time
@@ -709,6 +800,7 @@ export HARM_HOOKS_DEBUG=1
 | **Testing**     | `just test`                   | Run all tests           |
 | **Work**        | `harm-cli work start "task"`  | Start work session      |
 | **Goals**       | `harm-cli goal set "goal" 4h` | Set new goal            |
+| **Activity**    | `harm-cli activity stats`     | View activity stats     |
 | **AI**          | `harm-cli ai "question"`      | Ask AI assistant        |
 | **Git**         | `harm-cli git commit-msg`     | Generate commit message |
 | **Projects**    | `harm-cli proj list`          | List all projects       |
