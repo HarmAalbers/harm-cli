@@ -632,6 +632,63 @@ Clear all completed goals
 harm-cli goal clear
 ```
 
+### AI Goal Validation (Automatic)
+
+**How It Works:**
+
+AI automatically validates significant commands against your active goal:
+
+1. You set a goal: `harm-cli goal set "Implement user authentication" 4h`
+2. You run a command: `git commit -m "add login form"`
+3. AI checks alignment (background, non-blocking)
+4. If misaligned, you get a notification:
+
+```
+🤔 Goal Alignment Check:
+   Goal: Implement user authentication
+   Command: npm install lodash
+
+   AI: NO - Installing lodash doesn't directly relate to
+       implementing authentication. Consider if this is necessary.
+```
+
+**Validated Commands:**
+
+- git, npm, docker, python (all development tools)
+- vim, code, emacs (file editing)
+- make, cargo, go, mvn (build tools)
+- kubectl, helm (deployment)
+
+**Ignored Commands:**
+
+- ls, cd, pwd, cat (navigation)
+- grep, find (searching)
+- history, man, help (reference)
+
+**Configuration:**
+
+Enable/disable AI validation
+
+```bash
+export HARM_GOAL_VALIDATION_ENABLED=1  # Enable (default)
+export HARM_GOAL_VALIDATION_ENABLED=0  # Disable
+```
+
+Set validation frequency (seconds)
+
+```bash
+export HARM_GOAL_VALIDATION_FREQUENCY=60   # Every minute (default)
+export HARM_GOAL_VALIDATION_FREQUENCY=300  # Every 5 minutes (less intrusive)
+```
+
+**How It Helps:**
+
+- Keeps you aligned with goals
+- Detects scope creep early
+- Prevents rabbit holes
+- Maintains focus
+- Non-blocking (doesn't slow you down)
+
 ---
 
 ## 🤖 AI Assistant (Gemini)
