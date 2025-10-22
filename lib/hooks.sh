@@ -103,9 +103,12 @@ _hooks_is_interactive() {
 #
 # Description:
 #   Safety check to prevent hook execution in inappropriate contexts:
-#   - Non-interactive shells
+#   - Non-interactive shells (unless in test mode)
 #   - Recursive hook calls
 #   - Disabled hook system
+#
+# Environment:
+#   HARM_HOOKS_TEST_MODE - Set to 1 to allow hooks in non-interactive shells (for testing)
 #
 # Returns:
 #   0 - Hooks should run
@@ -114,8 +117,10 @@ _hooks_should_run() {
   # Don't run if hooks disabled
   [[ $HARM_HOOKS_ENABLED -eq 1 ]] || return 1
 
-  # Don't run if not interactive
-  _hooks_is_interactive || return 1
+  # Don't run if not interactive (unless in test mode)
+  if [[ "${HARM_HOOKS_TEST_MODE:-0}" -ne 1 ]]; then
+    _hooks_is_interactive || return 1
+  fi
 
   # Don't run if already in a hook (prevent recursion)
   [[ $_HARM_IN_HOOK -eq 0 ]] || return 1
@@ -211,8 +216,8 @@ _harm_preexec_handler() {
     return 0
   fi
 
-  # Get the command being executed
-  local cmd="$BASH_COMMAND"
+  # Get the command being executed (in test mode, use _TEST_BASH_COMMAND)
+  local cmd="${_TEST_BASH_COMMAND:-$BASH_COMMAND}"
 
   # Skip if in subshell (not top-level command)
   [[ $BASH_SUBSHELL -eq 0 ]] || return 0
@@ -223,7 +228,7 @@ _harm_preexec_handler() {
   esac
 
   # Skip if this is part of PROMPT_COMMAND execution
-  [[ "$cmd" == "$PROMPT_COMMAND" ]] && return 0
+  [[ "$cmd" == "${PROMPT_COMMAND:-}" ]] && return 0
 
   # No hooks registered
   [[ ${#_HARM_PREEXEC_HOOKS[@]} -eq 0 ]] && return 0

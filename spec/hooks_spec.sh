@@ -13,6 +13,7 @@ setup_hooks_env() {
   export HARM_CLI_HOME="${SHELLSPEC_TMPBASE}/harm-cli"
   export HARM_HOOKS_ENABLED=1
   export HARM_HOOKS_DEBUG=0
+  export HARM_HOOKS_TEST_MODE=1
   mkdir -p "$HARM_CLI_HOME"
 }
 
@@ -29,14 +30,16 @@ It 'loads without errors'
 When call source lib/hooks.sh
 The status should be success
 End
+End
+
+Describe 'Module state'
+Include lib/hooks.sh
 
 It 'sets _HARM_HOOKS_LOADED flag'
-Include lib/hooks.sh
 The variable _HARM_HOOKS_LOADED should equal 1
 End
 
 It 'exports hook management functions'
-Include lib/hooks.sh
 The function harm_add_hook should be defined
 The function harm_remove_hook should be defined
 The function harm_list_hooks should be defined
@@ -107,6 +110,7 @@ End
 It 'fails with invalid hook type'
 When call harm_remove_hook invalid_type test_hook
 The status should equal 1
+The stderr should include "Unknown hook type"
 End
 
 It 'returns error when hook not found'
@@ -213,12 +217,17 @@ The output should include "Exit: 0"
 End
 
 It 'preserves exit code'
+test_exit_preservation() {
+  (exit 42)
+  _harm_precmd_handler
+}
+
 harm_add_hook precmd precmd_test_hook
 _HARM_IN_HOOK=0
 
-(exit 42)
-When call _harm_precmd_handler
+When call test_exit_preservation
 The status should equal 42
+The output should include "Exit: 42"
 End
 End
 
@@ -231,7 +240,7 @@ preexec_test_hook() {
 
 It 'captures command before execution'
 harm_add_hook preexec preexec_test_hook
-BASH_COMMAND="ls -la"
+_TEST_BASH_COMMAND="ls -la"
 BASH_SUBSHELL=0
 _HARM_SKIP_NEXT_DEBUG=0
 _HARM_IN_HOOK=0
@@ -242,7 +251,7 @@ End
 
 It 'skips internal commands'
 harm_add_hook preexec preexec_test_hook
-BASH_COMMAND="_harm_chpwd_handler"
+_TEST_BASH_COMMAND="_harm_chpwd_handler"
 BASH_SUBSHELL=0
 _HARM_IN_HOOK=0
 
@@ -280,14 +289,15 @@ End
 Describe 'harm_hooks_init'
 It 'does not initialize when hooks disabled'
 export HARM_HOOKS_ENABLED=0
-Include lib/hooks.sh
-
-When call harm_hooks_init
+When call bash -c "source lib/hooks.sh && harm_hooks_init"
 The status should equal 1
 End
+End
+
+Describe 'harm_hooks_init function'
+Include lib/hooks.sh
 
 It 'function exists and is exported'
-Include lib/hooks.sh
 The function harm_hooks_init should be defined
 End
 End
@@ -324,6 +334,7 @@ _HARM_IN_HOOK=0
 
 When call _harm_chpwd_handler
 The status should be success
+The stderr should include "chpwd hook failed"
 End
 
 It 'handles missing hook functions gracefully'
@@ -334,7 +345,7 @@ _HARM_IN_HOOK=0
 
 When call _harm_chpwd_handler
 The status should be success
-The stderr should include "Hook function not found"
+The stderr should include "chpwd hook not found"
 End
 End
 
@@ -349,12 +360,14 @@ export HARM_HOOKS_ENABLED=0
 When run bash -c "source lib/hooks.sh && harm_hooks_init"
 The status should equal 1
 End
+End
 
-It 'enables debug logging when HARM_HOOKS_DEBUG=1'
+Describe 'Hook system debug mode'
 export HARM_HOOKS_DEBUG=1
 export HARM_CLI_LOG_LEVEL=DEBUG
-
 Include lib/hooks.sh
+
+It 'enables debug logging when HARM_HOOKS_DEBUG=1'
 test_hook() { echo 'test'; }
 
 When call harm_add_hook chpwd test_hook
@@ -418,4 +431,6 @@ The output should include "chpwd_test"
 The output should include "preexec_test"
 The output should include "precmd_test"
 End
+End
+
 End
