@@ -46,8 +46,10 @@ End
 End
 
 Describe "ShellCheck compliance"
-It "passes ShellCheck with project rules"
+It "passes ShellCheck with project rules (if shellcheck available)"
 # This would have caught the bug if install.sh was linted
+# Skip if shellcheck is not installed
+Skip if "shellcheck is not installed" ! command -v shellcheck >/dev/null 2>&1
 When run shellcheck install.sh --exclude=2016,2034,2094,2148,2155
 The status should be success
 End

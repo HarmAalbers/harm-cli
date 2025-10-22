@@ -31,7 +31,8 @@ for file in "$@"; do
       func_name="${BASH_REMATCH[1]}"
 
       # Get the function body (simplified - just check first 20 lines)
-      func_body=$(sed -n "/^${func_name}()/,/^}/p" "$file" | head -20)
+      # Use || true to prevent SIGPIPE (exit 141) when head closes pipe early
+      func_body=$(sed -n "/^${func_name}()/,/^}/p" "$file" | head -20 || true)
 
       # Check if function uses variables that look like they should be parameters
       # Pattern: Uses $var but doesn't have 'local var=' or 'var="$1"'
