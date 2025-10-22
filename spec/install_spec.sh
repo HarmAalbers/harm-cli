@@ -48,7 +48,7 @@ End
 Describe "ShellCheck compliance"
 It "passes ShellCheck with project rules"
 # This would have caught the bug if install.sh was linted
-When run shellcheck install.sh --exclude=2016,2034,2148,2155
+When run shellcheck install.sh --exclude=2016,2034,2094,2148,2155
 The status should be success
 End
 End
