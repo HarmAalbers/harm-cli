@@ -294,6 +294,104 @@ export HARM_WORK_DISTRACTION_THRESHOLD=5  # More lenient
 
 ---
 
+## 🎯 Focus Monitoring & Pomodoro
+
+Show focus summary and score
+
+```bash
+harm-cli focus check
+harm-cli focus score
+```
+
+Start pomodoro timer
+
+```bash
+harm-cli focus pomodoro          # 25 minutes (default)
+harm-cli focus pomodoro 50       # Custom duration
+```
+
+Pomodoro timer management
+
+```bash
+harm-cli focus pomodoro-status   # Check timer status
+harm-cli focus pomodoro-stop     # Stop timer
+```
+
+### How Focus Monitoring Works
+
+**Automatic Checks:**
+
+- Runs every 15 minutes during work sessions
+- Shows focus summary with recommendations
+- Calculates focus score (1-10)
+- Tracks context switches
+
+**Focus Score Calculation:**
+
+- Base score: 5
+- Active work session: +2
+- Zero violations: +2
+- Recent activity: +1
+- Violations penalty: -1 to -3
+
+**Periodic Focus Check Includes:**
+
+- Current goal
+- Recent commands (last 10)
+- Focus score
+- Violation count
+- Actionable recommendations
+
+### Pomodoro Technique
+
+Classic 25-minute focus sessions
+
+```bash
+harm-cli work start "Implement feature X"
+harm-cli focus pomodoro 25
+# ... work for 25 minutes ...
+# 🔔 Notification: "Pomodoro Complete! Time for a 5-minute break"
+```
+
+Custom pomodoro durations
+
+```bash
+harm-cli focus pomodoro 50   # 50-minute deep work
+harm-cli focus pomodoro 15   # Quick sprint
+```
+
+### Configuration
+
+Set check interval (seconds)
+
+```bash
+export HARM_FOCUS_CHECK_INTERVAL=900   # 15 minutes (default)
+export HARM_FOCUS_CHECK_INTERVAL=1800  # 30 minutes
+```
+
+Set pomodoro duration (minutes)
+
+```bash
+export HARM_POMODORO_DURATION=25  # Default
+export HARM_POMODORO_DURATION=50  # Longer sessions
+```
+
+Set break duration (minutes)
+
+```bash
+export HARM_BREAK_DURATION=5   # Default
+export HARM_BREAK_DURATION=10  # Longer breaks
+```
+
+Enable/disable focus monitoring
+
+```bash
+export HARM_FOCUS_ENABLED=1  # Enable (default)
+export HARM_FOCUS_ENABLED=0  # Disable periodic checks
+```
+
+---
+
 ## 📊 Activity Tracking
 
 Query activity log for today
@@ -983,6 +1081,7 @@ export HARM_HOOKS_DEBUG=1
 | **Goals**       | `harm-cli goal set "goal" 4h` | Set new goal            |
 | **Activity**    | `harm-cli activity stats`     | View activity stats     |
 | **Insights**    | `harm-cli insights show week` | Productivity insights   |
+| **Focus**       | `harm-cli focus check`        | Focus monitoring        |
 | **AI**          | `harm-cli ai "question"`      | Ask AI assistant        |
 | **Git**         | `harm-cli git commit-msg`     | Generate commit message |
 | **Projects**    | `harm-cli proj list`          | List all projects       |

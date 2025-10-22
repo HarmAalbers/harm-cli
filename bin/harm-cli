@@ -76,6 +76,7 @@ Commands:
   goal                    Goal tracking and progress
   activity                Activity tracking and command logging
   insights                Productivity insights and analytics
+  focus                   Focus monitoring and pomodoro timer
   ai                      AI assistant commands (Gemini)
   git                     Enhanced git workflows with AI
   proj                    Project management and switching
@@ -396,6 +397,63 @@ EOF
           ;;
         *)
           die "Unknown insights command: $subcmd. Try: show, daily, export, json" 2
+          ;;
+      esac
+      ;;
+    focus)
+      # shellcheck source=lib/focus.sh
+      source "$ROOT_DIR/lib/focus.sh"
+      subcmd="${1:-check}"
+      shift || true
+      case "$subcmd" in
+        --help | -h)
+          cat <<'EOF'
+harm-cli focus - Focus monitoring and pomodoro timer
+
+Usage:
+  harm-cli focus [COMMAND] [ARGS]
+
+Commands:
+  check                 Show focus summary (default)
+  score                 Show current focus score (1-10)
+  pomodoro [duration]   Start pomodoro timer (default: 25m)
+  pomodoro-stop         Stop pomodoro timer
+  pomodoro-status       Show pomodoro status
+  --help                Show this help
+
+Examples:
+  harm-cli focus check
+  harm-cli focus score
+  harm-cli focus pomodoro 25
+  harm-cli focus pomodoro-status
+
+Configuration:
+  HARM_FOCUS_CHECK_INTERVAL=900    # Check every 15 minutes (default)
+  HARM_POMODORO_DURATION=25        # 25-minute sessions (default)
+  HARM_BREAK_DURATION=5            # 5-minute breaks (default)
+  HARM_FOCUS_ENABLED=1             # Enable monitoring (default)
+
+Note: Automatic focus checks run every 15 minutes during work sessions.
+      Pomodoro timer sends notification when complete.
+EOF
+          ;;
+        check)
+          focus_check
+          ;;
+        score)
+          focus_calculate_score
+          ;;
+        pomodoro)
+          pomodoro_start "${1:-$HARM_POMODORO_DURATION}"
+          ;;
+        pomodoro-stop)
+          pomodoro_stop
+          ;;
+        pomodoro-status)
+          pomodoro_status
+          ;;
+        *)
+          die "Unknown focus command: $subcmd. Try: check, score, pomodoro, pomodoro-stop, pomodoro-status" 2
           ;;
       esac
       ;;
