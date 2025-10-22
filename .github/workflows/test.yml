@@ -28,16 +28,27 @@ jobs:
         # Use homebrew bash (5.x) instead of system bash (3.2) to support modern features
         # Note: ShellSpec exits with code 101 for warnings (not failures)
         # We treat warnings as acceptable (0 failures = success)
+        shell: bash
         run: |
+          set +e  # Don't exit on error, we'll handle it
           BASH_PATH="$(brew --prefix)/bin/bash"
           shellspec -s "$BASH_PATH"
           EXIT_CODE=$?
-          if [ $EXIT_CODE -eq 0 ] || [ $EXIT_CODE -eq 101 ]; then
-            echo "✅ Tests passed (exit code: $EXIT_CODE)"
+          set -e  # Re-enable exit on error
+
+          echo "ShellSpec exit code: $EXIT_CODE"
+
+          # Exit codes:
+          # 0   = All tests passed, no warnings
+          # 101 = Tests passed, but has warnings (acceptable)
+          # Other = Actual failures
+
+          if [[ $EXIT_CODE -eq 0 ]] || [[ $EXIT_CODE -eq 101 ]]; then
+            echo "✅ Tests passed (warnings are acceptable)"
             exit 0
           else
-            echo "❌ Tests failed (exit code: $EXIT_CODE)"
-            exit $EXIT_CODE
+            echo "❌ Tests failed with exit code: $EXIT_CODE"
+            exit 1
           fi
 
   pre-commit:

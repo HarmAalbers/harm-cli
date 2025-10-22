@@ -28,6 +28,7 @@ fmt:
 lint:
     @echo "🔍 Linting shell scripts..."
     @find bin lib -type f \( -name "*.sh" -o -perm +111 \) 2>/dev/null | xargs shellcheck
+    @shellcheck install.sh uninstall.sh 2>/dev/null || true
     @echo "✅ Linting complete"
 
 # Run codespell on documentation

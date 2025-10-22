@@ -832,6 +832,8 @@ EOF
 }
 
 install_completions() {
+  local aliases_file="$1"
+
   # Skip if completions disabled
   if [[ "$INSTALL_COMPLETIONS" != "yes" ]]; then
     print_warning "Shell completions disabled (skipped)"
@@ -1143,7 +1145,7 @@ main() {
 
   # Generate shell aliases
   aliases_file=$(generate_aliases)
-  install_completions
+  install_completions "$aliases_file"
   add_to_shell_rc "$aliases_file"
 
   # Clean up temp file

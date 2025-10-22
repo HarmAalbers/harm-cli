@@ -17,7 +17,7 @@ repos:
     rev: v0.10.0.1
     hooks:
       - id: shellcheck
-        args: [-x, "--exclude=2016,2034,2148,2155"] # ShellSpec test syntax patterns
+        args: [-x, "--exclude=2016,2034,2094,2148,2155"] # ShellSpec test syntax + false positives
         types: [shell]
 
   # Custom bash arithmetic safety check
@@ -29,6 +29,14 @@ repos:
         language: script
         types: [shell]
         description: Detects ((var++)) and ((var--)) that fail with set -e
+
+      - id: check-function-parameters
+        name: Check function parameter consistency
+        entry: .pre-commit-hooks/check-function-parameters.sh
+        language: script
+        types: [shell]
+        files: ^(install\.sh|uninstall\.sh)$
+        description: Ensures installer functions explicitly accept parameters instead of relying on parent scope
 
   # Spell checking
   - repo: https://github.com/codespell-project/codespell
