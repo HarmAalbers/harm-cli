@@ -260,6 +260,9 @@ work_stop() {
   # Remove current state
   rm -f "$HARM_WORK_STATE_FILE"
 
+  # Clear enforcement state
+  work_enforcement_clear 2>/dev/null || true
+
   log_info "work" "Work session stopped" "Duration: ${total_seconds}s"
 
   if [[ "${HARM_CLI_FORMAT:-text}" == "json" ]]; then
@@ -476,9 +479,232 @@ work_focus_score() {
 }
 
 # ═══════════════════════════════════════════════════════════════
+# Work Enforcement System
+# ═══════════════════════════════════════════════════════════════
+
+# Enforcement state file
+HARM_WORK_ENFORCEMENT_FILE="${HARM_WORK_ENFORCEMENT_FILE:-${HARM_WORK_DIR}/enforcement.json}"
+readonly HARM_WORK_ENFORCEMENT_FILE
+
+# Enforcement mode: strict, moderate, coaching, off
+HARM_WORK_ENFORCEMENT="${HARM_WORK_ENFORCEMENT:-moderate}"
+readonly HARM_WORK_ENFORCEMENT
+
+# Distraction threshold (warnings before forcing goal review)
+HARM_WORK_DISTRACTION_THRESHOLD="${HARM_WORK_DISTRACTION_THRESHOLD:-3}"
+readonly HARM_WORK_DISTRACTION_THRESHOLD
+
+# Enforcement state variables
+declare -gi _WORK_VIOLATIONS=0
+declare -g _WORK_ACTIVE_PROJECT=""
+declare -g _WORK_ACTIVE_GOAL=""
+
+# work_enforcement_load_state: Load enforcement state from disk
+#
+# Description:
+#   Loads violation count and active project/goal from state file.
+#
+# Returns:
+#   0 - State loaded
+#   1 - No state file
+work_enforcement_load_state() {
+  [[ -f "$HARM_WORK_ENFORCEMENT_FILE" ]] || return 1
+
+  local state
+  state=$(cat "$HARM_WORK_ENFORCEMENT_FILE")
+
+  _WORK_VIOLATIONS=$(echo "$state" | jq -r '.violations // 0')
+  _WORK_ACTIVE_PROJECT=$(echo "$state" | jq -r '.project // ""')
+  _WORK_ACTIVE_GOAL=$(echo "$state" | jq -r '.goal // ""')
+
+  return 0
+}
+
+# work_enforcement_save_state: Save enforcement state to disk
+#
+# Description:
+#   Persists violation count and active project/goal.
+#
+# Returns:
+#   0 - State saved
+work_enforcement_save_state() {
+  jq -n \
+    --argjson violations "$_WORK_VIOLATIONS" \
+    --arg project "$_WORK_ACTIVE_PROJECT" \
+    --arg goal "$_WORK_ACTIVE_GOAL" \
+    --arg updated "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+    '{
+      violations: $violations,
+      project: $project,
+      goal: $goal,
+      updated: $updated
+    }' | atomic_write "$HARM_WORK_ENFORCEMENT_FILE"
+}
+
+# work_enforcement_clear: Clear enforcement state
+#
+# Description:
+#   Resets violations and clears active project/goal.
+#
+# Returns:
+#   0 - Always succeeds
+work_enforcement_clear() {
+  _WORK_VIOLATIONS=0
+  _WORK_ACTIVE_PROJECT=""
+  _WORK_ACTIVE_GOAL=""
+  rm -f "$HARM_WORK_ENFORCEMENT_FILE" 2>/dev/null || true
+}
+
+# work_check_project_switch: Hook for detecting project switches
+#
+# Description:
+#   Chpwd hook that detects when user switches projects during
+#   a work session in strict mode. Increments violation counter
+#   and warns user.
+#
+# Arguments:
+#   $1 - old_pwd (string): Previous directory
+#   $2 - new_pwd (string): New directory
+#
+# Returns:
+#   0 - Always succeeds
+work_check_project_switch() {
+  # Only enforce in strict mode
+  [[ "$HARM_WORK_ENFORCEMENT" == "strict" ]] || return 0
+
+  # Only enforce during active work session
+  work_is_active || return 0
+
+  local old_pwd="$1"
+  local new_pwd="$2"
+
+  # Get project names
+  local old_project new_project
+  old_project=$(basename "$old_pwd")
+  new_project=$(basename "$new_pwd")
+
+  # Skip if same project
+  [[ "$old_project" == "$new_project" ]] && return 0
+
+  # First time setting active project
+  if [[ -z "$_WORK_ACTIVE_PROJECT" ]]; then
+    _WORK_ACTIVE_PROJECT="$new_project"
+    work_enforcement_save_state
+    log_info "work" "Active project set" "project=$new_project"
+    return 0
+  fi
+
+  # Project switch detected!
+  if [[ "$new_project" != "$_WORK_ACTIVE_PROJECT" ]]; then
+    _WORK_VIOLATIONS=$((_WORK_VIOLATIONS + 1))
+    work_enforcement_save_state
+
+    echo "" >&2
+    echo "⚠️  CONTEXT SWITCH DETECTED!" >&2
+    echo "   Active project: $_WORK_ACTIVE_PROJECT" >&2
+    echo "   Switched to: $new_project" >&2
+    echo "   Violations: $_WORK_VIOLATIONS" >&2
+
+    # Warning threshold
+    if [[ $_WORK_VIOLATIONS -ge $HARM_WORK_DISTRACTION_THRESHOLD ]]; then
+      echo "" >&2
+      echo "❌ TOO MANY DISTRACTIONS!" >&2
+      echo "   Consider:" >&2
+      echo "   1. Stop work: harm-cli work stop" >&2
+      echo "   2. Review goal: harm-cli goal show" >&2
+      echo "   3. Refocus on: $_WORK_ACTIVE_PROJECT" >&2
+    fi
+    echo "" >&2
+
+    log_warn "work" "Project switch violation" "from=$_WORK_ACTIVE_PROJECT to=$new_project violations=$_WORK_VIOLATIONS"
+  fi
+
+  return 0
+}
+
+# work_get_violations: Get current violation count
+#
+# Description:
+#   Returns the number of context switches/violations.
+#
+# Returns:
+#   0 - Always succeeds
+#
+# Outputs:
+#   stdout: Violation count (integer)
+work_get_violations() {
+  # Try to load from file if not in memory
+  if [[ $_WORK_VIOLATIONS -eq 0 ]] && [[ -f "$HARM_WORK_ENFORCEMENT_FILE" ]]; then
+    work_enforcement_load_state 2>/dev/null || true
+  fi
+
+  echo "$_WORK_VIOLATIONS"
+}
+
+# work_reset_violations: Reset violation counter
+#
+# Description:
+#   Clears violation count (useful after refocusing).
+#
+# Returns:
+#   0 - Always succeeds
+work_reset_violations() {
+  _WORK_VIOLATIONS=0
+  work_enforcement_save_state
+  log_info "work" "Violations reset"
+  echo "✓ Violation counter reset"
+}
+
+# work_set_enforcement: Change enforcement mode
+#
+# Description:
+#   Changes work enforcement level.
+#
+# Arguments:
+#   $1 - mode (string): strict|moderate|coaching|off
+#
+# Returns:
+#   0 - Mode set successfully
+#   1 - Invalid mode
+work_set_enforcement() {
+  local mode="${1:?Enforcement mode required}"
+
+  case "$mode" in
+    strict | moderate | coaching | off)
+      echo "HARM_WORK_ENFORCEMENT=$mode" >>"${HOME}/.harm-cli/config"
+      log_info "work" "Enforcement mode changed" "mode=$mode"
+      echo "✓ Enforcement mode set to: $mode"
+      echo "  Restart shell for changes to take effect"
+      ;;
+    *)
+      log_error "work" "Invalid enforcement mode: $mode"
+      echo "Error: Invalid mode. Options: strict, moderate, coaching, off" >&2
+      return 1
+      ;;
+  esac
+}
+
+# ═══════════════════════════════════════════════════════════════
+# Hook Registration
+# ═══════════════════════════════════════════════════════════════
+
+# Register enforcement hooks if in strict mode
+if [[ "$HARM_WORK_ENFORCEMENT" == "strict" ]] && type harm_add_hook >/dev/null 2>&1; then
+  # Load existing state
+  work_enforcement_load_state 2>/dev/null || true
+
+  # Register project switch detection
+  harm_add_hook chpwd work_check_project_switch 2>/dev/null || true
+
+  log_debug "work" "Work enforcement enabled" "mode=$HARM_WORK_ENFORCEMENT"
+fi
+
+# ═══════════════════════════════════════════════════════════════
 # Exports
 # ═══════════════════════════════════════════════════════════════
 
 export -f work_is_active work_get_state work_save_state work_load_state
 export -f work_start work_stop work_status
 export -f work_require_active work_remind work_focus_score
+export -f work_enforcement_load_state work_enforcement_save_state work_enforcement_clear
+export -f work_check_project_switch work_get_violations work_reset_violations work_set_enforcement
