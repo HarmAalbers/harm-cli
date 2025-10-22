@@ -42,6 +42,11 @@ if [[ -f "$HARM_CLI_ROOT/lib/activity.sh" ]]; then
   source "$HARM_CLI_ROOT/lib/activity.sh"
 fi
 
+# Load focus monitoring (periodic checks, pomodoro)
+if [[ -f "$HARM_CLI_ROOT/lib/focus.sh" ]]; then
+  source "$HARM_CLI_ROOT/lib/focus.sh"
+fi
+
 # Optional: Remind about work session if not active
 # Uncomment to enable:
 # if command -v harm-cli >/dev/null 2>&1; then
