@@ -22,7 +22,6 @@ VERSION="$(cat "$SCRIPT_DIR/VERSION" 2>/dev/null || echo "unknown")"
 readonly VERSION
 
 # Installation paths
-LOCAL_BIN="$HOME/.local/bin"
 HARM_CLI_BIN="$SCRIPT_DIR/bin/harm-cli"
 COMPLETIONS_DIR="$SCRIPT_DIR/completions"
 
@@ -35,6 +34,37 @@ elif [[ "$USER_SHELL" == "bash" ]]; then
 else
   SHELL_RC="$HOME/.${USER_SHELL}rc"
 fi
+
+# ═══════════════════════════════════════════════════════════════
+# Configuration Variables (set by prompts or defaults)
+# ═══════════════════════════════════════════════════════════════
+
+# Installation mode
+INSTALL_MODE="quick" # quick or custom
+
+# Path configuration
+LOCAL_BIN="$HOME/.local/bin"
+HARM_CLI_HOME="$HOME/.harm-cli"
+HARM_LOG_DIR="" # Will be set based on HARM_CLI_HOME if not specified
+
+# Logging configuration
+HARM_LOG_LEVEL="INFO"
+HARM_LOG_TO_FILE="1"
+HARM_LOG_MAX_SIZE_MB="10"
+HARM_LOG_MAX_FILES="5"
+
+# AI configuration
+HARM_CLI_AI_CACHE_TTL="3600"
+HARM_CLI_AI_TIMEOUT="20"
+HARM_CLI_AI_MAX_TOKENS="2048"
+
+# Feature flags
+HARM_CLI_FORMAT="text"
+INSTALL_COMPLETIONS="yes"
+ADD_TO_PATH="yes"
+
+# Shortcut style (set by existing prompt)
+SHORTCUT_STYLE="4"
 
 # ═══════════════════════════════════════════════════════════════
 # Helper Functions
@@ -114,8 +144,465 @@ check_dependencies() {
 }
 
 # ═══════════════════════════════════════════════════════════════
+# Validation Functions
+# ═══════════════════════════════════════════════════════════════
+
+validate_log_level() {
+  local level="$1"
+  case "$level" in
+    DEBUG | INFO | WARN | ERROR) return 0 ;;
+    *) return 1 ;;
+  esac
+}
+
+validate_yes_no() {
+  local value="$1"
+  case "$value" in
+    [Yy] | [Yy][Ee][Ss] | "") return 0 ;; # Empty = yes (default)
+    [Nn] | [Nn][Oo]) return 0 ;;
+    *) return 1 ;;
+  esac
+}
+
+validate_number() {
+  local value="$1"
+  [[ "$value" =~ ^[0-9]+$ ]]
+}
+
+validate_format() {
+  local format="$1"
+  case "$format" in
+    text | json) return 0 ;;
+    *) return 1 ;;
+  esac
+}
+
+expand_path() {
+  local path="$1"
+  # Expand ~ to $HOME
+  path="${path/#\~/$HOME}"
+  echo "$path"
+}
+
+# ═══════════════════════════════════════════════════════════════
+# Installation Mode Selection
+# ═══════════════════════════════════════════════════════════════
+
+prompt_install_mode() {
+  echo ""
+  print_step "Installation Mode"
+  echo ""
+  echo "  ${BOLD}1) Quick Install${NC} - Use recommended defaults"
+  echo "     ${CYAN}•${NC} Installs to ~/.local/bin"
+  echo "     ${CYAN}•${NC} Data in ~/.harm-cli"
+  echo "     ${CYAN}•${NC} INFO logging level"
+  echo "     ${CYAN}•${NC} All features enabled"
+  echo ""
+  echo "  ${BOLD}2) Custom Install${NC} - Configure everything"
+  echo "     ${CYAN}•${NC} Choose your paths"
+  echo "     ${CYAN}•${NC} Customize logging behavior"
+  echo "     ${CYAN}•${NC} Configure AI settings"
+  echo "     ${CYAN}•${NC} Select features"
+  echo ""
+
+  while true; do
+    read -rp "Enter your choice [1-2] (default: 1): " choice
+    choice="${choice:-1}"
+
+    case "$choice" in
+      1)
+        INSTALL_MODE="quick"
+        print_success "Quick Install selected"
+        show_quick_install_summary
+        break
+        ;;
+      2)
+        INSTALL_MODE="custom"
+        print_success "Custom Install selected"
+        break
+        ;;
+      *)
+        print_error "Invalid choice. Please enter 1 or 2."
+        ;;
+    esac
+  done
+}
+
+show_quick_install_summary() {
+  echo ""
+  print_info "Quick Install will use these defaults:"
+  echo ""
+  echo "  ${CYAN}Installation:${NC}    $LOCAL_BIN"
+  echo "  ${CYAN}Data directory:${NC}  $HARM_CLI_HOME"
+  echo "  ${CYAN}Log directory:${NC}   $HARM_CLI_HOME/logs"
+  echo "  ${CYAN}Log level:${NC}       $HARM_LOG_LEVEL"
+  echo "  ${CYAN}Log max size:${NC}    ${HARM_LOG_MAX_SIZE_MB}MB"
+  echo "  ${CYAN}AI cache TTL:${NC}    ${HARM_CLI_AI_CACHE_TTL}s (1 hour)"
+  echo "  ${CYAN}Output format:${NC}   $HARM_CLI_FORMAT"
+  echo "  ${CYAN}Completions:${NC}     Enabled"
+  echo ""
+}
+
+# ═══════════════════════════════════════════════════════════════
+# Configuration Prompts
+# ═══════════════════════════════════════════════════════════════
+
+prompt_path_config() {
+  echo ""
+  echo -e "${BOLD}${CYAN}═══════════════════════════════════════════════════════════════${NC}"
+  echo -e "${BOLD}  Path Configuration${NC}"
+  echo -e "${BOLD}${CYAN}═══════════════════════════════════════════════════════════════${NC}"
+  echo ""
+
+  # Installation directory
+  read -rp "Installation directory (where symlink is created) [$LOCAL_BIN]: " input
+  if [[ -n "$input" ]]; then
+    LOCAL_BIN="$(expand_path "$input")"
+  fi
+
+  # Data directory
+  read -rp "Data directory (goals, projects, sessions, cache) [$HARM_CLI_HOME]: " input
+  if [[ -n "$input" ]]; then
+    HARM_CLI_HOME="$(expand_path "$input")"
+  fi
+
+  # Log directory (default to data_dir/logs)
+  local default_log_dir="$HARM_CLI_HOME/logs"
+  read -rp "Log directory (log files) [$default_log_dir]: " input
+  if [[ -n "$input" ]]; then
+    HARM_LOG_DIR="$(expand_path "$input")"
+  else
+    HARM_LOG_DIR="$default_log_dir"
+  fi
+
+  print_success "Path configuration complete"
+}
+
+prompt_logging_config() {
+  echo ""
+  echo -e "${BOLD}${CYAN}═══════════════════════════════════════════════════════════════${NC}"
+  echo -e "${BOLD}  Logging Configuration${NC}"
+  echo -e "${BOLD}${CYAN}═══════════════════════════════════════════════════════════════${NC}"
+  echo ""
+
+  # Log level
+  while true; do
+    read -rp "Log level (DEBUG=verbose, INFO=normal, WARN=quiet, ERROR=critical) [$HARM_LOG_LEVEL]: " input
+    input="${input:-$HARM_LOG_LEVEL}"
+    input="${input^^}" # Convert to uppercase
+
+    if validate_log_level "$input"; then
+      HARM_LOG_LEVEL="$input"
+      break
+    else
+      print_error "Invalid log level. Must be DEBUG, INFO, WARN, or ERROR."
+    fi
+  done
+
+  # File logging
+  while true; do
+    read -rp "Enable file logging? [Y/n]: " input
+    input="${input:-Y}"
+
+    if validate_yes_no "$input"; then
+      case "$input" in
+        [Nn] | [Nn][Oo])
+          HARM_LOG_TO_FILE="0"
+          print_warning "File logging disabled"
+          ;;
+        *)
+          HARM_LOG_TO_FILE="1"
+          ;;
+      esac
+      break
+    else
+      print_error "Invalid input. Please enter Y or N."
+    fi
+  done
+
+  # Log file size (only if file logging enabled)
+  if [[ "$HARM_LOG_TO_FILE" == "1" ]]; then
+    while true; do
+      read -rp "Log file max size in MB [$HARM_LOG_MAX_SIZE_MB]: " input
+      input="${input:-$HARM_LOG_MAX_SIZE_MB}"
+
+      if validate_number "$input" && ((input > 0)); then
+        HARM_LOG_MAX_SIZE_MB="$input"
+        break
+      else
+        print_error "Invalid size. Must be a positive number."
+      fi
+    done
+
+    # Number of rotated logs
+    while true; do
+      read -rp "Number of rotated logs to keep [$HARM_LOG_MAX_FILES]: " input
+      input="${input:-$HARM_LOG_MAX_FILES}"
+
+      if validate_number "$input" && ((input >= 0)); then
+        HARM_LOG_MAX_FILES="$input"
+        break
+      else
+        print_error "Invalid number. Must be 0 or greater."
+      fi
+    done
+  fi
+
+  print_success "Logging configuration complete"
+}
+
+prompt_ai_config() {
+  echo ""
+  echo -e "${BOLD}${CYAN}═══════════════════════════════════════════════════════════════${NC}"
+  echo -e "${BOLD}  AI Configuration${NC}"
+  echo -e "${BOLD}${CYAN}═══════════════════════════════════════════════════════════════${NC}"
+  echo ""
+
+  # Cache TTL
+  while true; do
+    read -rp "AI cache duration in seconds (0=no cache, 3600=1 hour) [$HARM_CLI_AI_CACHE_TTL]: " input
+    input="${input:-$HARM_CLI_AI_CACHE_TTL}"
+
+    if validate_number "$input" && ((input >= 0)); then
+      HARM_CLI_AI_CACHE_TTL="$input"
+      break
+    else
+      print_error "Invalid duration. Must be 0 or greater."
+    fi
+  done
+
+  # Request timeout
+  while true; do
+    read -rp "AI request timeout in seconds [$HARM_CLI_AI_TIMEOUT]: " input
+    input="${input:-$HARM_CLI_AI_TIMEOUT}"
+
+    if validate_number "$input" && ((input > 0)); then
+      HARM_CLI_AI_TIMEOUT="$input"
+      break
+    else
+      print_error "Invalid timeout. Must be greater than 0."
+    fi
+  done
+
+  # Max tokens
+  while true; do
+    read -rp "AI max tokens per request [$HARM_CLI_AI_MAX_TOKENS]: " input
+    input="${input:-$HARM_CLI_AI_MAX_TOKENS}"
+
+    if validate_number "$input" && ((input > 0)); then
+      HARM_CLI_AI_MAX_TOKENS="$input"
+      break
+    else
+      print_error "Invalid token count. Must be greater than 0."
+    fi
+  done
+
+  print_success "AI configuration complete"
+}
+
+prompt_feature_config() {
+  echo ""
+  echo -e "${BOLD}${CYAN}═══════════════════════════════════════════════════════════════${NC}"
+  echo -e "${BOLD}  Feature Configuration${NC}"
+  echo -e "${BOLD}${CYAN}═══════════════════════════════════════════════════════════════${NC}"
+  echo ""
+
+  # Shell completions
+  while true; do
+    read -rp "Install shell completions? [Y/n]: " input
+    input="${input:-Y}"
+
+    if validate_yes_no "$input"; then
+      case "$input" in
+        [Nn] | [Nn][Oo])
+          INSTALL_COMPLETIONS="no"
+          ;;
+        *)
+          INSTALL_COMPLETIONS="yes"
+          ;;
+      esac
+      break
+    else
+      print_error "Invalid input. Please enter Y or N."
+    fi
+  done
+
+  # Add to PATH
+  while true; do
+    read -rp "Add $LOCAL_BIN to PATH? [Y/n]: " input
+    input="${input:-Y}"
+
+    if validate_yes_no "$input"; then
+      case "$input" in
+        [Nn] | [Nn][Oo])
+          ADD_TO_PATH="no"
+          ;;
+        *)
+          ADD_TO_PATH="yes"
+          ;;
+      esac
+      break
+    else
+      print_error "Invalid input. Please enter Y or N."
+    fi
+  done
+
+  # Default output format
+  while true; do
+    read -rp "Default output format (text or json) [$HARM_CLI_FORMAT]: " input
+    input="${input:-$HARM_CLI_FORMAT}"
+
+    if validate_format "$input"; then
+      HARM_CLI_FORMAT="$input"
+      break
+    else
+      print_error "Invalid format. Must be 'text' or 'json'."
+    fi
+  done
+
+  print_success "Feature configuration complete"
+}
+
+# ═══════════════════════════════════════════════════════════════
+# Alias Conflict Detection
+# ═══════════════════════════════════════════════════════════════
+
+get_aliases_for_style() {
+  local style="$1"
+  local aliases=()
+
+  case "$style" in
+    1) # Minimal
+      aliases=("h")
+      ;;
+    2) # Balanced
+      aliases=("work" "goal" "ai" "proj")
+      ;;
+    3) # Power User
+      aliases=("h" "ws" "wo" "ww" "gs" "gg" "ask")
+      ;;
+    4) # Hybrid
+      aliases=("h" "work" "goal" "ai" "proj" "ws" "wo" "ww")
+      ;;
+  esac
+
+  printf '%s\n' "${aliases[@]}"
+}
+
+check_alias_conflicts() {
+  local style="$1"
+  local conflicts=()
+
+  # Get aliases that would be created
+  local proposed_aliases
+  mapfile -t proposed_aliases < <(get_aliases_for_style "$style")
+
+  # Check if shell RC exists
+  if [[ ! -f "$SHELL_RC" ]]; then
+    return 0 # No conflicts if no RC file
+  fi
+
+  # Check each alias
+  for alias_name in "${proposed_aliases[@]}"; do
+    # Check if alias exists in shell RC file
+    if grep -q "^[[:space:]]*alias[[:space:]]\+${alias_name}=" "$SHELL_RC" 2>/dev/null; then
+      conflicts+=("$alias_name")
+    fi
+  done
+
+  # If conflicts found, handle them
+  if [[ ${#conflicts[@]} -gt 0 ]]; then
+    echo ""
+    print_warning "Found existing aliases in $SHELL_RC:"
+    echo ""
+    for alias_name in "${conflicts[@]}"; do
+      # Show the existing alias definition
+      local existing_def
+      existing_def=$(grep "^[[:space:]]*alias[[:space:]]\+${alias_name}=" "$SHELL_RC" | head -1)
+      echo "  ${YELLOW}•${NC} ${BOLD}$alias_name${NC}"
+      echo "    ${CYAN}Current:${NC} $existing_def"
+    done
+    echo ""
+
+    return 1 # Return failure to indicate conflicts
+  fi
+
+  return 0 # No conflicts
+}
+
+handle_alias_conflicts() {
+  local style="$1"
+
+  echo -e "${BOLD}How would you like to proceed?${NC}"
+  echo ""
+  echo "  ${BOLD}1) Override${NC} - Replace existing aliases with harm-cli aliases"
+  echo "     ${YELLOW}⚠${NC}  This will comment out your existing aliases"
+  echo ""
+  echo "  ${BOLD}2) Skip${NC} - Keep existing aliases, don't add harm-cli aliases"
+  echo "     ${CYAN}ℹ${NC}  You can manually add later or use full commands"
+  echo ""
+  echo "  ${BOLD}3) Choose Different Style${NC} - Pick a shortcut style without conflicts"
+  echo ""
+  echo "  ${BOLD}4) Cancel${NC} - Exit installation"
+  echo ""
+
+  while true; do
+    read -rp "Enter your choice [1-4] (default: 2): " choice
+    choice="${choice:-2}"
+
+    case "$choice" in
+      1)
+        print_warning "Will override existing aliases"
+        ALIAS_CONFLICT_ACTION="override"
+        return 0
+        ;;
+      2)
+        print_info "Keeping existing aliases, skipping harm-cli alias installation"
+        ALIAS_CONFLICT_ACTION="skip"
+        return 0
+        ;;
+      3)
+        print_info "Please choose a different shortcut style"
+        return 1 # Signal to re-prompt
+        ;;
+      4)
+        die "Installation cancelled by user" 0
+        ;;
+      *)
+        print_error "Invalid choice. Please enter 1, 2, 3, or 4."
+        ;;
+    esac
+  done
+}
+
+comment_out_conflicting_aliases() {
+  local style="$1"
+
+  # Get aliases that would be created
+  local proposed_aliases
+  mapfile -t proposed_aliases < <(get_aliases_for_style "$style")
+
+  # Create backup
+  cp "$SHELL_RC" "${SHELL_RC}.backup-$(date +%Y%m%d-%H%M%S)"
+  print_info "Created backup: ${SHELL_RC}.backup-$(date +%Y%m%d-%H%M%S)"
+
+  # Comment out each conflicting alias
+  for alias_name in "${proposed_aliases[@]}"; do
+    if grep -q "^[[:space:]]*alias[[:space:]]\+${alias_name}=" "$SHELL_RC" 2>/dev/null; then
+      # Use sed to comment out the alias line
+      sed -i.tmp "s/^[[:space:]]*\(alias[[:space:]]\+${alias_name}=\)/# [harm-cli override] \1/" "$SHELL_RC"
+      rm -f "${SHELL_RC}.tmp"
+      print_success "Commented out existing alias: $alias_name"
+    fi
+  done
+}
+
+# ═══════════════════════════════════════════════════════════════
 # User Preferences
 # ═══════════════════════════════════════════════════════════════
+
+# Track alias conflict action
+ALIAS_CONFLICT_ACTION="" # Can be: override, skip, or empty (no conflicts)
 
 prompt_shortcuts() {
   echo ""
@@ -150,7 +637,22 @@ prompt_shortcuts() {
     case "$choice" in
       1 | 2 | 3 | 4)
         SHORTCUT_STYLE="$choice"
-        break
+
+        # Check for alias conflicts
+        if ! check_alias_conflicts "$SHORTCUT_STYLE"; then
+          # Conflicts found - handle them
+          if handle_alias_conflicts "$SHORTCUT_STYLE"; then
+            # User chose override or skip - we can continue
+            break
+          else
+            # User chose to pick different style - loop again
+            echo ""
+            continue
+          fi
+        else
+          # No conflicts - continue
+          break
+        fi
         ;;
       *)
         print_error "Invalid choice. Please enter 1, 2, 3, or 4."
@@ -202,14 +704,23 @@ check_path() {
 }
 
 add_to_path() {
+  # Skip if ADD_TO_PATH is disabled
+  if [[ "$ADD_TO_PATH" != "yes" ]]; then
+    if ! check_path; then
+      print_warning "PATH not updated (you chose to skip this)"
+      print_info "Manually add to $SHELL_RC: export PATH=\"$LOCAL_BIN:\$PATH\""
+    fi
+    return 0
+  fi
+
   if ! check_path; then
     echo ""
     print_info "Adding $LOCAL_BIN to PATH in $SHELL_RC"
 
     {
       echo ""
-      echo "# harm-cli: Add ~/.local/bin to PATH"
-      echo 'export PATH="$HOME/.local/bin:$PATH"'
+      echo "# harm-cli: Add $LOCAL_BIN to PATH"
+      echo "export PATH=\"$LOCAL_BIN:\$PATH\""
     } >>"$SHELL_RC"
 
     print_success "Added to $SHELL_RC"
@@ -220,16 +731,45 @@ add_to_path() {
 generate_aliases() {
   local aliases_file="/tmp/harm-cli-aliases-$$.sh"
 
-  print_step "Generating shell aliases..."
+  # Handle conflicts if override was chosen
+  if [[ "$ALIAS_CONFLICT_ACTION" == "override" ]]; then
+    comment_out_conflicting_aliases "$SHORTCUT_STYLE"
+  fi
 
-  cat >"$aliases_file" <<'EOF'
+  # Skip alias generation if user chose to skip
+  if [[ "$ALIAS_CONFLICT_ACTION" == "skip" ]]; then
+    print_step "Generating shell integration (without aliases)..."
+  else
+    print_step "Generating shell aliases..."
+  fi
+
+  cat >"$aliases_file" <<EOF
 
 # ═══════════════════════════════════════════════════════════════
 # harm-cli: Shell Integration
-# Generated by install.sh
+# Generated by install.sh on $(date '+%Y-%m-%d')
 # ═══════════════════════════════════════════════════════════════
 
+# Source harm-cli configuration
+if [[ -f "$HARM_CLI_HOME/config.sh" ]]; then
+  source "$HARM_CLI_HOME/config.sh"
+fi
+
 EOF
+
+  # Only add aliases if not skipped
+  if [[ "$ALIAS_CONFLICT_ACTION" == "skip" ]]; then
+    cat >>"$aliases_file" <<'EOF'
+# harm-cli: Aliases skipped due to conflicts
+# You can manually add aliases or use full commands:
+#   harm-cli work start "task"
+#   harm-cli goal set "goal" 2h
+#   harm-cli ai "question"
+
+EOF
+    echo "$aliases_file"
+    return 0
+  fi
 
   case "$SHORTCUT_STYLE" in
     1) # Minimal
@@ -292,6 +832,12 @@ EOF
 }
 
 install_completions() {
+  # Skip if completions disabled
+  if [[ "$INSTALL_COMPLETIONS" != "yes" ]]; then
+    print_warning "Shell completions disabled (skipped)"
+    return 0
+  fi
+
   print_step "Installing shell completions..."
 
   if [[ "$USER_SHELL" == "zsh" ]]; then
@@ -318,6 +864,109 @@ install_completions() {
       print_warning "bash completion not found"
     fi
   fi
+}
+
+generate_config_file() {
+  print_step "Generating configuration file..."
+
+  local config_file="$HARM_CLI_HOME/config.sh"
+  local config_dir="$HARM_CLI_HOME"
+
+  # Create directory if it doesn't exist
+  if [[ ! -d "$config_dir" ]]; then
+    mkdir -p "$config_dir"
+    print_success "Created $config_dir"
+  fi
+
+  # Convert MB to bytes for log file size
+  local log_size_bytes=$((HARM_LOG_MAX_SIZE_MB * 1024 * 1024))
+
+  # Set log directory default if not set
+  if [[ -z "$HARM_LOG_DIR" ]]; then
+    HARM_LOG_DIR="$HARM_CLI_HOME/logs"
+  fi
+
+  # Generate config file
+  cat >"$config_file" <<EOF
+#!/usr/bin/env bash
+# ~/.harm-cli/config.sh
+# harm-cli Configuration File
+# Generated by install.sh on $(date '+%Y-%m-%d %H:%M:%S')
+#
+# This file is sourced by harm-cli on initialization.
+# You can edit these values manually or re-run ./install.sh to regenerate.
+
+# ═══════════════════════════════════════════════════════════════
+# Path Configuration
+# ═══════════════════════════════════════════════════════════════
+
+# Main data directory (where goals, projects, sessions are stored)
+export HARM_CLI_HOME="\${HARM_CLI_HOME:-$HARM_CLI_HOME}"
+
+# Log directory (can be separate for performance/storage reasons)
+export HARM_LOG_DIR="\${HARM_LOG_DIR:-$HARM_LOG_DIR}"
+
+# ═══════════════════════════════════════════════════════════════
+# Logging Configuration
+# ═══════════════════════════════════════════════════════════════
+
+# Log level: DEBUG, INFO, WARN, ERROR
+export HARM_LOG_LEVEL="\${HARM_LOG_LEVEL:-$HARM_LOG_LEVEL}"
+
+# Enable/disable file logging (1=enabled, 0=disabled)
+export HARM_LOG_TO_FILE="\${HARM_LOG_TO_FILE:-$HARM_LOG_TO_FILE}"
+
+# Enable/disable console logging (1=enabled, 0=disabled)
+export HARM_LOG_TO_CONSOLE="\${HARM_LOG_TO_CONSOLE:-1}"
+
+# Maximum log file size in bytes (default: ${HARM_LOG_MAX_SIZE_MB}MB = ${log_size_bytes} bytes)
+export HARM_LOG_MAX_SIZE="\${HARM_LOG_MAX_SIZE:-$log_size_bytes}"
+
+# Number of rotated log files to keep
+export HARM_LOG_MAX_FILES="\${HARM_LOG_MAX_FILES:-$HARM_LOG_MAX_FILES}"
+
+# Unbuffered logging for real-time output (1=enabled, 0=disabled)
+export HARM_LOG_UNBUFFERED="\${HARM_LOG_UNBUFFERED:-1}"
+
+# ═══════════════════════════════════════════════════════════════
+# AI Configuration
+# ═══════════════════════════════════════════════════════════════
+
+# AI response cache TTL in seconds (default: $HARM_CLI_AI_CACHE_TTL seconds)
+export HARM_CLI_AI_CACHE_TTL="\${HARM_CLI_AI_CACHE_TTL:-$HARM_CLI_AI_CACHE_TTL}"
+
+# AI request timeout in seconds
+export HARM_CLI_AI_TIMEOUT="\${HARM_CLI_AI_TIMEOUT:-$HARM_CLI_AI_TIMEOUT}"
+
+# AI maximum tokens per request
+export HARM_CLI_AI_MAX_TOKENS="\${HARM_CLI_AI_MAX_TOKENS:-$HARM_CLI_AI_MAX_TOKENS}"
+
+# ═══════════════════════════════════════════════════════════════
+# Output Configuration
+# ═══════════════════════════════════════════════════════════════
+
+# Default output format: text or json
+export HARM_CLI_FORMAT="\${HARM_CLI_FORMAT:-$HARM_CLI_FORMAT}"
+
+# ═══════════════════════════════════════════════════════════════
+# Feature Flags
+# ═══════════════════════════════════════════════════════════════
+
+# Shell completions enabled (set during install)
+export HARM_CLI_COMPLETIONS_ENABLED="\${HARM_CLI_COMPLETIONS_ENABLED:-$([ "$INSTALL_COMPLETIONS" = "yes" ] && echo 1 || echo 0)}"
+EOF
+
+  print_success "Generated $config_file"
+
+  # Show what was configured
+  echo ""
+  print_info "Configuration summary:"
+  echo "  ${CYAN}Data directory:${NC}  $HARM_CLI_HOME"
+  echo "  ${CYAN}Log directory:${NC}   $HARM_LOG_DIR"
+  echo "  ${CYAN}Log level:${NC}       $HARM_LOG_LEVEL"
+  echo "  ${CYAN}AI cache TTL:${NC}    ${HARM_CLI_AI_CACHE_TTL}s"
+  echo "  ${CYAN}Output format:${NC}   $HARM_CLI_FORMAT"
+  echo ""
 }
 
 add_to_shell_rc() {
@@ -400,27 +1049,43 @@ print_summary() {
   echo "  2. Verify installation:"
   echo -e "     ${CYAN}harm-cli version${NC}"
   echo ""
+  echo "  3. Configuration file created:"
+  echo -e "     ${CYAN}$HARM_CLI_HOME/config.sh${NC}"
+  echo -e "     ${YELLOW}# You can edit this file to customize settings${NC}"
+  echo ""
+
+  # Show alias conflict info if applicable
+  if [[ "$ALIAS_CONFLICT_ACTION" == "skip" ]]; then
+    echo -e "  ${YELLOW}⚠${NC}  ${BOLD}Note:${NC} Aliases were skipped due to conflicts"
+    echo "     Use full commands: ${CYAN}harm-cli work start \"task\"${NC}"
+    echo "     Or manually add aliases to $SHELL_RC"
+    echo ""
+  elif [[ "$ALIAS_CONFLICT_ACTION" == "override" ]]; then
+    echo -e "  ${CYAN}ℹ${NC}  ${BOLD}Note:${NC} Existing aliases were backed up and commented out"
+    echo "     Backup created: ${CYAN}${SHELL_RC}.backup-*${NC}"
+    echo ""
+  fi
 
   case "$SHORTCUT_STYLE" in
     1)
-      echo "  3. Try your new shortcuts:"
+      echo "  4. Try your new shortcuts:"
       echo -e "     ${CYAN}h version${NC}"
       echo -e "     ${CYAN}h work start \"my task\"${NC}"
       ;;
     2)
-      echo "  3. Try your new shortcuts:"
+      echo "  4. Try your new shortcuts:"
       echo -e "     ${CYAN}work start \"my task\"${NC}"
       echo -e "     ${CYAN}goal set \"my goal\" 2h${NC}"
       echo -e "     ${CYAN}ai \"how do I...?\"${NC}"
       ;;
     3)
-      echo "  3. Try your new shortcuts:"
+      echo "  4. Try your new shortcuts:"
       echo -e "     ${CYAN}ws \"my task\"${NC}     ${YELLOW}# work start${NC}"
       echo -e "     ${CYAN}ww${NC}               ${YELLOW}# work status${NC}"
       echo -e "     ${CYAN}wo${NC}               ${YELLOW}# work stop${NC}"
       ;;
     4)
-      echo "  3. Try your new shortcuts:"
+      echo "  4. Try your new shortcuts:"
       echo -e "     ${CYAN}ws \"my task\"${NC}            ${YELLOW}# ultra-short work start${NC}"
       echo -e "     ${CYAN}work status${NC}              ${YELLOW}# or use full command${NC}"
       echo -e "     ${CYAN}goal set \"goal\" 2h${NC}      ${YELLOW}# direct goal command${NC}"
@@ -429,7 +1094,7 @@ print_summary() {
   esac
 
   echo ""
-  echo "  4. Get help anytime:"
+  echo "  5. Get help anytime:"
   echo -e "     ${CYAN}harm-cli --help${NC}"
   echo -e "     ${CYAN}harm-cli work --help${NC}"
   echo ""
@@ -448,7 +1113,21 @@ main() {
   # Pre-flight checks
   check_dependencies
 
-  # Get user preferences
+  # Get installation mode (Quick vs Custom)
+  prompt_install_mode
+
+  # If custom mode, get all configuration
+  if [[ "$INSTALL_MODE" == "custom" ]]; then
+    prompt_path_config
+    prompt_logging_config
+    prompt_ai_config
+    prompt_feature_config
+  else
+    # Quick mode: set log dir default
+    HARM_LOG_DIR="$HARM_CLI_HOME/logs"
+  fi
+
+  # Always ask for shortcut style
   prompt_shortcuts
 
   echo ""
@@ -459,7 +1138,10 @@ main() {
   create_symlink
   add_to_path
 
-  # Generate configuration
+  # Generate config.sh file with all settings
+  generate_config_file
+
+  # Generate shell aliases
   aliases_file=$(generate_aliases)
   install_completions
   add_to_shell_rc "$aliases_file"
