@@ -352,25 +352,50 @@ Commands:
   --help                  Show this help
 
 Stream Options:
-  --level=LEVEL           Filter by log level (DEBUG|INFO|WARN|ERROR)
-  --format=FORMAT         Output format (plain|json|structured)
+  --level=LEVEL           Filter by minimum log level (shows level and above)
+                          DEBUG: Shows all logs (DEBUG, INFO, WARN, ERROR)
+                          INFO:  Shows INFO, WARN, ERROR
+                          WARN:  Shows WARN, ERROR
+                          ERROR: Shows ERROR only
+  --format=FORMAT         Output format (plain|json|structured|color)
+                          plain: Raw log lines
+                          json: JSON formatted output
+                          structured: Visual indicators (✓ ⚠ ✗ 🔍)
+                          color: Colored plain text
+  --color=WHEN            Colorize output (auto|always|never)
+                          auto: Color if terminal supports it (default)
+                          always: Always colorize
+                          never: Never colorize
 
 Examples:
+  # Stream all logs with auto-color
   harm-cli log stream
+
+  # Stream INFO and above (INFO, WARN, ERROR) with colors
+  harm-cli log stream --level=INFO --color=always
+
+  # Stream errors only
   harm-cli log stream --level=ERROR
-  harm-cli log stream --format=json
-  harm-cli log stream --level=INFO --format=structured
+
+  # Stream in structured format with visual indicators
+  harm-cli log stream --format=structured
+
+  # Stream warnings and errors in JSON format
+  harm-cli log stream --level=WARN --format=json
+
+  # Other log commands
   harm-cli log tail --lines=100
   harm-cli log search "api"
   harm-cli log stats
   harm-cli log clear --force
 
 Features:
-  - Cross-terminal streaming (logs from ALL terminals appear)
-  - Rotation-aware following (continues through log rotation)
-  - Multiple output formats (plain, JSON, structured)
-  - Real-time with zero buffering
-  - Level filtering for focused debugging
+  - ✅ Cross-terminal streaming (logs from ALL terminals appear)
+  - ✅ Rotation-aware following (continues through log rotation)
+  - ✅ Multiple output formats (plain, JSON, structured, color)
+  - ✅ Real-time with zero buffering
+  - ✅ Minimum level filtering (industry standard behavior)
+  - ✅ Auto-colorization based on terminal support
 
 Log Files:
   Main log:  ~/.harm-cli/logs/harm-cli.log
