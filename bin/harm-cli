@@ -12,7 +12,16 @@ IFS=$'\n\t'
 # Configuration & Globals
 # ═══════════════════════════════════════════════════════════════
 
-SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd -P)"
+# Resolve symlinks to find the real script location
+# This ensures VERSION file is found even when called via symlink (e.g., ~/.local/bin/harm-cli)
+SCRIPT_PATH="${BASH_SOURCE[0]}"
+while [[ -L "$SCRIPT_PATH" ]]; do
+  SCRIPT_DIR="$(cd -P "$(dirname "$SCRIPT_PATH")" && pwd)"
+  SCRIPT_PATH="$(readlink "$SCRIPT_PATH")"
+  # Handle relative symlinks
+  [[ "$SCRIPT_PATH" != /* ]] && SCRIPT_PATH="$SCRIPT_DIR/$SCRIPT_PATH"
+done
+SCRIPT_DIR="$(cd -P "$(dirname "$SCRIPT_PATH")" && pwd)"
 readonly SCRIPT_DIR
 ROOT_DIR="$(cd -- "$SCRIPT_DIR/.." && pwd -P)"
 readonly ROOT_DIR

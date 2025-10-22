@@ -32,6 +32,20 @@ When run "$CLI" --version
 The status should be success
 The output should include "1.0.0"
 End
+
+# Bug reproduction test: version detection via symlink
+It 'detects version correctly when run via symlink'
+# Create a temporary symlink to harm-cli
+ln -sf "$CLI" "$TEST_TMP/harm-cli-symlink"
+
+When run "$TEST_TMP/harm-cli-symlink" version
+The status should be success
+The output should include "1.0.0"
+The output should not include "unknown"
+
+# Cleanup
+rm -f "$TEST_TMP/harm-cli-symlink"
+End
 End
 
 Describe 'help command'
