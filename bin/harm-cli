@@ -83,6 +83,7 @@ Commands:
 
   work                    Work session management
   goal                    Goal tracking and progress
+  log                     Real-time log streaming and management
   ai                      AI assistant commands (Gemini)
   git                     Enhanced git workflows with AI
   proj                    Project management and switching
@@ -327,6 +328,82 @@ EOF
         complete) goal_complete "$@" ;;
         clear) goal_clear "$@" ;;
         *) die "Unknown goal command: $subcmd. Try: set, show, progress, complete, clear" 2 ;;
+      esac
+      ;;
+    log)
+      # shellcheck source=lib/logging.sh
+      source "$ROOT_DIR/lib/logging.sh"
+      subcmd="${1:-tail}"
+      shift || true
+      case "$subcmd" in
+        --help | -h)
+          cat <<'EOF'
+harm-cli log - Real-time log streaming and management
+
+Usage:
+  harm-cli log [COMMAND] [OPTIONS]
+
+Commands:
+  stream [OPTIONS]        Stream logs in real-time (cross-terminal)
+  tail [--lines=N]        View recent log entries (default)
+  search PATTERN          Search logs for pattern
+  stats                   Show log statistics
+  clear --force           Clear all log files
+  --help                  Show this help
+
+Stream Options:
+  --level=LEVEL           Filter by log level (DEBUG|INFO|WARN|ERROR)
+  --format=FORMAT         Output format (plain|json|structured)
+
+Examples:
+  harm-cli log stream
+  harm-cli log stream --level=ERROR
+  harm-cli log stream --format=json
+  harm-cli log stream --level=INFO --format=structured
+  harm-cli log tail --lines=100
+  harm-cli log search "api"
+  harm-cli log stats
+  harm-cli log clear --force
+
+Features:
+  - Cross-terminal streaming (logs from ALL terminals appear)
+  - Rotation-aware following (continues through log rotation)
+  - Multiple output formats (plain, JSON, structured)
+  - Real-time with zero buffering
+  - Level filtering for focused debugging
+
+Log Files:
+  Main log:  ~/.harm-cli/logs/harm-cli.log
+  Debug log: ~/.harm-cli/logs/debug.log
+
+Environment Variables:
+  HARM_LOG_LEVEL          Log level (DEBUG|INFO|WARN|ERROR)
+  HARM_LOG_UNBUFFERED     Enable unbuffered writes (1=on, 0=off)
+EOF
+          ;;
+        stream) log_stream "$@" ;;
+        tail)
+          # Parse --lines flag
+          local lines=50
+          while [[ $# -gt 0 ]]; do
+            case "$1" in
+              --lines=*)
+                lines="${1#*=}"
+                shift
+                ;;
+              --lines)
+                lines="${2:?--lines requires an argument}"
+                shift 2
+                ;;
+              *) shift ;;
+            esac
+          done
+          log_tail "$lines"
+          ;;
+        search) log_search "$@" ;;
+        stats) log_stats "$@" ;;
+        clear) log_clear "$@" ;;
+        *) die "Unknown log command: $subcmd. Try: stream, tail, search, stats, clear" 2 ;;
       esac
       ;;
     ai)

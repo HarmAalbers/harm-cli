@@ -360,6 +360,150 @@ log_perf_end() {
 }
 
 # ═══════════════════════════════════════════════════════════════
+# Streaming Functions (Cross-Terminal Real-Time Log Viewing)
+# ═══════════════════════════════════════════════════════════════
+
+# _log_format_json_line: Convert log line to JSON format
+# Usage: echo "log line" | _log_format_json_line
+_log_format_json_line() {
+  awk -F"[][]" '
+    {
+      timestamp=$2
+      level=$4
+      component=$6
+      gsub(/^ | $/, "", timestamp)
+      gsub(/^ | $/, "", level)
+      gsub(/^ | $/, "", component)
+      message=$0
+      sub(/^[^]]*\] [^]]*\] [^]]*\] /, "", message)
+      # Escape quotes in message for valid JSON
+      gsub(/"/, "\\\"", message)
+      printf "{\"timestamp\":\"%s\",\"level\":\"%s\",\"component\":\"%s\",\"message\":\"%s\"}\n",
+        timestamp, level, component, message
+    }
+  '
+}
+
+# _log_format_structured_line: Add visual indicators to log lines
+# Usage: echo "log line" | _log_format_structured_line
+_log_format_structured_line() {
+  awk '
+    /\[DEBUG\]/ { print "\033[36m🔍 " $0 "\033[0m"; next }
+    /\[INFO\]/  { print "\033[32m✓ " $0 "\033[0m"; next }
+    /\[WARN\]/  { print "\033[33m⚠ " $0 "\033[0m"; next }
+    /\[ERROR\]/ { print "\033[31m✗ " $0 "\033[0m"; next }
+    { print "  " $0 }
+  '
+}
+
+# log_stream: Stream logs in real-time with cross-terminal support
+# Usage: log_stream [--level=LEVEL] [--format=FORMAT]
+#
+# Options:
+#   --level=LEVEL      Filter by log level (DEBUG|INFO|WARN|ERROR)
+#   --format=FORMAT    Output format (plain|json|structured)
+#
+# Examples:
+#   log_stream                           # Stream all logs
+#   log_stream --level=ERROR             # Stream only errors
+#   log_stream --format=json             # Stream in JSON format
+#   log_stream --level=INFO --format=structured  # Combined options
+#
+# Features:
+#   - Uses tail -F for rotation-aware following
+#   - Cross-terminal streaming (unbuffered writes)
+#   - Multiple output formats
+#   - Level filtering with immediate response
+log_stream() {
+  local level=""
+  local format="plain"
+
+  # Parse flags
+  while [[ $# -gt 0 ]]; do
+    case "$1" in
+      --level=*)
+        level="${1#*=}"
+        shift
+        ;;
+      --format=*)
+        format="${1#*=}"
+        shift
+        ;;
+      --level)
+        level="${2:?--level requires an argument}"
+        shift 2
+        ;;
+      --format)
+        format="${2:?--format requires an argument}"
+        shift 2
+        ;;
+      *)
+        shift
+        ;;
+    esac
+  done
+
+  local log_file="$HARM_LOG_FILE"
+
+  # Use debug log if streaming debug level
+  if [[ "$level" == "DEBUG" ]]; then
+    log_file="$HARM_DEBUG_LOG_FILE"
+  fi
+
+  # Verify log file exists
+  if [[ ! -f "$log_file" ]]; then
+    error_msg "Log file not found: $log_file"
+    return 1
+  fi
+
+  # Build streaming pipeline
+  # KEY: Use tail -F (capital F) for rotation-aware following
+  local tail_cmd="tail -F -n 0"
+
+  # Add level filtering if specified
+  local filter_cmd="cat"
+  if [[ -n "$level" ]]; then
+    # Use --line-buffered for immediate output
+    filter_cmd="grep --line-buffered -E '\\[$level\\]'"
+  fi
+
+  # Add format conversion
+  local format_cmd="cat"
+  case "$format" in
+    json)
+      format_cmd="_log_format_json_line"
+      ;;
+    structured)
+      format_cmd="_log_format_structured_line"
+      ;;
+  esac
+
+  # Execute streaming pipeline
+  # Use stdbuf if available to eliminate buffering
+  if command -v stdbuf >/dev/null 2>&1; then
+    # stdbuf -o0 disables output buffering
+    if [[ "$format_cmd" == "_log_format_json_line" ]] || [[ "$format_cmd" == "_log_format_structured_line" ]]; then
+      # For shell functions, use while-read loop
+      eval "stdbuf -o0 $tail_cmd '$log_file' | stdbuf -o0 $filter_cmd" | while IFS= read -r line; do
+        $format_cmd <<<"$line"
+      done
+    else
+      # For builtins/executables, pipe directly
+      eval "stdbuf -o0 $tail_cmd '$log_file' | stdbuf -o0 $filter_cmd | stdbuf -o0 $format_cmd"
+    fi
+  else
+    # Fallback without stdbuf
+    if [[ "$format_cmd" == "_log_format_json_line" ]] || [[ "$format_cmd" == "_log_format_structured_line" ]]; then
+      eval "$tail_cmd '$log_file' | $filter_cmd" | while IFS= read -r line; do
+        $format_cmd <<<"$line"
+      done
+    else
+      eval "$tail_cmd '$log_file' | $filter_cmd | $format_cmd"
+    fi
+  fi
+}
+
+# ═══════════════════════════════════════════════════════════════
 # Exports
 # ═══════════════════════════════════════════════════════════════
 
@@ -368,6 +512,7 @@ export -f log_debug log_info log_warn log_error
 export -f log_rotate_check log_rotate
 export -f log_tail log_search log_clear log_stats
 export -f log_perf_start log_perf_end
+export -f log_stream _log_format_json_line _log_format_structured_line
 
 # Initialize on load
 log_init
