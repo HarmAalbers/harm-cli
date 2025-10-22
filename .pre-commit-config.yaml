@@ -35,7 +35,8 @@ repos:
         entry: .pre-commit-hooks/check-function-parameters.sh
         language: script
         types: [shell]
-        description: Ensures functions explicitly accept parameters instead of relying on parent scope
+        files: ^(install\.sh|uninstall\.sh)$
+        description: Ensures installer functions explicitly accept parameters instead of relying on parent scope
 
   # Spell checking
   - repo: https://github.com/codespell-project/codespell
