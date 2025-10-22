@@ -632,6 +632,63 @@ Clear all completed goals
 harm-cli goal clear
 ```
 
+### AI Goal Validation (Automatic)
+
+**How It Works:**
+
+AI automatically validates significant commands against your active goal:
+
+1. You set a goal: `harm-cli goal set "Implement user authentication" 4h`
+2. You run a command: `git commit -m "add login form"`
+3. AI checks alignment (background, non-blocking)
+4. If misaligned, you get a notification:
+
+```
+🤔 Goal Alignment Check:
+   Goal: Implement user authentication
+   Command: npm install lodash
+
+   AI: NO - Installing lodash doesn't directly relate to
+       implementing authentication. Consider if this is necessary.
+```
+
+**Validated Commands:**
+
+- git, npm, docker, python (all development tools)
+- vim, code, emacs (file editing)
+- make, cargo, go, mvn (build tools)
+- kubectl, helm (deployment)
+
+**Ignored Commands:**
+
+- ls, cd, pwd, cat (navigation)
+- grep, find (searching)
+- history, man, help (reference)
+
+**Configuration:**
+
+Enable/disable AI validation
+
+```bash
+export HARM_GOAL_VALIDATION_ENABLED=1  # Enable (default)
+export HARM_GOAL_VALIDATION_ENABLED=0  # Disable
+```
+
+Set validation frequency (seconds)
+
+```bash
+export HARM_GOAL_VALIDATION_FREQUENCY=60   # Every minute (default)
+export HARM_GOAL_VALIDATION_FREQUENCY=300  # Every 5 minutes (less intrusive)
+```
+
+**How It Helps:**
+
+- Keeps you aligned with goals
+- Detects scope creep early
+- Prevents rabbit holes
+- Maintains focus
+- Non-blocking (doesn't slow you down)
+
 ---
 
 ## 🤖 AI Assistant (Gemini)
@@ -990,6 +1047,84 @@ harm-cli work stop && harm-cli ai daily
 
 ---
 
+## 📚 Interactive Learning & Discovery
+
+### Learn Command - AI-Powered Tutorials
+
+Get comprehensive tutorial on any topic
+
+```bash
+harm-cli learn git          # Git workflows
+harm-cli learn docker       # Docker & containers
+harm-cli learn python       # Python development
+harm-cli learn bash         # Shell scripting
+harm-cli learn productivity # Time management
+harm-cli learn harm-cli     # Advanced harm-cli usage
+```
+
+List all available topics
+
+```bash
+harm-cli learn --list
+```
+
+### Discover - Feature Suggestions
+
+Get personalized feature recommendations
+
+```bash
+harm-cli discover
+```
+
+**How it works:**
+- Analyzes your command patterns from activity tracking
+- AI suggests harm-cli features that match your workflow
+- Shows specific examples for your use cases
+
+Example output:
+```
+🔍 Discovering harm-cli Features...
+
+Based on your git usage, here are features to try:
+
+1. **AI Commit Messages** - Generate conventional commits
+   Try: harm-cli git commit-msg
+
+2. **Insights** - See your git patterns
+   Try: harm-cli insights show week
+
+3. **Work Enforcement** - Stay focused on one branch
+   Try: harm-cli work set-mode strict
+```
+
+### Unused - Find What You're Missing
+
+Discover commands you haven't tried
+
+```bash
+harm-cli unused
+```
+
+Shows:
+- All harm-cli commands you've never used
+- Suggestions to explore new features
+- Helps maximize your productivity
+
+### Cheat - Quick Reference
+
+Get instant command examples
+
+```bash
+harm-cli cheat curl        # curl examples
+harm-cli cheat git         # git examples
+harm-cli cheat docker      # docker examples
+harm-cli cheat tar         # tar examples
+```
+
+**Powered by:** https://cheat.sh
+
+---
+
 ## 🪝 Shell Hooks (Advanced)
 
 harm-cli includes a powerful shell hooks system for automation and advanced features.
@@ -1083,6 +1218,8 @@ export HARM_HOOKS_DEBUG=1
 | **Insights**    | `harm-cli insights show week` | Productivity insights   |
 | **Focus**       | `harm-cli focus check`        | Focus monitoring        |
 | **AI**          | `harm-cli ai "question"`      | Ask AI assistant        |
+| **Learn**       | `harm-cli learn git`          | Interactive tutorials   |
+| **Discover**    | `harm-cli discover`           | Feature suggestions     |
 | **Git**         | `harm-cli git commit-msg`     | Generate commit message |
 | **Projects**    | `harm-cli proj list`          | List all projects       |
 | **Docker**      | `harm-cli docker up`          | Start services          |
