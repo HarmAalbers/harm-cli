@@ -79,15 +79,15 @@ print_header() {
 }
 
 print_step() {
-  echo -e "${BOLD}${BLUE}▶${NC} $*"
+  echo -e "${BOLD}${BLUE}▶${NC} $*" >&2
 }
 
 print_success() {
-  echo -e "${GREEN}✓${NC} $*"
+  echo -e "${GREEN}✓${NC} $*" >&2
 }
 
 print_warning() {
-  echo -e "${YELLOW}⚠${NC} $*"
+  echo -e "${YELLOW}⚠${NC} $*" >&2
 }
 
 print_error() {
@@ -95,7 +95,7 @@ print_error() {
 }
 
 print_info() {
-  echo -e "${CYAN}ℹ${NC} $*"
+  echo -e "${CYAN}ℹ${NC} $*" >&2
 }
 
 die() {

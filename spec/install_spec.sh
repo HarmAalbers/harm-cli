@@ -91,4 +91,35 @@ The value "$count" should not be blank
 The value "$count" should equal 2
 End
 End
+
+Describe "stdout/stderr separation (bug fix)"
+# This test ensures print functions don't interfere with return values
+It "generate_aliases returns ONLY file path to stdout (no print messages)"
+# Source the install.sh to get the functions
+# We need to mock/override the interactive parts
+export SHORTCUT_STYLE=1
+export ALIAS_CONFLICT_ACTION="none"
+export INSTALL_COMPLETIONS="no"
+
+# Extract just the functions we need (print_step and generate_aliases)
+eval "$(sed -n '/^print_step()/,/^}/p' install.sh)"
+eval "$(sed -n '/^generate_aliases()/,/^}$/p' install.sh)"
+
+# Capture the output
+captured_output=$(generate_aliases 2>/dev/null)
+
+# The output should be a single line with just the temp file path
+# It should NOT contain any print_step output like "▶ Generating"
+The value "$captured_output" should not include "▶"
+The value "$captured_output" should not include "Generating"
+
+# It should be a valid file path
+The value "$captured_output" should start with "/tmp/harm-cli-aliases-"
+The value "$captured_output" should end with ".sh"
+
+# It should be a single line (no newlines in the middle)
+line_count=$(echo "$captured_output" | wc -l | tr -d ' ')
+The value "$line_count" should equal 1
+End
+End
 End
