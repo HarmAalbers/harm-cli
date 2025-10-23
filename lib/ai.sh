@@ -784,6 +784,12 @@ ai_query() {
       if text=$(_ai_parse_response "$cached"); then
         echo "${DIM}(cached response)${RESET}"
         echo "$text"
+
+        # Log cached response to audit if available
+        if type ai_audit_log >/dev/null 2>&1; then
+          ai_audit_log "$query" "$text" "${AI_DEFAULT_MODEL}" "0" "null" "true" 2>/dev/null || true
+        fi
+
         return 0
       fi
     fi
@@ -793,6 +799,10 @@ ai_query() {
   echo "🤖 Thinking..."
   log_info "ai" "Sending API request"
 
+  # Track start time for audit
+  local start_time
+  start_time=$(date +%s%3N 2>/dev/null || echo "0")
+
   local response
   if ! response=$(_ai_make_request "$api_key" "$query" "$context"); then
     local exit_code=$?
@@ -800,6 +810,11 @@ ai_query() {
     _ai_fallback
     return "$exit_code"
   fi
+
+  # Calculate duration
+  local end_time duration_ms
+  end_time=$(date +%s%3N 2>/dev/null || echo "0")
+  duration_ms=$((end_time - start_time))
 
   # Parse response
   local text
@@ -812,6 +827,11 @@ ai_query() {
   # Cache response
   if [[ $use_cache -eq 1 ]]; then
     _ai_cache_set "$cache_key" "$response"
+  fi
+
+  # Log to audit trail if module available
+  if type ai_audit_log >/dev/null 2>&1; then
+    ai_audit_log "$query" "$text" "${AI_DEFAULT_MODEL}" "$duration_ms" "null" "false" 2>/dev/null || true
   fi
 
   # Display response

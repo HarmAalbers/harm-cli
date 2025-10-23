@@ -561,6 +561,49 @@ EOF
         daily)
           ai_daily "$@"
           ;;
+        audit)
+          # shellcheck source=lib/ai_audit.sh
+          source "$ROOT_DIR/lib/ai_audit.sh"
+          audit_subcmd="${1:-list}"
+          shift || true
+          case "$audit_subcmd" in
+            list | ls) ai_audit_list "$@" ;;
+            show) ai_audit_show "$@" ;;
+            stats) ai_audit_stats "$@" ;;
+            export) ai_audit_export "$@" ;;
+            clean) ai_audit_clean "$@" ;;
+            --help | -h)
+              cat <<'EOF'
+harm-cli ai audit - AI usage audit trail
+
+Commands:
+  list [N]          List recent queries (default: 10)
+  show <id>         Show full details of specific query
+  stats [period]    Usage statistics (today|week|month|all)
+  export [format]   Export data (json|csv)
+  clean [days]      Remove old entries (default: 30 days)
+
+Examples:
+  harm-cli ai audit list
+  harm-cli ai audit list 20
+  harm-cli ai audit show abc123def456
+  harm-cli ai audit stats today
+  harm-cli ai audit export csv > usage.csv
+  harm-cli ai audit clean 7
+
+Privacy:
+  - Audit logs stored in: ~/.harm-cli/ai-audit/
+  - Contains prompts and responses (may include sensitive data)
+  - Disable: export HARM_AI_AUDIT_ENABLED=0
+  - Auto-cleanup after 30 days (configurable)
+EOF
+              ;;
+            *)
+              echo "Unknown audit command: $audit_subcmd"
+              echo "Try: harm-cli ai audit --help"
+              ;;
+          esac
+          ;;
         query)
           shift
           ai_query "$@"
