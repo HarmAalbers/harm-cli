@@ -41,6 +41,7 @@ temp/
 .env
 .env.local
 *.local
+.claude/
 
 # ShellSpec
 .shellspec-*
