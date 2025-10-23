@@ -16,32 +16,18 @@ The status should be success
 End
 End
 
-Describe "Function parameter consistency"
-It "install_completions accepts aliases_file parameter"
-# Extract the function definition
-When run grep -A3 "^install_completions()" install.sh
-The output should include 'local aliases_file="$1"'
+Describe "Function parameter consistency (updated for new architecture)"
+It "add_to_shell_rc defined without parameters"
+# New architecture: add_to_shell_rc doesn't take parameters
+When run grep "^add_to_shell_rc()" install.sh
+The status should be success
+The output should equal "add_to_shell_rc() {"
 End
 
-It "add_to_shell_rc accepts aliases_file parameter"
-When run grep -A3 "^add_to_shell_rc()" install.sh
-The output should include 'local aliases_file="$1"'
-End
-
-It "both functions have consistent parameter patterns"
-# Both should accept the file as first parameter
-install_params=$(grep -A3 "^install_completions()" install.sh | grep "local aliases_file")
-add_params=$(grep -A3 "^add_to_shell_rc()" install.sh | grep "local aliases_file")
-
-# Both should have the same parameter pattern
-The value "$install_params" should not be blank
-The value "$add_params" should not be blank
-End
-
-It "install_completions is called with parameter"
-# Check that the call site passes the parameter
-When run grep "install_completions" install.sh
-The output should include 'install_completions "$aliases_file"'
+It "install_completions function removed (handled in harm-cli.sh)"
+# Check that install_completions no longer exists as a function
+When run grep "^install_completions()" install.sh
+The status should be failure
 End
 End
 
@@ -61,65 +47,162 @@ When run grep -q "^generate_aliases()" install.sh
 The status should be success
 End
 
-It "defines install_completions function"
-When run grep -q "^install_completions()" install.sh
-The status should be success
-End
-
 It "defines add_to_shell_rc function"
 When run grep -q "^add_to_shell_rc()" install.sh
 The status should be success
 End
 End
 
-Describe "Architectural consistency"
-It "generate_aliases returns temp file path via echo"
+Describe "Architectural consistency (new architecture)"
+It "generate_aliases writes directly to ~/.harm-cli/aliases.sh"
+When run grep -A10 "^generate_aliases()" install.sh
+The output should include 'HARM_CLI_HOME/aliases.sh'
+End
+
+It "generate_aliases no longer returns file path"
+# New architecture: generate_aliases doesn't echo file path
 When run grep -A50 "^generate_aliases()" install.sh
-The output should include 'echo "$aliases_file"'
+The output should not include 'echo "$aliases_file"'
 End
 
-It "main flow captures generate_aliases output"
-When run grep 'aliases_file=' install.sh
-The output should include 'aliases_file=$(generate_aliases)'
+It "main flow calls generate_aliases without capturing output"
+When run grep -A5 "generate_aliases" install.sh
+The output should include 'generate_aliases'
+The output should not include 'aliases_file=$(generate_aliases)'
 End
 
-It "main flow passes aliases_file to both functions"
-calls=$(grep -E "(install_completions|add_to_shell_rc)" install.sh | grep '\$aliases_file')
-# Should have at least 2 calls with $aliases_file parameter
-count=$(echo "$calls" | wc -l | tr -d ' ')
-The value "$count" should not be blank
-The value "$count" should equal 2
+It "main flow calls add_to_shell_rc without parameters"
+When run grep "add_to_shell_rc" install.sh
+The output should include 'add_to_shell_rc'
+The output should not include 'add_to_shell_rc "$'
 End
 End
 
-Describe "stdout/stderr separation (bug fix)"
-# This test ensures print functions don't interfere with return values
-It "generate_aliases returns ONLY file path to stdout (no print messages)"
-# Source the install.sh to get the functions
-# We need to mock/override the interactive parts
-export SHORTCUT_STYLE=1
-export ALIAS_CONFLICT_ACTION="none"
-export INSTALL_COMPLETIONS="no"
+Describe "Output management (new architecture)"
+It "generate_aliases uses print_step for user feedback"
+When run grep -A5 "^generate_aliases()" install.sh
+The output should include 'print_step'
+End
 
-# Extract just the functions we need (print_step and generate_aliases)
-eval "$(sed -n '/^print_step()/,/^}/p' install.sh)"
-eval "$(sed -n '/^generate_aliases()/,/^}$/p' install.sh)"
+It "generate_aliases uses print_success to confirm creation"
+When run grep -A50 "^generate_aliases()" install.sh
+The output should include 'print_success'
+End
+End
 
-# Capture the output
-captured_output=$(generate_aliases 2>/dev/null)
+# ═══════════════════════════════════════════════════════════════
+# New Architecture Tests (Industry Standard: Single-Line Sourcing)
+# ═══════════════════════════════════════════════════════════════
 
-# The output should be a single line with just the temp file path
-# It should NOT contain any print_step output like "▶ Generating"
-The value "$captured_output" should not include "▶"
-The value "$captured_output" should not include "Generating"
+Describe "New file structure (separated config files)"
+Describe "Function existence"
+It "defines generate_shell_integration function"
+When run grep -q "^generate_shell_integration()" install.sh
+The status should be success
+End
+End
 
-# It should be a valid file path
-The value "$captured_output" should start with "/tmp/harm-cli-aliases-"
-The value "$captured_output" should end with ".sh"
+Describe "generate_shell_integration behavior"
+It "harm-cli.sh sources config.sh"
+# Verify the function generates code that sources config.sh
+When run grep -A100 "^generate_shell_integration()" install.sh
+The output should include 'source "$HARM_CLI_HOME/config.sh"'
+End
 
-# It should be a single line (no newlines in the middle)
-line_count=$(echo "$captured_output" | wc -l | tr -d ' ')
-The value "$line_count" should equal 1
+It "harm-cli.sh sources aliases.sh"
+# Verify the function generates code that sources aliases.sh
+When run grep -A100 "^generate_shell_integration()" install.sh
+The output should include 'source "$HARM_CLI_HOME/aliases.sh"'
+End
+
+It "harm-cli.sh adds to PATH"
+# Verify the function generates code that adds to PATH
+When run grep -A100 "^generate_shell_integration()" install.sh
+The output should include 'export PATH='
+End
+
+It "harm-cli.sh loads completions based on shell type"
+# Verify the function generates code that detects shell and loads completions
+When run grep -A100 "^generate_shell_integration()" install.sh
+The output should include 'ZSH_VERSION'
+The output should include 'BASH_VERSION'
+End
+
+It "harm-cli.sh has proper header comments"
+# Verify generated file has documentation
+When run grep -A100 "^generate_shell_integration()" install.sh
+The output should include 'Shell Integration Loader'
+The output should include 'To customize:'
+End
+End
+
+Describe "generate_aliases behavior (updated)"
+It "writes directly to ~/.harm-cli/aliases.sh"
+# Verify function creates file in correct location
+When run grep -A10 "^generate_aliases()" install.sh
+The output should include 'HARM_CLI_HOME/aliases.sh'
+End
+
+It "generates aliases based on SHORTCUT_STYLE patterns"
+# Verify function has case statement for different styles
+When run grep -A80 "^generate_aliases()" install.sh
+The output should include 'case "$SHORTCUT_STYLE"'
+The output should include "alias h='harm-cli'"
+The output should include "alias work='harm-cli work'"
+End
+
+It "includes harm-cli comment identifier in aliases"
+# Verify aliases use "# harm-cli:" prefix
+When run grep -A80 "^generate_aliases()" install.sh
+The output should include '# harm-cli:'
+End
+
+It "has proper header with usage instructions"
+# Verify generated file has helpful header
+When run grep -A80 "^generate_aliases()" install.sh
+The output should include 'harm-cli Shell Aliases'
+The output should include 'You can customize these aliases'
+End
+End
+
+Describe "add_to_shell_rc behavior (simplified)"
+It "adds single source line for harm-cli.sh"
+# Verify function adds the correct source line
+When run grep -A20 "^add_to_shell_rc()" install.sh
+The output should include 'source ~/.harm-cli/harm-cli.sh'
+End
+
+It "includes harm-cli identifier comment"
+# Verify the line added to .zshrc has identifying comment
+When run grep -A20 "^add_to_shell_rc()" install.sh
+The output should include '# harm-cli'
+End
+
+It "checks if already installed before adding"
+# Verify function is idempotent
+When run grep -A20 "^add_to_shell_rc()" install.sh
+The output should include 'grep -q "harm-cli.sh"'
+End
+End
+End
+
+Describe "Comment identifier standards"
+It "harm-cli.sh uses harm-cli identifier in comments"
+# Verify generated harm-cli.sh has proper identification
+When run grep -A100 "^generate_shell_integration()" install.sh
+The output should include '# harm-cli'
+End
+
+It "aliases.sh uses harm-cli identifier in comments"
+# Verify generated aliases.sh has proper identification
+When run grep -A80 "^generate_aliases()" install.sh
+The output should include '# harm-cli'
+End
+
+It "config.sh uses harm-cli identifier in comments"
+# Verify generated config.sh has proper identification
+When run grep -A200 "^generate_config_file()" install.sh
+The output should include '# harm-cli'
 End
 End
 End
