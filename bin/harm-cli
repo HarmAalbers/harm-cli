@@ -352,25 +352,50 @@ Commands:
   --help                  Show this help
 
 Stream Options:
-  --level=LEVEL           Filter by log level (DEBUG|INFO|WARN|ERROR)
-  --format=FORMAT         Output format (plain|json|structured)
+  --level=LEVEL           Filter by minimum log level (shows level and above)
+                          DEBUG: Shows all logs (DEBUG, INFO, WARN, ERROR)
+                          INFO:  Shows INFO, WARN, ERROR
+                          WARN:  Shows WARN, ERROR
+                          ERROR: Shows ERROR only
+  --format=FORMAT         Output format (plain|json|structured|color)
+                          plain: Raw log lines
+                          json: JSON formatted output
+                          structured: Visual indicators (✓ ⚠ ✗ 🔍)
+                          color: Colored plain text
+  --color=WHEN            Colorize output (auto|always|never)
+                          auto: Color if terminal supports it (default)
+                          always: Always colorize
+                          never: Never colorize
 
 Examples:
+  # Stream all logs with auto-color
   harm-cli log stream
+
+  # Stream INFO and above (INFO, WARN, ERROR) with colors
+  harm-cli log stream --level=INFO --color=always
+
+  # Stream errors only
   harm-cli log stream --level=ERROR
-  harm-cli log stream --format=json
-  harm-cli log stream --level=INFO --format=structured
+
+  # Stream in structured format with visual indicators
+  harm-cli log stream --format=structured
+
+  # Stream warnings and errors in JSON format
+  harm-cli log stream --level=WARN --format=json
+
+  # Other log commands
   harm-cli log tail --lines=100
   harm-cli log search "api"
   harm-cli log stats
   harm-cli log clear --force
 
 Features:
-  - Cross-terminal streaming (logs from ALL terminals appear)
-  - Rotation-aware following (continues through log rotation)
-  - Multiple output formats (plain, JSON, structured)
-  - Real-time with zero buffering
-  - Level filtering for focused debugging
+  - ✅ Cross-terminal streaming (logs from ALL terminals appear)
+  - ✅ Rotation-aware following (continues through log rotation)
+  - ✅ Multiple output formats (plain, JSON, structured, color)
+  - ✅ Real-time with zero buffering
+  - ✅ Minimum level filtering (industry standard behavior)
+  - ✅ Auto-colorization based on terminal support
 
 Log Files:
   Main log:  ~/.harm-cli/logs/harm-cli.log
@@ -752,6 +777,68 @@ EOF
           echo "  rm <files>         Safe file deletion"
           echo "  docker-prune       Safe Docker cleanup"
           echo "  git-reset [ref]    Safe git reset with backup"
+          ;;
+      esac
+      ;;
+    options)
+      # shellcheck source=lib/options.sh
+      source "$ROOT_DIR/lib/options.sh"
+      subcmd="${1:-show}"
+      shift || true
+      case "$subcmd" in
+        --help | -h)
+          cat <<'EOF'
+harm-cli options - Manage global settings and preferences
+
+Usage:
+  harm-cli options [COMMAND]
+
+Commands:
+  set              Interactive configuration of all options (Option C style)
+  show             Display all current options (default)
+  info             Alias for 'show'
+  get <key>        Get value of a specific option
+  reset <key>      Reset option to default value
+  --help           Show this help
+
+Examples:
+  harm-cli options                    # Show all current settings
+  harm-cli options info               # Same as above
+  harm-cli options show               # Same as above
+  harm-cli options set                # Interactive configuration
+  harm-cli options get log_level      # Get specific option
+  harm-cli options reset format       # Reset to default
+
+Available Options (17 total):
+  Paths: cli_home, log_dir
+  Logging: log_level, log_to_file, log_to_console, log_unbuffered,
+           log_max_size, log_max_files, debug_mode, quiet_mode
+  AI: ai_cache_ttl, ai_timeout, ai_max_tokens, ai_model
+  Hooks: hooks_enabled, hooks_debug
+  Output: format
+
+Notes:
+  - Environment variables take precedence over config file
+  - Config stored in: ~/.harm-cli/config.sh
+  - Use --format json for machine-readable output
+EOF
+          ;;
+        set)
+          options_set_interactive
+          ;;
+        show | info | "")
+          options_show
+          ;;
+        get)
+          key="${1:?options get requires option key}"
+          options_get "$key"
+          ;;
+        reset)
+          key="${1:?options reset requires option key}"
+          options_reset "$key"
+          ;;
+        *)
+          die "Unknown options command: $subcmd. Try: set, show, get <key>, reset <key>" 2
           ;;
       esac
       ;;

@@ -19,6 +19,10 @@ setup() {
   # Create temp directory for test artifacts
   export TEST_TMP="$ROOT/spec/tmp"
   mkdir -p "$TEST_TMP"
+
+  # Set test-specific HARM_CLI_HOME to avoid using user's real config
+  export HARM_CLI_HOME="$TEST_TMP/harm-cli"
+  mkdir -p "$HARM_CLI_HOME"
 }
 
 cleanup() {

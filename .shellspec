@@ -4,9 +4,9 @@
 --format documentation
 --color
 
-## Shell to use (bash 5+ required)
+## Shell to use (bash 5+ required for associative arrays)
 ## Note: Shell path can be overridden via SHELLSPEC_SHELL env var or -s flag
-# --shell /opt/homebrew/bin/bash
+--shell /opt/homebrew/bin/bash
 
 ## Coverage (uncomment to enable)
 # --kcov
