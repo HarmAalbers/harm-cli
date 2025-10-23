@@ -634,19 +634,29 @@ Commands:
   --help              Show this help
 
 Examples:
+  # List and manage projects
   harm-cli proj list
   harm-cli proj add ~/harm-cli
   harm-cli proj add ~/myapp myapp
-  harm-cli proj switch myapp
-  eval "$(harm-cli proj switch myapp)"  # Actually switch
+  harm-cli proj remove myapp
+
+  # Switch directories (requires shell function)
+  proj switch myapp          # ✓ Recommended (after init)
+  proj sw myapp              # ✓ Short alias
+  eval "$(harm-cli proj switch myapp)"  # ✓ Manual eval
+
+Setup (Run Once):
+  # Initialize harm-cli to get the proj() helper function
+  eval "$(harm-cli init)"
+
+  # Add to ~/.bashrc or ~/.zshrc to persist across sessions:
+  echo 'eval "$(harm-cli init)"' >> ~/.bashrc
 
 Notes:
   - Projects stored in: ~/.harm-cli/projects/registry.jsonl
   - Project type auto-detected (nodejs, python, rust, go, shell)
-  - Switch outputs cd command (shell limitation)
-
-Shell Function (add to ~/.bashrc):
-  proj() { eval "$(harm-cli proj switch "$@")"; }
+  - The proj() function automatically evaluates switch commands
+  - Use 'harm-cli proj' directly for list/add/remove commands
 EOF
           ;;
         list | ls)

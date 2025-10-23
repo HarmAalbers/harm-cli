@@ -37,6 +37,44 @@ if [[ -f "$HARM_CLI_ROOT/lib/hooks.sh" ]]; then
   source "$HARM_CLI_ROOT/lib/hooks.sh"
 fi
 
+# ═══════════════════════════════════════════════════════════════
+# Shell Helper Functions
+# ═══════════════════════════════════════════════════════════════
+
+# proj() - Wrapper for harm-cli proj with automatic directory switching
+#
+# This function wraps the 'harm-cli proj' command and automatically
+# evaluates the 'switch' subcommand, making directory changes work seamlessly.
+#
+# Usage:
+#   proj list          # Same as: harm-cli proj list
+#   proj add ~/myapp   # Same as: harm-cli proj add ~/myapp
+#   proj switch myapp  # Actually switches to the directory!
+#   proj sw myapp      # Short alias for switch
+#
+# Note: For all other proj subcommands, this passes through to harm-cli.
+proj() {
+  # Handle switch/sw subcommand specially
+  if [[ "${1:-}" == "switch" || "${1:-}" == "sw" ]]; then
+    # Execute harm-cli proj switch and capture output
+    local switch_cmd
+    switch_cmd="$(harm-cli proj "$@" 2>&1)"
+    local exit_code=$?
+
+    # If successful and output starts with "cd ", evaluate it
+    if [[ $exit_code -eq 0 ]] && [[ "$switch_cmd" =~ ^cd\  ]]; then
+      eval "$switch_cmd"
+    else
+      # Print error message if failed
+      echo "$switch_cmd"
+      return $exit_code
+    fi
+  else
+    # Pass through all other commands
+    harm-cli proj "$@"
+  fi
+}
+
 # Optional: Remind about work session if not active
 # Uncomment to enable:
 # if command -v harm-cli >/dev/null 2>&1; then
@@ -46,4 +84,4 @@ fi
 #   fi
 # fi
 
-echo "✓ harm-cli initialized"
+echo "✓ harm-cli initialized (with proj() helper function)"
