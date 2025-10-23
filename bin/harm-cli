@@ -85,6 +85,7 @@ Commands:
   goal                    Goal tracking and progress
   log                     Real-time log streaming and management
   ai                      AI assistant commands (Gemini)
+  md                      Markdown rendering and viewing (glow/bat)
   git                     Enhanced git workflows with AI
   proj                    Project management and switching
   docker                  Docker and Docker Compose management
@@ -834,6 +835,66 @@ EOF
       # shellcheck source=lib/health.sh
       source "$ROOT_DIR/lib/health.sh"
       health_check "$@"
+      ;;
+    md)
+      # shellcheck source=lib/markdown.sh
+      source "$ROOT_DIR/lib/markdown.sh"
+      subcmd="${1:-}"
+      shift || true
+      case "$subcmd" in
+        render | view)
+          render_markdown "$@"
+          ;;
+        pipe)
+          render_markdown_pipe "$@"
+          ;;
+        tui | browse)
+          markdown_tui "$@"
+          ;;
+        tools | check)
+          suggest_markdown_tools
+          ;;
+        --help | -h | "")
+          cat <<'EOF'
+harm-cli md - Markdown rendering and viewing
+
+Usage:
+  harm-cli md render FILE [OPTIONS]    Render markdown file
+  harm-cli md pipe [OPTIONS]           Render from stdin
+  harm-cli md tui [DIRECTORY]          Interactive markdown browser (glow)
+  harm-cli md tools                    Check available rendering tools
+
+Options (for render/pipe):
+  --width WIDTH       Set output width (default: terminal width, max 120)
+  --style STYLE       Set style (auto|dark|light) [glow only]
+  --pager             Use pager for output
+  --no-color          Disable colors
+  --tool TOOL         Force specific tool (glow|bat|rich|cat)
+
+Examples:
+  harm-cli md render README.md
+  harm-cli md render docs/guide.md --width 100 --pager
+  echo "# Hello **World**" | harm-cli md pipe
+  harm-cli md tui docs/
+  harm-cli md tools
+
+Tool Priority:
+  1. glow (recommended) - Beautiful rendering with TUI
+  2. bat (fallback) - Syntax-highlighted source view
+  3. rich-cli (optional) - Python-based rendering
+  4. cat (universal) - Plain text output
+
+Install Tools:
+  brew install glow bat           # macOS
+  sudo apt install glow bat       # Linux (see docs for glow repo setup)
+
+Note: harm-cli works without these tools, using plain text fallback.
+EOF
+          ;;
+        *)
+          die "Unknown md subcommand: $subcmd. Use 'harm-cli md --help'" "$EXIT_INVALID_ARGS"
+          ;;
+      esac
       ;;
     safe)
       # shellcheck source=lib/safety.sh
