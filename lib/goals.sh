@@ -468,12 +468,208 @@ goal_validate() {
   echo "🤖 Validating goal with AI..."
 
   # Query AI (bypass cache)
-  local context="Goal Validation Request"
   ai_query "$prompt" --no-cache
 
   log_info "goals" "Goal validation completed"
   return 0
 }
+
+# ═══════════════════════════════════════════════════════════════
+# AI Command Validation
+# ═══════════════════════════════════════════════════════════════
+
+# Configuration for command validation
+HARM_GOAL_VALIDATION_ENABLED="${HARM_GOAL_VALIDATION_ENABLED:-1}"
+readonly HARM_GOAL_VALIDATION_ENABLED
+
+# Validation frequency (seconds) - throttle to avoid too many API calls
+HARM_GOAL_VALIDATION_FREQUENCY="${HARM_GOAL_VALIDATION_FREQUENCY:-60}"
+readonly HARM_GOAL_VALIDATION_FREQUENCY
+
+# Track last validation time
+declare -g _GOAL_LAST_VALIDATION=0
+
+# Significant commands that should be validated
+declare -a GOAL_SIGNIFICANT_COMMANDS=(
+  git npm yarn pnpm docker compose poetry python pip pytest
+  make cmake cargo go mvn gradle kubectl helm
+  vim nvim code emacs
+)
+
+# Always ignore these commands (navigation, viewing)
+declare -a GOAL_IGNORE_COMMANDS=(
+  ls ll la cd pwd tree cat less more head tail
+  grep rg ag find fd echo printf clear reset
+  history man help which
+)
+
+# goal_is_significant_command: Check if command is work-related
+#
+# Description:
+#   Determines if a command is significant enough to validate
+#   against the active goal.
+#
+# Arguments:
+#   $1 - cmd (string): Command to check
+#
+# Returns:
+#   0 - Command is significant
+#   1 - Command should be ignored
+goal_is_significant_command() {
+  local cmd="${1:?Command required}"
+  local first_word="${cmd%% *}"
+
+  # Check ignore list first
+  local ignored
+  for ignored in "${GOAL_IGNORE_COMMANDS[@]}"; do
+    [[ "$first_word" == "$ignored" ]] && return 1
+  done
+
+  # Check significant commands
+  local significant
+  for significant in "${GOAL_SIGNIFICANT_COMMANDS[@]}"; do
+    [[ "$first_word" == "$significant" ]] && return 0
+  done
+
+  # Check for file editing patterns (editing code files)
+  if [[ "$cmd" =~ (vim|nvim|code|emacs)[[:space:]].+\.(sh|py|js|ts|go|rs|java|rb|php|c|cpp|h) ]]; then
+    return 0
+  fi
+
+  return 1
+}
+
+# goal_get_active: Get currently active goal
+#
+# Description:
+#   Returns the first incomplete goal for today.
+#
+# Returns:
+#   0 - Active goal found
+#   1 - No active goal
+#
+# Outputs:
+#   stdout: Active goal text
+goal_get_active() {
+  if ! goal_exists_today; then
+    return 1
+  fi
+
+  local goal_file active_goal
+  goal_file="$(goal_file_for_today)"
+
+  # Get first incomplete goal
+  active_goal=$(jq -r 'select(.completed == false) | .goal' "$goal_file" 2>/dev/null | head -1)
+
+  if [[ -z "$active_goal" ]]; then
+    return 1
+  fi
+
+  echo "$active_goal"
+  return 0
+}
+
+# goal_validate_command_async: Validate command against goal (async)
+#
+# Description:
+#   Uses AI to check if a command aligns with the active goal.
+#   Runs asynchronously to avoid blocking command execution.
+#   Throttled to avoid excessive API calls.
+#
+# Arguments:
+#   $1 - cmd (string): Command to validate
+#
+# Returns:
+#   0 - Always succeeds (runs in background)
+goal_validate_command_async() {
+  local cmd="$1"
+
+  # Skip if validation disabled
+  [[ $HARM_GOAL_VALIDATION_ENABLED -eq 1 ]] || return 0
+
+  # Skip if no work session
+  if type work_is_active >/dev/null 2>&1; then
+    work_is_active || return 0
+  else
+    return 0
+  fi
+
+  # Throttle validation - don't check too frequently
+  local now
+  now=$(date +%s)
+  local elapsed=$((now - _GOAL_LAST_VALIDATION))
+
+  if [[ $elapsed -lt $HARM_GOAL_VALIDATION_FREQUENCY ]]; then
+    return 0
+  fi
+
+  _GOAL_LAST_VALIDATION=$now
+
+  # Get active goal
+  local goal
+  goal=$(goal_get_active 2>/dev/null) || return 0
+
+  # Run validation in background (non-blocking)
+  (
+    local prompt
+    prompt="Quick alignment check:\n\n"
+    prompt+="Active Goal: $goal\n"
+    prompt+="Command: $cmd\n\n"
+    prompt+="Does this command help achieve the goal?\n"
+    prompt+="Answer with: YES, NO, or UNSURE\n"
+    prompt+="If NO, briefly explain why (one sentence)."
+
+    local response
+    response=$(ai_query "$prompt" --no-cache 2>/dev/null) || exit 0
+
+    # Check response
+    if echo "$response" | grep -qi "^NO"; then
+      echo "" >&2
+      echo "🤔 Goal Alignment Check:" >&2
+      echo "   Goal: $goal" >&2
+      echo "   Command: $cmd" >&2
+      echo "" >&2
+      echo "   AI: $response" >&2
+      echo "" >&2
+    fi
+  ) &
+
+  return 0
+}
+
+# goal_preexec_hook: Hook for command validation
+#
+# Description:
+#   Preexec hook that validates significant commands against goal.
+#
+# Arguments:
+#   $1 - cmd (string): Command about to execute
+#
+# Returns:
+#   0 - Always succeeds
+goal_preexec_hook() {
+  local cmd="$1"
+
+  # Skip meta-commands
+  [[ "$cmd" =~ ^(harm-cli|goal|work|focus|insights|activity) ]] && return 0
+
+  # Check if command is significant
+  if goal_is_significant_command "$cmd"; then
+    goal_validate_command_async "$cmd"
+  fi
+
+  return 0
+}
+
+# ═══════════════════════════════════════════════════════════════
+# Hook Registration
+# ═══════════════════════════════════════════════════════════════
+
+# Register goal validation hook if enabled
+if [[ $HARM_GOAL_VALIDATION_ENABLED -eq 1 ]] && type harm_add_hook >/dev/null 2>&1; then
+  harm_add_hook preexec goal_preexec_hook 2>/dev/null || true
+  log_debug "goals" "AI goal validation enabled" "frequency=${HARM_GOAL_VALIDATION_FREQUENCY}s"
+fi
 
 # ═══════════════════════════════════════════════════════════════
 # Exports
@@ -482,3 +678,5 @@ goal_validate() {
 export -f goal_file_for_today goal_exists_today
 export -f goal_set goal_show goal_update_progress goal_complete goal_clear
 export -f goal_validate
+export -f goal_is_significant_command goal_get_active
+export -f goal_validate_command_async goal_preexec_hook

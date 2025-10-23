@@ -83,8 +83,15 @@ Commands:
 
   work                    Work session management
   goal                    Goal tracking and progress
+  activity                Activity tracking and command logging
+  insights                Productivity insights and analytics
+  focus                   Focus monitoring and pomodoro timer
   log                     Real-time log streaming and management
   ai                      AI assistant commands (Gemini)
+  learn                   Interactive learning modules
+  discover                Discover helpful features
+  unused                  Find unused commands
+  cheat                   Quick command reference (cheat.sh)
   md                      Markdown rendering and viewing (glow/bat)
   git                     Enhanced git workflows with AI
   proj                    Project management and switching
@@ -279,12 +286,21 @@ Work Commands:
   status               Show current work session status (default)
   reset                Reset pomodoro counter to 0
   stats [period]       Show work statistics (today/week/month/all)
+  violations           Show violation count (strict mode)
+  reset-violations     Reset violation counter
+  set-mode <mode>      Set enforcement mode (strict|moderate|coaching|off)
   --help               Show this help
 
 Break Commands:
   start [duration]     Start a break session (auto-detects short/long)
   stop                 Stop current break session
   status               Show current break session status
+
+Enforcement Modes:
+  strict     Single project/goal enforcement with warnings
+  moderate   Track violations but don't warn (default)
+  coaching   Gentle reminders only
+  off        No enforcement
 
 Examples:
   harm-cli work start "Phase 3 implementation"
@@ -356,6 +372,175 @@ EOF
         stop) break_stop "$@" ;;
         status) break_status "$@" ;;
         *) die "Unknown break command: $subcmd. Try: start, stop, status" 2 ;;
+        violations) work_get_violations ;;
+        reset-violations) work_reset_violations ;;
+        set-mode) work_set_enforcement "$@" ;;
+        *) die "Unknown work command: $subcmd. Try: start, stop, status, violations, reset-violations, set-mode" 2 ;;
+      esac
+      ;;
+    activity)
+      # shellcheck source=lib/activity.sh
+      source "$ROOT_DIR/lib/activity.sh"
+      subcmd="${1:-query}"
+      shift || true
+      case "$subcmd" in
+        --help | -h)
+          cat <<'EOF'
+harm-cli activity - Activity tracking and command logging
+
+Usage:
+  harm-cli activity [COMMAND] [ARGS]
+
+Commands:
+  query <period>    Query activity log (default)
+                    Periods: today, yesterday, week, month, all
+  stats <period>    Show activity statistics
+  clear             Clear all activity data (use with caution!)
+  cleanup           Remove old entries (older than 90 days)
+  --help            Show this help
+
+Examples:
+  harm-cli activity query today
+  harm-cli activity query week | jq -r '.command'
+  harm-cli activity stats today
+  harm-cli activity stats week
+
+Note: Activity tracking is automatic via shell hooks.
+      Logs: ~/.harm-cli/activity/activity.jsonl
+EOF
+          ;;
+        query)
+          period="${1:-today}"
+          activity_query "$period"
+          ;;
+        stats)
+          period="${1:-today}"
+          activity_stats "$period"
+          ;;
+        clear)
+          activity_clear
+          ;;
+        cleanup)
+          activity_cleanup
+          ;;
+        *)
+          die "Unknown activity command: $subcmd. Try: query, stats, clear, cleanup" 2
+          ;;
+      esac
+      ;;
+    insights)
+      # shellcheck source=lib/insights.sh
+      source "$ROOT_DIR/lib/insights.sh"
+      subcmd="${1:-show}"
+      shift || true
+      case "$subcmd" in
+        --help | -h)
+          cat <<'EOF'
+harm-cli insights - Productivity insights and analytics
+
+Usage:
+  harm-cli insights [COMMAND] [ARGS]
+
+Commands:
+  show <period> [category]  Show insights dashboard (default)
+                            Periods: today, yesterday, week, month, all
+                            Categories: all, commands, performance, errors, projects, hours
+  daily [date]              Daily summary (default: today)
+  export <file>             Export HTML report
+  json <period>             Export JSON data
+  --help                    Show this help
+
+Examples:
+  harm-cli insights show week
+  harm-cli insights show today commands
+  harm-cli insights daily
+  harm-cli insights export report.html
+  harm-cli insights json week
+
+Categories:
+  all           Complete dashboard (default)
+  commands      Command frequency analysis
+  performance   Performance metrics
+  errors        Error rate and failed commands
+  projects      Project activity distribution
+  hours         Peak productivity hours
+
+Note: Analyzes data from activity tracking.
+      Requires: harm-cli activity to be running
+EOF
+          ;;
+        show)
+          insights_show "${1:-week}" "${2:-all}"
+          ;;
+        daily)
+          insights_daily_summary "${1:-today}"
+          ;;
+        export)
+          insights_export_html week "${1:-insights-report.html}"
+          ;;
+        json)
+          insights_export_json "${1:-week}"
+          ;;
+        *)
+          die "Unknown insights command: $subcmd. Try: show, daily, export, json" 2
+          ;;
+      esac
+      ;;
+    focus)
+      # shellcheck source=lib/focus.sh
+      source "$ROOT_DIR/lib/focus.sh"
+      subcmd="${1:-check}"
+      shift || true
+      case "$subcmd" in
+        --help | -h)
+          cat <<'EOF'
+harm-cli focus - Focus monitoring and pomodoro timer
+
+Usage:
+  harm-cli focus [COMMAND] [ARGS]
+
+Commands:
+  check                 Show focus summary (default)
+  score                 Show current focus score (1-10)
+  pomodoro [duration]   Start pomodoro timer (default: 25m)
+  pomodoro-stop         Stop pomodoro timer
+  pomodoro-status       Show pomodoro status
+  --help                Show this help
+
+Examples:
+  harm-cli focus check
+  harm-cli focus score
+  harm-cli focus pomodoro 25
+  harm-cli focus pomodoro-status
+
+Configuration:
+  HARM_FOCUS_CHECK_INTERVAL=900    # Check every 15 minutes (default)
+  HARM_POMODORO_DURATION=25        # 25-minute sessions (default)
+  HARM_BREAK_DURATION=5            # 5-minute breaks (default)
+  HARM_FOCUS_ENABLED=1             # Enable monitoring (default)
+
+Note: Automatic focus checks run every 15 minutes during work sessions.
+      Pomodoro timer sends notification when complete.
+EOF
+          ;;
+        check)
+          focus_check
+          ;;
+        score)
+          focus_calculate_score
+          ;;
+        pomodoro)
+          pomodoro_start "${1:-$HARM_POMODORO_DURATION}"
+          ;;
+        pomodoro-stop)
+          pomodoro_stop
+          ;;
+        pomodoro-status)
+          pomodoro_status
+          ;;
+        *)
+          die "Unknown focus command: $subcmd. Try: check, score, pomodoro, pomodoro-stop, pomodoro-status" 2
+          ;;
       esac
       ;;
     goal)
@@ -651,6 +836,118 @@ EOF
           ai_query "$subcmd" "$@"
           ;;
       esac
+      ;;
+    learn)
+      # shellcheck source=lib/learn.sh
+      source "$ROOT_DIR/lib/learn.sh"
+      topic="${1:-}"
+      if [[ -z "$topic" || "$topic" == "--help" || "$topic" == "-h" ]]; then
+        cat <<'EOF'
+harm-cli learn - Interactive learning modules
+
+Usage:
+  harm-cli learn <topic>
+  harm-cli learn --list
+
+Topics:
+  git          Advanced git workflows and commands
+  docker       Container management and orchestration
+  python       Python development, testing, and tools
+  bash         Shell scripting and Bash features
+  productivity Time management and focus techniques
+  harm-cli     Advanced harm-cli features and workflows
+
+Examples:
+  harm-cli learn git
+  harm-cli learn docker
+  harm-cli learn --list
+
+Note: Uses AI to provide interactive, personalized tutorials.
+EOF
+      elif [[ "$topic" == "--list" ]]; then
+        learn_list
+      else
+        learn_topic "$topic"
+      fi
+      ;;
+    discover)
+      # shellcheck source=lib/learn.sh
+      source "$ROOT_DIR/lib/learn.sh"
+      if [[ "${1:-}" == "--help" || "${1:-}" == "-h" ]]; then
+        cat <<'EOF'
+harm-cli discover - Discover helpful features
+
+Usage:
+  harm-cli discover
+
+Description:
+  Analyzes your command patterns and suggests harm-cli features
+  that would be helpful for your workflow.
+
+  Uses AI to provide personalized recommendations based on
+  your actual usage patterns from activity tracking.
+
+Examples:
+  harm-cli discover
+
+Note: Requires activity tracking to be enabled.
+EOF
+      else
+        discover_features
+      fi
+      ;;
+    unused)
+      # shellcheck source=lib/learn.sh
+      source "$ROOT_DIR/lib/learn.sh"
+      if [[ "${1:-}" == "--help" || "${1:-}" == "-h" ]]; then
+        cat <<'EOF'
+harm-cli unused - Find unused commands
+
+Usage:
+  harm-cli unused
+
+Description:
+  Shows harm-cli commands you haven't tried yet.
+
+  Analyzes your activity log to identify features you might
+  be missing out on. Great for discovering new capabilities!
+
+Examples:
+  harm-cli unused
+
+Note: Requires activity tracking to be enabled.
+      Shows commands from last 90 days of activity.
+EOF
+      else
+        find_unused_commands
+      fi
+      ;;
+    cheat)
+      # shellcheck source=lib/learn.sh
+      source "$ROOT_DIR/lib/learn.sh"
+      query="${1:-}"
+      if [[ -z "$query" || "$query" == "--help" || "$query" == "-h" ]]; then
+        cat <<'EOF'
+harm-cli cheat - Quick command reference
+
+Usage:
+  harm-cli cheat <command>
+
+Description:
+  Fetches cheat sheet from cheat.sh for any command.
+  Quick reference for syntax, options, and examples.
+
+Examples:
+  harm-cli cheat curl
+  harm-cli cheat git
+  harm-cli cheat docker
+  harm-cli cheat tar
+
+Source: https://cheat.sh
+EOF
+      else
+        cheat_lookup "$query"
+      fi
       ;;
     git)
       # shellcheck source=lib/git.sh
