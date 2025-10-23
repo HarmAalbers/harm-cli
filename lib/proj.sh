@@ -410,8 +410,20 @@ proj_switch() {
     return "$EXIT_INVALID_ARGS"
   fi
 
-  # Output cd command
+  # Output cd command with helpful hint
   echo "cd \"$path\""
+
+  # If in TTY, show helpful message about shell function
+  if [[ -t 1 ]] && [[ "${HARM_CLI_FORMAT:-text}" == "text" ]]; then
+    echo "" >&2
+    echo "💡 To automatically switch directories, use the shell function:" >&2
+    echo "   eval \"\$(harm-cli proj switch $name)\"" >&2
+    echo "" >&2
+    echo "Or initialize once to get the 'proj' helper function:" >&2
+    echo "   eval \"\$(harm-cli init)\"" >&2
+    echo "   proj switch $name  # Will switch automatically!" >&2
+  fi
+
   log_info "proj" "Project switch prepared" "Path: $path"
 
   return 0
