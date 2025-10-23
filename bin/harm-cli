@@ -874,6 +874,67 @@ EOF
           ;;
       esac
       ;;
+    github | gh)
+      # shellcheck source=lib/github.sh
+      source "$ROOT_DIR/lib/github.sh"
+      subcmd="${1:-status}"
+      shift || true
+      case "$subcmd" in
+        --help | -h)
+          cat <<'EOF'
+harm-cli github - GitHub integration and context
+
+Commands:
+  status          Show GitHub repository and branch status
+  context         Generate AI-ready context summary
+  issues [state]  List issues (open|closed|all)
+  prs [state]     List pull requests
+  issue <number>  Show issue details
+  pr <number>     Show PR details
+
+Examples:
+  harm-cli github status
+  harm-cli github context
+  harm-cli github issues
+  harm-cli github prs open
+  harm-cli github issue 42
+  harm-cli github pr 123
+
+Requirements:
+  - GitHub CLI (gh): brew install gh
+  - Authentication: gh auth login
+EOF
+          ;;
+        status)
+          if github_check_auth; then
+            echo "Repository Info:"
+            github_get_repo_info | jq -r '" Name: \(.owner.login)/\(.name)\n Description: \(.description // "N/A")\n Default Branch: \(.defaultBranchRef.name)\n URL: \(.url)"'
+            echo ""
+            echo "Current Branch:"
+            github_get_current_branch_info | jq -r '" Branch: \(.branch)\n Tracking: \(.tracking // "none")\n Pull Requests: \(.pull_requests | length) open"'
+          fi
+          ;;
+        context)
+          github_create_context_summary
+          ;;
+        issues)
+          github_list_issues "$@" | jq -r '.[] | "#\(.number): \(.title)"'
+          ;;
+        prs | pr-list)
+          github_list_prs "$@" | jq -r '.[] | "#\(.number): \(.title) (\(.state))"'
+          ;;
+        issue)
+          github_get_issue "$@" | jq '.'
+          ;;
+        pr)
+          github_get_pr "$@" | jq '.'
+          ;;
+        *)
+          error_msg "Unknown github command: $subcmd"
+          echo "Try: harm-cli github --help"
+          ;;
+      esac
+      ;;
     health)
       # shellcheck source=lib/health.sh
       source "$ROOT_DIR/lib/health.sh"
