@@ -374,6 +374,50 @@ End
 End
 End
 
+Describe 'Minimum level filtering (_log_build_level_filter)'
+It 'builds correct pattern for DEBUG level (shows all)'
+When call _log_build_level_filter "DEBUG"
+The status should be success
+The output should include "DEBUG"
+The output should include "INFO"
+The output should include "WARN"
+The output should include "ERROR"
+End
+
+It 'builds correct pattern for INFO level (shows INFO+)'
+When call _log_build_level_filter "INFO"
+The status should be success
+The output should include "INFO"
+The output should include "WARN"
+The output should include "ERROR"
+The output should not include "DEBUG"
+End
+
+It 'builds correct pattern for WARN level (shows WARN+)'
+When call _log_build_level_filter "WARN"
+The status should be success
+The output should include "WARN"
+The output should include "ERROR"
+The output should not include "INFO"
+The output should not include "DEBUG"
+End
+
+It 'builds correct pattern for ERROR level (shows ERROR only)'
+When call _log_build_level_filter "ERROR"
+The status should be success
+The output should include "ERROR"
+The output should not include "WARN"
+The output should not include "INFO"
+The output should not include "DEBUG"
+End
+
+It 'handles invalid log level gracefully'
+When call _log_build_level_filter "INVALID"
+The status should be failure
+The output should equal "cat"
+End
+End
+
 Describe 'Format helper functions'
 Describe '_log_format_json_line'
 It 'converts log line to JSON format'
@@ -390,6 +434,36 @@ When call sh -c 'echo "[2025-10-22 12:34:56] [ERROR] [test] Message with quotes 
 The status should be success
 The output should include '"timestamp"'
 The output should include '"level":"ERROR"'
+End
+End
+
+Describe '_log_format_colored_line'
+It 'adds color codes for DEBUG level'
+When call sh -c 'echo "[2025-10-22 12:34:56] [DEBUG] [test] Debug message" | _log_format_colored_line'
+The status should be success
+# Should contain ANSI escape codes for dim text (\033[2m)
+The output should include "DEBUG"
+End
+
+It 'adds color codes for INFO level'
+When call sh -c 'echo "[2025-10-22 12:34:56] [INFO] [test] Info message" | _log_format_colored_line'
+The status should be success
+# Should contain ANSI escape codes for blue (\033[34m)
+The output should include "INFO"
+End
+
+It 'adds color codes for WARN level'
+When call sh -c 'echo "[2025-10-22 12:34:56] [WARN] [test] Warning message" | _log_format_colored_line'
+The status should be success
+# Should contain ANSI escape codes for yellow (\033[33m)
+The output should include "WARN"
+End
+
+It 'adds color codes for ERROR level'
+When call sh -c 'echo "[2025-10-22 12:34:56] [ERROR] [test] Error message" | _log_format_colored_line'
+The status should be success
+# Should contain ANSI escape codes for red (\033[31m)
+The output should include "ERROR"
 End
 End
 
