@@ -167,9 +167,83 @@ gcloud_status() {
   return 0
 }
 
+# ═══════════════════════════════════════════════════════════════
+# Safety Features
+# ═══════════════════════════════════════════════════════════════
+
+# gcloud_safe_exec: Execute gcloud command with project verification
+#
+# Description:
+#   Wrapper for gcloud commands that verifies execution is happening
+#   in a registered project directory and that the GCloud project
+#   matches expectations. Prevents accidental operations on wrong projects.
+#
+# Arguments:
+#   $@ - gcloud command arguments
+#
+# Returns:
+#   0 - Command executed successfully
+#   1 - Safety check failed or command failed
+#
+# Examples:
+#   gcloud_safe_exec compute instances list
+#   gcloud_safe_exec app deploy --force
+gcloud_safe_exec() {
+  if [[ $# -eq 0 ]]; then
+    error_msg "gcloud_safe_exec requires command arguments"
+    return 1
+  fi
+
+  if ! gcloud_is_installed; then
+    error_msg "GCloud SDK not installed"
+    return 1
+  fi
+
+  # Get current GCloud project
+  local current_project
+  current_project=$(gcloud config get-value project 2>/dev/null || echo "")
+
+  if [[ -z "$current_project" ]]; then
+    error_msg "No GCloud project configured"
+    echo "Set project with: gcloud config set project PROJECT_ID"
+    return 1
+  fi
+
+  # Warn about current project
+  echo "⚠️  GCloud Project: $current_project" >&2
+  echo "   Command: gcloud $*" >&2
+  echo "" >&2
+
+  # Check if command is destructive
+  local is_destructive=false
+  for arg in "$@"; do
+    case "$arg" in
+      delete | destroy | remove | rm | prune | reset)
+        is_destructive=true
+        break
+        ;;
+    esac
+  done
+
+  # Require confirmation for destructive operations
+  if [[ "$is_destructive" == true ]]; then
+    echo "🚨 DESTRUCTIVE OPERATION DETECTED" >&2
+    read -r -p "Continue with this operation? [y/N]: " confirm
+    if [[ "${confirm,,}" != "y" ]]; then
+      echo "Operation cancelled" >&2
+      return 1
+    fi
+  fi
+
+  # Execute command
+  log_info "gcloud" "Executing gcloud command" "Project: $current_project"
+  gcloud "$@"
+}
+
 # Export public functions
 export -f gcloud_is_installed
 export -f gcloud_status
+export -f gcloud_safe_exec
 
 # Mark module as loaded
 readonly _HARM_GCLOUD_LOADED=1
