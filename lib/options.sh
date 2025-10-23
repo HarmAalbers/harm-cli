@@ -64,7 +64,7 @@ declare -A OPTIONS_SCHEMA=(
   ["log_dir"]="string:$HOME/.harm-cli/logs:HARM_LOG_DIR:Log directory:validate_path"
 
   # Logging
-  ["log_level"]="enum:INFO:HARM_LOG_LEVEL:Log verbosity (DEBUG/INFO/WARN/ERROR):validate_log_level"
+  ["log_level"]="enum:WARN:HARM_LOG_LEVEL:Log verbosity (DEBUG/INFO/WARN/ERROR):validate_log_level"
   ["log_to_file"]="bool:1:HARM_LOG_TO_FILE:Write logs to file (0=disabled, 1=enabled):validate_bool"
   ["log_to_console"]="bool:1:HARM_LOG_TO_CONSOLE:Write logs to console (0=disabled, 1=enabled):validate_bool"
   ["log_unbuffered"]="bool:1:HARM_LOG_UNBUFFERED:Unbuffered logging for real-time output (0=disabled, 1=enabled):validate_bool"
@@ -85,6 +85,18 @@ declare -A OPTIONS_SCHEMA=(
 
   # Output
   ["format"]="enum:text:HARM_CLI_FORMAT:Default output format (text/json):validate_format"
+
+  # Work/Pomodoro Configuration
+  ["work_duration"]="int:1500:HARM_WORK_DURATION:Work session length in seconds (default: 25 min):validate_positive_int"
+  ["break_short"]="int:300:HARM_BREAK_SHORT:Short break length in seconds (default: 5 min):validate_positive_int"
+  ["break_long"]="int:900:HARM_BREAK_LONG:Long break length in seconds (default: 15 min):validate_positive_int"
+  ["pomodoros_until_long"]="int:4:HARM_POMODOROS_UNTIL_LONG:Pomodoros before long break:validate_positive_int"
+
+  # Work Automation & Notifications
+  ["work_auto_start_break"]="bool:1:HARM_WORK_AUTO_START_BREAK:Auto-start break after work ends (0=disabled, 1=enabled):validate_bool"
+  ["work_notifications"]="bool:1:HARM_WORK_NOTIFICATIONS:Desktop notifications for transitions (0=disabled, 1=enabled):validate_bool"
+  ["work_sound_notifications"]="bool:1:HARM_WORK_SOUND:Sound alerts for notifications (0=disabled, 1=enabled):validate_bool"
+  ["work_reminder_interval"]="int:30:HARM_WORK_REMINDER:Reminder interval in minutes (0=disabled):validate_number"
 )
 
 # Dummy path validator (for now)

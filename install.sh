@@ -1113,6 +1113,34 @@ export HARM_HOOKS_DEBUG="\${HARM_HOOKS_DEBUG:-$HARM_HOOKS_DEBUG}"
 export HARM_CLI_FORMAT="\${HARM_CLI_FORMAT:-$HARM_CLI_FORMAT}"
 
 # ═══════════════════════════════════════════════════════════════
+# Work/Pomodoro Configuration
+# ═══════════════════════════════════════════════════════════════
+
+# Work session length in seconds (default: 1500 = 25 minutes)
+export HARM_WORK_DURATION="\${HARM_WORK_DURATION:-1500}"
+
+# Short break length in seconds (default: 300 = 5 minutes)
+export HARM_BREAK_SHORT="\${HARM_BREAK_SHORT:-300}"
+
+# Long break length in seconds (default: 900 = 15 minutes)
+export HARM_BREAK_LONG="\${HARM_BREAK_LONG:-900}"
+
+# Number of pomodoros before long break (default: 4)
+export HARM_POMODOROS_UNTIL_LONG="\${HARM_POMODOROS_UNTIL_LONG:-4}"
+
+# Auto-start break after work session ends (1=enabled, 0=disabled)
+export HARM_WORK_AUTO_START_BREAK="\${HARM_WORK_AUTO_START_BREAK:-1}"
+
+# Desktop notifications for work/break transitions (1=enabled, 0=disabled)
+export HARM_WORK_NOTIFICATIONS="\${HARM_WORK_NOTIFICATIONS:-1}"
+
+# Sound alerts for notifications (1=enabled, 0=disabled)
+export HARM_WORK_SOUND="\${HARM_WORK_SOUND:-1}"
+
+# Reminder interval in minutes (0=disabled, default: 30)
+export HARM_WORK_REMINDER="\${HARM_WORK_REMINDER:-30}"
+
+# ═══════════════════════════════════════════════════════════════
 # Feature Flags
 # ═══════════════════════════════════════════════════════════════
 
