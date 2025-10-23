@@ -376,6 +376,7 @@ Commands:
   show                          Show all goals for today (default)
   progress <id> <percent>       Update goal progress (0-100)
   complete <id>                 Mark goal as complete (100%)
+  reopen <id> <percent>         Reopen a goal with new progress (0-100)
   clear                         Clear all goals (requires --force)
   --help                        Show this help
 
@@ -384,12 +385,15 @@ Examples:
   harm-cli goal show
   harm-cli goal progress 1 50
   harm-cli goal complete 1
+  harm-cli goal reopen 1 0      # Restart goal from scratch
+  harm-cli goal reopen 2 75     # Fix accidental completion
   harm-cli goal clear --force
 
 Notes:
   - Goals are tracked per day in ~/.harm-cli/goals/
   - Duration format: 30m, 2h, 1h30m
-  - Use 'show' to see goal IDs for progress/complete commands
+  - Use 'show' to see goal IDs for progress/complete/reopen commands
+  - Reopen works on any goal (completed or in-progress)
   - Clear requires --force flag for safety
 EOF
           ;;
@@ -397,8 +401,9 @@ EOF
         show) goal_show "$@" ;;
         progress) goal_update_progress "$@" ;;
         complete) goal_complete "$@" ;;
+        reopen) goal_reopen "$@" ;;
         clear) goal_clear "$@" ;;
-        *) die "Unknown goal command: $subcmd. Try: set, show, progress, complete, clear" 2 ;;
+        *) die "Unknown goal command: $subcmd. Try: set, show, progress, complete, reopen, clear" 2 ;;
       esac
       ;;
     log)
