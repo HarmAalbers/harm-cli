@@ -562,6 +562,43 @@ EOF
         daily)
           ai_daily "$@"
           ;;
+        model)
+          model_subcmd="${1:-list}"
+          shift || true
+          case "$model_subcmd" in
+            list | ls) ai_list_models "$@" ;;
+            info) ai_model_info "$@" ;;
+            select | choose)
+              if model=$(ai_select_model); then
+                echo "Selected: $model"
+                echo ""
+                read -r -p "Set as default? [y/N]: " response
+                if [[ "${response,,}" == "y" ]]; then
+                  ai_set_model "$model"
+                fi
+              fi
+              ;;
+            set) ai_set_model "$@" ;;
+            --help | -h)
+              cat <<'EOF'
+harm-cli ai model - AI model management
+
+Commands:
+  list              List available models
+  info [model]      Show model information
+  select            Interactively select model
+  set <model>       Set default model
+
+Examples:
+  harm-cli ai model list
+  harm-cli ai model info gemini-1.5-pro
+  harm-cli ai model select
+  harm-cli ai model set gemini-2.0-flash-exp
+EOF
+              ;;
+            *) echo "Unknown model command: $model_subcmd" ;;
+          esac
+          ;;
         audit)
           # shellcheck source=lib/ai_audit.sh
           source "$ROOT_DIR/lib/ai_audit.sh"

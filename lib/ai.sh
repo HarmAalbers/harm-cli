@@ -47,6 +47,14 @@ readonly AI_CACHE_TTL="${HARM_CLI_AI_CACHE_TTL:-3600}" # Configurable: 1 hour de
 readonly AI_TIMEOUT="${HARM_CLI_AI_TIMEOUT:-20}"       # Configurable: 20 seconds default
 readonly AI_MAX_TOKENS="${HARM_CLI_AI_MAX_TOKENS:-2048}"
 
+# AI Model Registry (name:description:tier:features)
+declare -gA AI_MODELS=(
+  ["gemini-2.0-flash-exp"]="Fast, latest experimental|Free tier|Multimodal (text+vision)"
+  ["gemini-1.5-pro"]="Balanced, stable production|Paid tier|Text+Vision+Audio"
+  ["gemini-1.5-flash"]="Ultra-fast, efficient|Free tier|Text only"
+  ["gemini-1.5-flash-8b"]="Smallest, fastest|Free tier|Text only"
+)
+
 # Exit codes specific to AI module
 readonly EXIT_AI_NO_KEY=2
 readonly EXIT_AI_NETWORK=3
@@ -1333,3 +1341,160 @@ export -f ai_daily
 
 # Mark module as loaded
 readonly _HARM_AI_LOADED=1
+
+# ═══════════════════════════════════════════════════════════════
+# Model Management
+# ═══════════════════════════════════════════════════════════════
+
+# ai_list_models: List available AI models
+#
+# Returns:
+#   0 - Success
+#
+# Outputs:
+#   stdout: List of models with descriptions (text or JSON)
+ai_list_models() {
+  if [[ "${HARM_CLI_FORMAT:-text}" == "json" ]]; then
+    # JSON output
+    local json_array="["
+    local first=true
+    for model in "${!AI_MODELS[@]}"; do
+      [[ "$first" == false ]] && json_array+=","
+      first=false
+      IFS='|' read -r desc tier features <<<"${AI_MODELS[$model]}"
+      json_array+="{\"name\":\"$model\",\"description\":\"$desc\",\"tier\":\"$tier\",\"features\":\"$features\"}"
+    done
+    json_array+="]"
+    echo "$json_array" | jq '.'
+  else
+    # Text output
+    echo "Available AI Models:"
+    echo ""
+    for model in "${!AI_MODELS[@]}"; do
+      IFS='|' read -r desc tier features <<<"${AI_MODELS[$model]}"
+      local current=""
+      [[ "$model" == "$AI_DEFAULT_MODEL" ]] && current=" ${SUCCESS_GREEN}(current)${RESET}"
+      echo "  • $model$current"
+      echo "    $desc"
+      echo "    Tier: $tier | Features: $features"
+      echo ""
+    done
+  fi
+}
+
+# ai_model_info: Show information about a specific model
+#
+# Arguments:
+#   $1 - model (optional): Model name (default: current)
+#
+# Returns:
+#   0 - Success
+#   1 - Model not found
+ai_model_info() {
+  local model="${1:-$AI_DEFAULT_MODEL}"
+
+  if [[ -z "${AI_MODELS[$model]:-}" ]]; then
+    error_msg "Unknown model: $model"
+    echo "Available models:"
+    ai_list_models
+    return 1
+  fi
+
+  IFS='|' read -r desc tier features <<<"${AI_MODELS[$model]}"
+
+  if [[ "${HARM_CLI_FORMAT:-text}" == "json" ]]; then
+    jq -n \
+      --arg name "$model" \
+      --arg desc "$desc" \
+      --arg tier "$tier" \
+      --arg features "$features" \
+      '{name: $name, description: $desc, tier: $tier, features: $features}'
+  else
+    echo "Model: $model"
+    echo "Description: $desc"
+    echo "Tier: $tier"
+    echo "Features: $features"
+  fi
+}
+
+# ai_select_model: Interactively select AI model
+#
+# Returns:
+#   0 - Model selected (prints model name)
+#   1 - Selection cancelled or error
+#
+# Outputs:
+#   stdout: Selected model name
+ai_select_model() {
+  # Load interactive module if available
+  if [[ -f "$AI_SCRIPT_DIR/interactive.sh" ]]; then
+    # shellcheck source=lib/interactive.sh
+    source "$AI_SCRIPT_DIR/interactive.sh"
+  fi
+
+  if ! type interactive_choose >/dev/null 2>&1; then
+    error_msg "Interactive module not available"
+    echo "Available models:"
+    ai_list_models
+    return 1
+  fi
+
+  # Build options with descriptions
+  local -a model_options=()
+  for model in "${!AI_MODELS[@]}"; do
+    IFS='|' read -r desc tier features <<<"${AI_MODELS[$model]}"
+    model_options+=("$model - $desc ($tier)")
+  done
+
+  # Let user choose
+  local selection
+  if selection=$(interactive_choose "Select AI model" "${model_options[@]}"); then
+    # Extract model name (before " - ")
+    local model_name="${selection%% -*}"
+    echo "$model_name"
+    return 0
+  else
+    return 1
+  fi
+}
+
+# ai_set_model: Set the default AI model
+#
+# Arguments:
+#   $1 - model (required): Model name
+#
+# Returns:
+#   0 - Success
+#   1 - Invalid model
+ai_set_model() {
+  local model="${1:?ai_set_model requires model name}"
+
+  # Validate model exists
+  if [[ -z "${AI_MODELS[$model]:-}" ]]; then
+    error_msg "Unknown model: $model"
+    echo "Available models:"
+    for m in "${!AI_MODELS[@]}"; do
+      echo "  - $m"
+    done
+    return 1
+  fi
+
+  # Update config file (requires options module)
+  if type options_set >/dev/null 2>&1; then
+    options_set "ai_model" "$model"
+  else
+    # Fallback: set environment variable suggestion
+    echo "To persist this setting, add to ~/.bashrc:"
+    echo "  export GEMINI_MODEL=$model"
+  fi
+
+  success_msg "AI model set to: $model"
+  IFS='|' read -r desc tier features <<<"${AI_MODELS[$model]}"
+  echo "  Description: $desc"
+  echo "  Tier: $tier"
+
+  return 0
+}
+
+# Export model management functions
+export -f ai_list_models ai_model_info ai_select_model ai_set_model
