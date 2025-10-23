@@ -780,6 +780,68 @@ EOF
           ;;
       esac
       ;;
+    options)
+      # shellcheck source=lib/options.sh
+      source "$ROOT_DIR/lib/options.sh"
+      subcmd="${1:-show}"
+      shift || true
+      case "$subcmd" in
+        --help | -h)
+          cat <<'EOF'
+harm-cli options - Manage global settings and preferences
+
+Usage:
+  harm-cli options [COMMAND]
+
+Commands:
+  set              Interactive configuration of all options (Option C style)
+  show             Display all current options (default)
+  info             Alias for 'show'
+  get <key>        Get value of a specific option
+  reset <key>      Reset option to default value
+  --help           Show this help
+
+Examples:
+  harm-cli options                    # Show all current settings
+  harm-cli options info               # Same as above
+  harm-cli options show               # Same as above
+  harm-cli options set                # Interactive configuration
+  harm-cli options get log_level      # Get specific option
+  harm-cli options reset format       # Reset to default
+
+Available Options (17 total):
+  Paths: cli_home, log_dir
+  Logging: log_level, log_to_file, log_to_console, log_unbuffered,
+           log_max_size, log_max_files, debug_mode, quiet_mode
+  AI: ai_cache_ttl, ai_timeout, ai_max_tokens, ai_model
+  Hooks: hooks_enabled, hooks_debug
+  Output: format
+
+Notes:
+  - Environment variables take precedence over config file
+  - Config stored in: ~/.harm-cli/config.sh
+  - Use --format json for machine-readable output
+EOF
+          ;;
+        set)
+          options_set_interactive
+          ;;
+        show | info | "")
+          options_show
+          ;;
+        get)
+          key="${1:?options get requires option key}"
+          options_get "$key"
+          ;;
+        reset)
+          key="${1:?options reset requires option key}"
+          options_reset "$key"
+          ;;
+        *)
+          die "Unknown options command: $subcmd. Try: set, show, get <key>, reset <key>" 2
+          ;;
+      esac
+      ;;
     *)
       die "Unknown command: $cmd. Run 'harm-cli help' for usage." 2
       ;;

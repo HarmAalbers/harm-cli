@@ -1,0 +1,625 @@
+#!/usr/bin/env bash
+# shellcheck shell=bash
+# lib/options.sh
+# Interactive options management for harm-cli
+#
+# Provides commands to view, set, and reset configuration options
+# Options are stored in ~/.harm-cli/config.sh with priority:
+#   1. Environment variables (highest)
+#   2. Config file values
+#   3. Default values (lowest)
+#
+# Requires: bash 4.0+ (for associative arrays)
+
+set -Eeuo pipefail
+IFS=$'\n\t'
+
+# Prevent multiple loading
+[[ -n "${_HARM_OPTIONS_LOADED:-}" ]] && return 0
+
+# Require bash 4.0+ for associative arrays
+if ((BASH_VERSINFO[0] < 4)); then
+  echo "Error: lib/options.sh requires bash 4.0 or higher" >&2
+  echo "Current version: $BASH_VERSION" >&2
+  echo "Please install bash 4+ (e.g., via Homebrew: brew install bash)" >&2
+  return 1
+fi
+
+# Get script directory for sourcing dependencies
+OPTIONS_SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd -P)"
+readonly OPTIONS_SCRIPT_DIR
+
+# Source dependencies
+# shellcheck source=lib/common.sh
+source "$OPTIONS_SCRIPT_DIR/common.sh"
+# shellcheck source=lib/error.sh
+source "$OPTIONS_SCRIPT_DIR/error.sh"
+# shellcheck source=lib/logging.sh
+source "$OPTIONS_SCRIPT_DIR/logging.sh"
+# shellcheck source=lib/config_validation.sh
+source "$OPTIONS_SCRIPT_DIR/config_validation.sh"
+
+# ═══════════════════════════════════════════════════════════════
+# Configuration
+# ═══════════════════════════════════════════════════════════════
+
+readonly OPTIONS_CONFIG_DIR="${HARM_CLI_HOME:-$HOME/.harm-cli}"
+readonly OPTIONS_CONFIG_FILE="$OPTIONS_CONFIG_DIR/config.sh"
+
+# Ensure config directory exists
+ensure_dir "$OPTIONS_CONFIG_DIR"
+
+# ═══════════════════════════════════════════════════════════════
+# Option Schema Definition
+# ═══════════════════════════════════════════════════════════════
+#
+# Schema format: "type:default:env_var:description:validator"
+#
+# Types: bool, int, enum, string
+# Validators: function names from config_validation.sh
+
+declare -A OPTIONS_SCHEMA=(
+  # Paths
+  ["cli_home"]="string:$HOME/.harm-cli:HARM_CLI_HOME:Main data directory:validate_path"
+  ["log_dir"]="string:$HOME/.harm-cli/logs:HARM_LOG_DIR:Log directory:validate_path"
+
+  # Logging
+  ["log_level"]="enum:INFO:HARM_LOG_LEVEL:Log verbosity (DEBUG/INFO/WARN/ERROR):validate_log_level"
+  ["log_to_file"]="bool:1:HARM_LOG_TO_FILE:Write logs to file (0=disabled, 1=enabled):validate_bool"
+  ["log_to_console"]="bool:1:HARM_LOG_TO_CONSOLE:Write logs to console (0=disabled, 1=enabled):validate_bool"
+  ["log_unbuffered"]="bool:1:HARM_LOG_UNBUFFERED:Unbuffered logging for real-time output (0=disabled, 1=enabled):validate_bool"
+  ["log_max_size"]="int:10485760:HARM_LOG_MAX_SIZE:Maximum log file size in bytes:validate_number"
+  ["log_max_files"]="int:5:HARM_LOG_MAX_FILES:Number of rotated log files to keep:validate_number"
+  ["debug_mode"]="bool:0:HARM_CLI_DEBUG:Enable debug mode by default (0=disabled, 1=enabled):validate_bool"
+  ["quiet_mode"]="bool:0:HARM_CLI_QUIET:Enable quiet mode by default (0=disabled, 1=enabled):validate_bool"
+
+  # AI
+  ["ai_cache_ttl"]="int:3600:HARM_CLI_AI_CACHE_TTL:AI cache duration in seconds:validate_number"
+  ["ai_timeout"]="int:20:HARM_CLI_AI_TIMEOUT:AI request timeout in seconds:validate_positive_int"
+  ["ai_max_tokens"]="int:2048:HARM_CLI_AI_MAX_TOKENS:AI maximum tokens per request:validate_positive_int"
+  ["ai_model"]="enum:gemini-2.0-flash-exp:GEMINI_MODEL:AI model to use:validate_ai_model"
+
+  # Shell Hooks
+  ["hooks_enabled"]="bool:1:HARM_HOOKS_ENABLED:Enable shell hooks system (0=disabled, 1=enabled):validate_bool"
+  ["hooks_debug"]="bool:0:HARM_HOOKS_DEBUG:Enable hook debugging (0=disabled, 1=enabled):validate_bool"
+
+  # Output
+  ["format"]="enum:text:HARM_CLI_FORMAT:Default output format (text/json):validate_format"
+)
+
+# Dummy path validator (for now)
+validate_path() {
+  return 0
+}
+
+# ═══════════════════════════════════════════════════════════════
+# Schema Helpers
+# ═══════════════════════════════════════════════════════════════
+
+# List all option keys
+#
+# Returns:
+#   List of option keys (one per line)
+options_list_all() {
+  printf '%s\n' "${!OPTIONS_SCHEMA[@]}" | sort
+}
+
+# Get schema entry for an option
+#
+# Arguments:
+#   $1 - Option key
+#
+# Returns:
+#   Schema string "type:default:env_var:description:validator"
+options_get_schema() {
+  local key="${1:?options_get_schema requires option key}"
+
+  if [[ -z "${OPTIONS_SCHEMA[$key]:-}" ]]; then
+    error_msg "Unknown option: $key" 1 >&2
+    return 1
+  fi
+
+  echo "${OPTIONS_SCHEMA[$key]}"
+}
+
+# Parse schema field
+#
+# Arguments:
+#   $1 - Option key
+#   $2 - Field index (0=type, 1=default, 2=env_var, 3=description, 4=validator)
+#
+# Returns:
+#   Field value
+_options_schema_field() {
+  local key="${1:?_options_schema_field requires option key}"
+  local field="${2:?_options_schema_field requires field index}"
+
+  local schema
+  schema=$(options_get_schema "$key") || return 1
+
+  echo "$schema" | cut -d':' -f"$((field + 1))"
+}
+
+# ═══════════════════════════════════════════════════════════════
+# Configuration File I/O
+# ═══════════════════════════════════════════════════════════════
+
+# Load configuration file
+#
+# Returns:
+#   0 on success, 0 on missing file (uses defaults), 1 on error
+options_load_config() {
+  if [[ ! -f "$OPTIONS_CONFIG_FILE" ]]; then
+    log_debug "options" "Config file not found, using defaults" ""
+    return 0
+  fi
+
+  # Check if file is valid bash
+  if ! bash -n "$OPTIONS_CONFIG_FILE" 2>/dev/null; then
+    warn_msg "Config file is corrupted: $OPTIONS_CONFIG_FILE" >&2
+
+    # Backup corrupted file
+    local backup="$OPTIONS_CONFIG_FILE.corrupted"
+    mv "$OPTIONS_CONFIG_FILE" "$backup"
+    warn_msg "Backed up to: $backup" >&2
+    warn_msg "Using default values" >&2
+
+    return 0
+  fi
+
+  # Source the config file to load values
+  # shellcheck disable=SC1090
+  source "$OPTIONS_CONFIG_FILE"
+
+  log_debug "options" "Loaded config from $OPTIONS_CONFIG_FILE" ""
+  return 0
+}
+
+# Save option value to configuration file
+#
+# Arguments:
+#   $1 - Option key
+#   $2 - Option value
+#
+# Returns:
+#   0 on success, 1 on error
+options_save_config() {
+  local key="${1:?options_save_config requires option key}"
+  local value="${2:?options_save_config requires option value}"
+
+  # Get environment variable name
+  local env_var
+  env_var=$(_options_schema_field "$key" 2) || return 1
+
+  # Create config file if it doesn't exist
+  if [[ ! -f "$OPTIONS_CONFIG_FILE" ]]; then
+    cat >"$OPTIONS_CONFIG_FILE" <<'EOF'
+#!/usr/bin/env bash
+# harm-cli configuration file
+# Generated automatically - edit with 'harm-cli set options' or manually
+EOF
+    log_info "options" "Created new config file: $OPTIONS_CONFIG_FILE" ""
+  fi
+
+  # Check if option already exists in file
+  if grep -q "^export ${env_var}=" "$OPTIONS_CONFIG_FILE" 2>/dev/null; then
+    # Update existing value using atomic write
+    local temp_file="${OPTIONS_CONFIG_FILE}.tmp.$$"
+
+    # Replace the line
+    sed "s|^export ${env_var}=.*|export ${env_var}=\"${value}\"|" "$OPTIONS_CONFIG_FILE" >"$temp_file"
+
+    # Atomic move
+    mv "$temp_file" "$OPTIONS_CONFIG_FILE"
+  else
+    # Append new value
+    echo "export ${env_var}=\"${value}\"" >>"$OPTIONS_CONFIG_FILE"
+  fi
+
+  log_debug "options" "Saved $key=$value to config" ""
+  return 0
+}
+
+# ═══════════════════════════════════════════════════════════════
+# Getting Option Values (Priority Order)
+# ═══════════════════════════════════════════════════════════════
+
+# Get option value with priority: env → config → default
+#
+# Arguments:
+#   $1 - Option key
+#
+# Returns:
+#   Option value
+options_get() {
+  local key="${1:?options_get requires option key}"
+
+  # Validate key exists
+  if [[ -z "${OPTIONS_SCHEMA[$key]:-}" ]]; then
+    error_msg "Unknown option: $key" 1 >&2
+    return 1
+  fi
+
+  # Get environment variable name and default value
+  local env_var default_value
+  env_var=$(_options_schema_field "$key" 2)
+  default_value=$(_options_schema_field "$key" 1)
+
+  # Priority 1: Environment variable
+  if [[ -n "${!env_var:-}" ]]; then
+    echo "${!env_var}"
+    return 0
+  fi
+
+  # Priority 2: Config file (source it if not already loaded)
+  if [[ -f "$OPTIONS_CONFIG_FILE" ]]; then
+    # shellcheck disable=SC1090
+    source "$OPTIONS_CONFIG_FILE"
+
+    if [[ -n "${!env_var:-}" ]]; then
+      echo "${!env_var}"
+      return 0
+    fi
+  fi
+
+  # Priority 3: Default value
+  echo "$default_value"
+}
+
+# Get source of option value (env/config/default)
+#
+# Arguments:
+#   $1 - Option key
+#
+# Returns:
+#   "env", "config", or "default"
+options_get_source() {
+  local key="${1:?options_get_source requires option key}"
+
+  # Get environment variable name
+  local env_var
+  env_var=$(_options_schema_field "$key" 2) || return 1
+
+  # Check environment variable
+  if [[ -n "${!env_var:-}" ]]; then
+    echo "env"
+    return 0
+  fi
+
+  # Check config file
+  if [[ -f "$OPTIONS_CONFIG_FILE" ]]; then
+    if grep -q "^export ${env_var}=" "$OPTIONS_CONFIG_FILE" 2>/dev/null; then
+      echo "config"
+      return 0
+    fi
+  fi
+
+  # Default
+  echo "default"
+}
+
+# ═══════════════════════════════════════════════════════════════
+# Validation
+# ═══════════════════════════════════════════════════════════════
+
+# Validate option value
+#
+# Arguments:
+#   $1 - Option key
+#   $2 - Value to validate
+#
+# Returns:
+#   0 if valid, 1 if invalid
+options_validate() {
+  local key="${1:?options_validate requires option key}"
+  local value="${2:?options_validate requires value}"
+
+  # Get validator function
+  local validator
+  validator=$(_options_schema_field "$key" 4) || return 1
+
+  # Get option type and description
+  local option_type description
+  option_type=$(_options_schema_field "$key" 0)
+  description=$(_options_schema_field "$key" 3)
+
+  # Run validator
+  if ! "$validator" "$value" 2>/dev/null; then
+    case "$option_type" in
+      bool)
+        error_msg "Invalid value for $key: $value (must be 0 or 1)" >&2
+        ;;
+      enum)
+        if [[ "$key" == "log_level" ]]; then
+          error_msg "Invalid value for $key: $value (must be DEBUG, INFO, WARN, ERROR)" >&2
+        elif [[ "$key" == "format" ]]; then
+          error_msg "Invalid value for $key: $value (must be text or json)" >&2
+        elif [[ "$key" == "ai_model" ]]; then
+          error_msg "Invalid value for $key: $value (must be gemini-2.0-flash-exp, gemini-1.5-pro, gemini-1.5-flash, or gemini-1.5-flash-8b)" >&2
+        else
+          error_msg "Invalid value for $key: $value" >&2
+        fi
+        ;;
+      int)
+        error_msg "Invalid value for $key: $value (must be a positive integer)" >&2
+        ;;
+      *)
+        error_msg "Invalid value for $key: $value" >&2
+        ;;
+    esac
+    return 1
+  fi
+
+  return 0
+}
+
+# ═══════════════════════════════════════════════════════════════
+# Setting Option Values
+# ═══════════════════════════════════════════════════════════════
+
+# Set option value
+#
+# Arguments:
+#   $1 - Option key
+#   $2 - Option value
+#
+# Returns:
+#   0 on success, 1 on error
+options_set() {
+  local key="${1:?options_set requires option key}"
+  local value="${2:?options_set requires value}"
+
+  # Validate
+  if ! options_validate "$key" "$value"; then
+    return 1
+  fi
+
+  # Check if environment variable is set
+  local env_var
+  env_var=$(_options_schema_field "$key" 2)
+
+  if [[ -n "${!env_var:-}" ]]; then
+    warn_msg "Note: Environment variable $env_var is set and will override this value" >&2
+    warn_msg "Current env value: ${!env_var}" >&2
+    warn_msg "Saving to config anyway..." >&2
+  fi
+
+  # Save to config
+  options_save_config "$key" "$value"
+
+  info_msg "Set $key = $value"
+  return 0
+}
+
+# ═══════════════════════════════════════════════════════════════
+# Resetting Options
+# ═══════════════════════════════════════════════════════════════
+
+# Reset option to default (remove from config file)
+#
+# Arguments:
+#   $1 - Option key
+#
+# Returns:
+#   0 on success
+options_reset() {
+  local key="${1:?options_reset requires option key}"
+
+  # Validate key
+  if ! options_get_schema "$key" >/dev/null; then
+    return 1
+  fi
+
+  # Get environment variable name
+  local env_var
+  env_var=$(_options_schema_field "$key" 2)
+
+  # Warn if env var is set
+  if [[ -n "${!env_var:-}" ]]; then
+    warn_msg "Note: Environment variable $env_var is set" >&2
+    warn_msg "The default value will still be overridden by the env var" >&2
+  fi
+
+  # Remove from config file
+  if [[ -f "$OPTIONS_CONFIG_FILE" ]]; then
+    local temp_file="${OPTIONS_CONFIG_FILE}.tmp.$$"
+    grep -v "^export ${env_var}=" "$OPTIONS_CONFIG_FILE" >"$temp_file" || true
+    mv "$temp_file" "$OPTIONS_CONFIG_FILE"
+  fi
+
+  local default_value
+  default_value=$(_options_schema_field "$key" 1)
+
+  info_msg "Reset $key to default: $default_value"
+  return 0
+}
+
+# ═══════════════════════════════════════════════════════════════
+# Displaying Options
+# ═══════════════════════════════════════════════════════════════
+
+# Show all options in text format
+_options_show_text() {
+  # Print header
+  printf "%-20s %-30s %-10s %s\n" "Option" "Value" "Source" "Description"
+  printf "%-20s %-30s %-10s %s\n" "------" "-----" "------" "-----------"
+
+  # List all options
+  while IFS= read -r key; do
+    local value source description
+    value=$(options_get "$key")
+    source=$(options_get_source "$key")
+    description=$(_options_schema_field "$key" 3)
+
+    printf "%-20s %-30s %-10s %s\n" "$key" "$value" "$source" "$description"
+  done < <(options_list_all)
+}
+
+# Show all options in JSON format
+_options_show_json() {
+  local first=1
+
+  echo "{"
+
+  while IFS= read -r key; do
+    local value source description default_value env_var
+    value=$(options_get "$key")
+    source=$(options_get_source "$key")
+    description=$(_options_schema_field "$key" 3)
+    default_value=$(_options_schema_field "$key" 1)
+    env_var=$(_options_schema_field "$key" 2)
+
+    # Add comma for all but first
+    if [[ $first -eq 0 ]]; then
+      echo ","
+    fi
+    first=0
+
+    printf '  "%s": {\n' "$key"
+    printf '    "value": "%s",\n' "$value"
+    printf '    "source": "%s",\n' "$source"
+    printf '    "default": "%s",\n' "$default_value"
+    printf '    "env_var": "%s",\n' "$env_var"
+    printf '    "description": "%s"\n' "$description"
+    printf '  }'
+  done < <(options_list_all)
+
+  echo ""
+  echo "}"
+}
+
+# Show all options
+#
+# Returns:
+#   0 on success
+options_show() {
+  if [[ "${HARM_CLI_FORMAT:-text}" == "json" ]]; then
+    _options_show_json
+  else
+    _options_show_text
+  fi
+}
+
+# ═══════════════════════════════════════════════════════════════
+# Interactive Set (Option C: Show current & ask to change)
+# ═══════════════════════════════════════════════════════════════
+
+# Prompt for a single option value
+#
+# Arguments:
+#   $1 - Option key
+#
+# Returns:
+#   New value via stdout, or empty if no change
+_options_prompt_for_value() {
+  local key="${1:?_options_prompt_for_value requires option key}"
+
+  local current_value description source
+  current_value=$(options_get "$key")
+  description=$(_options_schema_field "$key" 3)
+  source=$(options_get_source "$key")
+
+  echo ""
+  echo "Option: $key"
+  echo "Description: $description"
+  echo "Current value: $current_value (from $source)"
+
+  # If env var is set, warn and skip
+  if [[ "$source" == "env" ]]; then
+    local env_var
+    env_var=$(_options_schema_field "$key" 2)
+    echo "⚠️  This option is controlled by environment variable: $env_var"
+    echo "   Cannot change it here. Skipping..."
+    return 0
+  fi
+
+  # Ask if they want to change it
+  local change_it
+  read -rp "Change this value? [y/N]: " change_it
+
+  case "$change_it" in
+    [Yy] | [Yy][Ee][Ss])
+      # Prompt for new value
+      while true; do
+        local new_value
+        read -rp "Enter new value [$current_value]: " new_value
+
+        # Empty = keep current
+        if [[ -z "$new_value" ]]; then
+          return 0
+        fi
+
+        # Validate
+        if options_validate "$key" "$new_value"; then
+          echo "$new_value"
+          return 0
+        else
+          echo "Invalid value. Try again."
+        fi
+      done
+      ;;
+    *)
+      # No change
+      return 0
+      ;;
+  esac
+}
+
+# Interactive option setting (Option C style)
+#
+# Returns:
+#   0 on success
+options_set_interactive() {
+  echo "═══════════════════════════════════════════════════════════════"
+  echo "  Interactive Options Configuration"
+  echo "═══════════════════════════════════════════════════════════════"
+  echo ""
+  echo "Current configuration will be shown for each option."
+  echo "Press Enter to keep current value, or enter a new value."
+  echo "Options controlled by environment variables cannot be changed here."
+  echo ""
+
+  # Load current config
+  options_load_config
+
+  local changed_count=0
+
+  # Iterate through all options
+  while IFS= read -r key; do
+    local new_value
+    new_value=$(_options_prompt_for_value "$key")
+
+    if [[ -n "$new_value" ]]; then
+      if options_set "$key" "$new_value"; then
+        changed_count=$((changed_count + 1))
+      fi
+    fi
+  done < <(options_list_all)
+
+  echo ""
+  echo "═══════════════════════════════════════════════════════════════"
+  echo "  Configuration Complete"
+  echo "═══════════════════════════════════════════════════════════════"
+  echo ""
+  echo "Changed $changed_count option(s)"
+  echo "Configuration saved to: $OPTIONS_CONFIG_FILE"
+  echo ""
+
+  return 0
+}
+
+# Export public functions
+export -f options_list_all
+export -f options_get_schema
+export -f options_load_config
+export -f options_save_config
+export -f options_get
+export -f options_get_source
+export -f options_validate
+export -f options_set
+export -f options_reset
+export -f options_show
+export -f options_set_interactive
+
+# Mark module as loaded
+readonly _HARM_OPTIONS_LOADED=1
