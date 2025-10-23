@@ -47,6 +47,12 @@ source "$DOCKER_SCRIPT_DIR/util.sh"
 # ═══════════════════════════════════════════════════════════════════
 
 readonly DOCKER_COMPOSE_FILES=("compose.yaml" "docker-compose.yml" "docker-compose.yaml")
+readonly DOCKER_COMPOSE_OVERRIDES=(
+  "compose.override.yaml"
+  "compose.override.yml"
+  "docker-compose.override.yml"
+  "docker-compose.override.yaml"
+)
 
 # ═══════════════════════════════════════════════════════════════════
 # Docker Utilities
@@ -145,6 +151,77 @@ docker_find_compose_file() {
   return 1
 }
 
+# docker_find_all_compose_files: Find base compose file and all override files
+#
+# Description:
+#   Locates the base Docker Compose file and any override files that exist.
+#   Supports standard override files and environment-specific overrides.
+#
+# Arguments:
+#   None
+#
+# Returns:
+#   0 - At least base compose file found
+#   1 - No base compose file found
+#
+# Outputs:
+#   stdout: Space-separated list of compose files (base + overrides)
+#   stderr: Log messages via log_debug
+#
+# Examples:
+#   files=$(docker_find_all_compose_files)
+#   # Returns: "compose.yaml compose.override.yaml compose.dev.yaml"
+#
+# Notes:
+#   - Always returns base file first
+#   - Checks for standard overrides (*.override.*)
+#   - Checks for environment-specific files based on $HARM_DOCKER_ENV
+#   - Environment files: compose.dev.yaml, compose.prod.yaml, compose.test.yaml
+#
+# Environment Variables:
+#   HARM_DOCKER_ENV - Environment name (dev, prod, test) for environment-specific overrides
+docker_find_all_compose_files() {
+  log_debug "docker" "Searching for all compose files"
+
+  # Find base compose file
+  local base_file
+  base_file=$(docker_find_compose_file) || return 1
+
+  local files=("$base_file")
+
+  # Check for standard override files
+  local override_file
+  for override_file in "${DOCKER_COMPOSE_OVERRIDES[@]}"; do
+    if [[ -f "$override_file" ]]; then
+      log_debug "docker" "Found override file" "$override_file"
+      files+=("$override_file")
+    fi
+  done
+
+  # Check for environment-specific override (e.g., compose.dev.yaml)
+  if [[ -n "${HARM_DOCKER_ENV:-}" ]]; then
+    local env_file
+    # Try modern naming (compose.ENV.yaml)
+    env_file="compose.${HARM_DOCKER_ENV}.yaml"
+    if [[ -f "$env_file" ]]; then
+      log_debug "docker" "Found environment override" "$env_file"
+      files+=("$env_file")
+    else
+      # Try legacy naming (docker-compose.ENV.yml)
+      env_file="docker-compose.${HARM_DOCKER_ENV}.yml"
+      if [[ -f "$env_file" ]]; then
+        log_debug "docker" "Found environment override" "$env_file"
+        files+=("$env_file")
+      fi
+    fi
+  fi
+
+  # Output all files
+  echo "${files[@]}"
+  log_debug "docker" "Found ${#files[@]} compose file(s)" "${files[*]}"
+  return 0
+}
+
 # ═══════════════════════════════════════════════════════════════════
 # Docker Compose Operations
 # ═══════════════════════════════════════════════════════════════════
@@ -192,20 +269,36 @@ docker_up() {
     return "$EXIT_INVALID_STATE"
   fi
 
-  # Find compose file
-  local compose_file
-  compose_file=$(docker_find_compose_file) || {
+  # Find compose files (base + overrides)
+  local compose_files
+  compose_files=$(docker_find_all_compose_files) || {
     error_msg "No Docker Compose file found"
     log_error "docker" "No compose file" "Checked: ${DOCKER_COMPOSE_FILES[*]}"
     echo "Expected: compose.yaml or docker-compose.yml"
     return "$EXIT_INVALID_STATE"
   }
 
-  log_debug "docker" "Using compose file" "$compose_file"
+  # Convert space-separated list to array
+  local files_array
+  read -ra files_array <<<"$compose_files"
+
+  # Build -f flags for each file
+  local compose_flags=()
+  local file
+  for file in "${files_array[@]}"; do
+    compose_flags+=("-f" "$file")
+  done
+
+  log_debug "docker" "Using compose files" "${files_array[*]}"
+
+  # Show which files are being used if more than just base
+  if ((${#files_array[@]} > 1)); then
+    echo "📋 Using compose files: ${files_array[*]}"
+  fi
 
   # Start services
   echo "🐳 Starting services..."
-  if docker compose -f "$compose_file" up -d "$@"; then
+  if docker compose "${compose_flags[@]}" up -d "$@"; then
     echo "✓ Services started"
     log_info "docker" "Services started successfully"
     return 0
@@ -263,19 +356,28 @@ docker_down() {
     return "$EXIT_INVALID_STATE"
   }
 
-  # Find compose file
-  local compose_file
-  compose_file=$(docker_find_compose_file) || {
+  # Find compose files (base + overrides)
+  local compose_files
+  compose_files=$(docker_find_all_compose_files) || {
     error_msg "No Docker Compose file found"
     return "$EXIT_INVALID_STATE"
   }
+
+  # Convert space-separated list to array and build -f flags
+  local files_array
+  read -ra files_array <<<"$compose_files"
+  local compose_flags=()
+  local file
+  for file in "${files_array[@]}"; do
+    compose_flags+=("-f" "$file")
+  done
 
   # Stop services
   echo "🐳 Stopping services..."
   local args=()
   [[ $remove_volumes -eq 1 ]] && args+=("-v")
 
-  if docker compose -f "$compose_file" down "${args[@]}"; then
+  if docker compose "${compose_flags[@]}" down "${args[@]}"; then
     echo "✓ Services stopped"
     log_info "docker" "Services stopped successfully"
     return 0
@@ -512,6 +614,7 @@ docker_health() {
 # Export public functions
 export -f docker_is_running
 export -f docker_find_compose_file
+export -f docker_find_all_compose_files
 export -f docker_up
 export -f docker_down
 export -f docker_status
