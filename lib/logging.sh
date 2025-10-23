@@ -48,7 +48,7 @@ readonly HARM_DEBUG_LOG_FILE
 export HARM_DEBUG_LOG_FILE
 
 # Log configuration
-: "${HARM_LOG_LEVEL:=INFO}"        # DEBUG, INFO, WARN, ERROR
+: "${HARM_LOG_LEVEL:=WARN}"        # DEBUG, INFO, WARN, ERROR (default: WARN for quiet normal usage)
 : "${HARM_LOG_TO_FILE:=1}"         # 1=enabled, 0=disabled
 : "${HARM_LOG_TO_CONSOLE:=1}"      # 1=enabled, 0=disabled
 : "${HARM_LOG_MAX_SIZE:=10485760}" # 10MB default

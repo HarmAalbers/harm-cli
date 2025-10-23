@@ -85,6 +85,7 @@ Commands:
   goal                    Goal tracking and progress
   log                     Real-time log streaming and management
   ai                      AI assistant commands (Gemini)
+  md                      Markdown rendering and viewing (glow/bat)
   git                     Enhanced git workflows with AI
   proj                    Project management and switching
   docker                  Docker and Docker Compose management
@@ -227,6 +228,13 @@ main() {
   export HARM_CLI_QUIET="$quiet"
   export HARM_CLI_DEBUG="$debug"
 
+  # Adjust log level based on debug mode
+  # Debug mode: show all logs (DEBUG level)
+  # Normal mode: only show warnings and errors (WARN level, unless HARM_LOG_LEVEL is explicitly set)
+  if [[ $debug -eq 1 ]]; then
+    export HARM_LOG_LEVEL="DEBUG"
+  fi
+
   # Dispatch to command
   local cmd="${1:-help}"
   shift || true
@@ -263,28 +271,91 @@ harm-cli work - Work session management
 
 Usage:
   harm-cli work [COMMAND]
+  harm-cli break [COMMAND]
 
-Commands:
-  start <description>  Start a new work session
+Work Commands:
+  start <description>  Start a new work session (25-min pomodoro)
   stop                 Stop current work session
   status               Show current work session status (default)
+  reset                Reset pomodoro counter to 0
+  stats [period]       Show work statistics (today/week/month/all)
   --help               Show this help
+
+Break Commands:
+  start [duration]     Start a break session (auto-detects short/long)
+  stop                 Stop current break session
+  status               Show current break session status
 
 Examples:
   harm-cli work start "Phase 3 implementation"
-  harm-cli work status
   harm-cli work stop
+  harm-cli work stats today
+  harm-cli work reset
+  harm-cli break start
+  harm-cli break stop
 
 Notes:
-  - Only one work session can be active at a time
-  - Sessions are tracked in ~/.harm-cli/work/
-  - Use status to see elapsed time
+  - Uses Pomodoro Technique: 25-min work, 5-min short breaks, 15-min long breaks
+  - Auto-starts breaks after work sessions (configurable)
+  - Tracks statistics in ~/.harm-cli/work/sessions_YYYY-MM.jsonl
+  - Configure with: harm-cli options set (work_duration, break_short, etc.)
 EOF
           ;;
         start) work_start "$@" ;;
         stop) work_stop "$@" ;;
         status) work_status "$@" ;;
-        *) die "Unknown work command: $subcmd. Try: start, stop, status" 2 ;;
+        reset) work_reset_pomodoro_count "$@" && echo "✅ Pomodoro counter reset to 0" ;;
+        stats)
+          shift # Remove 'stats' from args
+          local period="${1:-all}"
+          case "$period" in
+            today) work_stats_today ;;
+            week) work_stats_week ;;
+            month) work_stats_month ;;
+            all | "") work_stats ;;
+            *) die "Unknown stats period: $period. Try: today, week, month, all" 2 ;;
+          esac
+          ;;
+        *) die "Unknown work command: $subcmd. Try: start, stop, status, stats, reset" 2 ;;
+      esac
+      ;;
+    break)
+      # shellcheck source=lib/work.sh
+      source "$ROOT_DIR/lib/work.sh"
+
+      local subcmd="${2:-status}"
+      shift 2 2>/dev/null || shift 1
+
+      case "$subcmd" in
+        --help | help)
+          cat <<EOF
+Break Session Management
+
+Usage:
+  harm-cli break [COMMAND]
+
+Commands:
+  start [duration] [type]  Start a break session (auto-detects short/long)
+  stop                     Stop current break session
+  status                   Show current break session status (default)
+  --help                   Show this help
+
+Examples:
+  harm-cli break start          # Auto-detect break type based on pomodoros
+  harm-cli break start 300      # Custom 5-minute break
+  harm-cli break stop
+  harm-cli break status
+
+Notes:
+  - Short breaks: 5 minutes (after pomodoros 1-3)
+  - Long breaks: 15 minutes (after every 4th pomodoro)
+  - Breaks can auto-start after work sessions (configurable)
+EOF
+          ;;
+        start) break_start "$@" ;;
+        stop) break_stop "$@" ;;
+        status) break_status "$@" ;;
+        *) die "Unknown break command: $subcmd. Try: start, stop, status" 2 ;;
       esac
       ;;
     goal)
@@ -754,6 +825,66 @@ EOF
       # shellcheck source=lib/health.sh
       source "$ROOT_DIR/lib/health.sh"
       health_check "$@"
+      ;;
+    md)
+      # shellcheck source=lib/markdown.sh
+      source "$ROOT_DIR/lib/markdown.sh"
+      subcmd="${1:-}"
+      shift || true
+      case "$subcmd" in
+        render | view)
+          render_markdown "$@"
+          ;;
+        pipe)
+          render_markdown_pipe "$@"
+          ;;
+        tui | browse)
+          markdown_tui "$@"
+          ;;
+        tools | check)
+          suggest_markdown_tools
+          ;;
+        --help | -h | "")
+          cat <<'EOF'
+harm-cli md - Markdown rendering and viewing
+
+Usage:
+  harm-cli md render FILE [OPTIONS]    Render markdown file
+  harm-cli md pipe [OPTIONS]           Render from stdin
+  harm-cli md tui [DIRECTORY]          Interactive markdown browser (glow)
+  harm-cli md tools                    Check available rendering tools
+
+Options (for render/pipe):
+  --width WIDTH       Set output width (default: terminal width, max 120)
+  --style STYLE       Set style (auto|dark|light) [glow only]
+  --pager             Use pager for output
+  --no-color          Disable colors
+  --tool TOOL         Force specific tool (glow|bat|rich|cat)
+
+Examples:
+  harm-cli md render README.md
+  harm-cli md render docs/guide.md --width 100 --pager
+  echo "# Hello **World**" | harm-cli md pipe
+  harm-cli md tui docs/
+  harm-cli md tools
+
+Tool Priority:
+  1. glow (recommended) - Beautiful rendering with TUI
+  2. bat (fallback) - Syntax-highlighted source view
+  3. rich-cli (optional) - Python-based rendering
+  4. cat (universal) - Plain text output
+
+Install Tools:
+  brew install glow bat           # macOS
+  sudo apt install glow bat       # Linux (see docs for glow repo setup)
+
+Note: harm-cli works without these tools, using plain text fallback.
+EOF
+          ;;
+        *)
+          die "Unknown md subcommand: $subcmd. Use 'harm-cli md --help'" "$EXIT_INVALID_ARGS"
+          ;;
+      esac
       ;;
     safe)
       # shellcheck source=lib/safety.sh
