@@ -361,36 +361,49 @@ EOF
     goal)
       # shellcheck source=lib/goals.sh
       source "$ROOT_DIR/lib/goals.sh"
+      # shellcheck source=lib/goal_ai.sh
+      source "$ROOT_DIR/lib/goal_ai.sh"
       subcmd="${1:-show}"
       shift || true
       case "$subcmd" in
         --help | -h)
           cat <<'EOF'
-harm-cli goal - Goal tracking and progress management
+harm-cli goal - Goal tracking and AI-powered planning
 
 Usage:
   harm-cli goal [COMMAND] [ARGS]
 
-Commands:
+Basic Commands:
   set <description> <duration>  Set a new goal for today
   show                          Show all goals for today (default)
   progress <id> <percent>       Update goal progress (0-100)
   complete <id>                 Mark goal as complete (100%)
   clear                         Clear all goals (requires --force)
-  --help                        Show this help
+
+AI-Powered Commands:
+  ai-analyze <id>               Analyze goal complexity and breakdown
+  ai-plan <id>                  Generate implementation plan
+  ai-next                       Suggest what to work on next
+  ai-check <id>                 Verify goal completion criteria
+  ai-context                    Generate Claude Code context file
+
+GitHub Integration:
+  link-github <id> <issue>      Link goal to GitHub issue
+  sync-github <id>              Sync goal status with GitHub
 
 Examples:
   harm-cli goal set "Complete refactoring" 4h
-  harm-cli goal show
+  harm-cli goal ai-plan 1        # AI generates implementation plan
+  harm-cli goal ai-next          # AI suggests next action
+  harm-cli goal link-github 1 42 # Link goal #1 to issue #42
   harm-cli goal progress 1 50
   harm-cli goal complete 1
-  harm-cli goal clear --force
 
 Notes:
   - Goals are tracked per day in ~/.harm-cli/goals/
   - Duration format: 30m, 2h, 1h30m
-  - Use 'show' to see goal IDs for progress/complete commands
-  - Clear requires --force flag for safety
+  - AI features require GEMINI_API_KEY (run: harm-cli ai --setup)
+  - GitHub features require gh CLI (run: gh auth login)
 EOF
           ;;
         set) goal_set "$@" ;;
@@ -398,7 +411,16 @@ EOF
         progress) goal_update_progress "$@" ;;
         complete) goal_complete "$@" ;;
         clear) goal_clear "$@" ;;
-        *) die "Unknown goal command: $subcmd. Try: set, show, progress, complete, clear" 2 ;;
+        # AI-powered commands
+        ai-analyze) goal_ai_analyze "$@" ;;
+        ai-plan) goal_ai_plan "$@" ;;
+        ai-next) goal_ai_next "$@" ;;
+        ai-check) goal_ai_check_completion "$@" ;;
+        ai-context) goal_ai_create_context "$@" ;;
+        # GitHub integration
+        link-github) goal_ai_link_github "$@" ;;
+        sync-github) goal_ai_sync_github "$@" ;;
+        *) die "Unknown goal command: $subcmd. Try: set, show, progress, complete, clear, ai-plan, ai-next" 2 ;;
       esac
       ;;
     log)
