@@ -213,7 +213,7 @@ ai_get_api_key() {
     return "$EXIT_AI_NO_KEY"
   fi
 
-  log_debug "ai" "API key validated" "Length: ${#key} characters"
+  log_debug "ai" "API key validated successfully"
   echo "$key"
   return 0
 }
@@ -279,7 +279,7 @@ ai_setup() {
     return "$EXIT_INVALID_ARGS"
   fi
 
-  log_debug "ai" "API key validated" "Length: ${#api_key}"
+  log_debug "ai" "API key validated successfully"
 
   # Try to store in keychain (macOS)
   if command -v security >/dev/null 2>&1; then
@@ -315,7 +315,7 @@ ai_setup() {
     echo "⚠️  No secure storage available (keychain or secret-tool)"
     echo "Add this to your ~/.bashrc or ~/.zshrc:"
     echo ""
-    echo "  export GEMINI_API_KEY=\"$api_key\""
+    echo "  export GEMINI_API_KEY=\"<your-api-key-here>\""
     echo ""
   fi
 
