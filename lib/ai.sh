@@ -783,11 +783,17 @@ ai_query() {
       local text
       if text=$(_ai_parse_response "$cached"); then
         echo "${DIM}(cached response)${RESET}"
-        echo "$text"
 
         # Log cached response to audit if available
         if type ai_audit_log >/dev/null 2>&1; then
           ai_audit_log "$query" "$text" "${AI_DEFAULT_MODEL}" "0" "null" "true" 2>/dev/null || true
+        fi
+
+        # Use markdown rendering if available
+        if [[ "${HARM_CLI_FORMAT:-text}" == "text" ]] && type render_markdown_pipe >/dev/null 2>&1; then
+          echo "$text" | render_markdown_pipe "" 2>/dev/null || echo "$text"
+        else
+          echo "$text"
         fi
 
         return 0
@@ -834,9 +840,26 @@ ai_query() {
     ai_audit_log "$query" "$text" "${AI_DEFAULT_MODEL}" "$duration_ms" "null" "false" 2>/dev/null || true
   fi
 
-  # Display response
+  # Display response with markdown rendering if available
   echo ""
-  echo "$text"
+
+  # Try to render with markdown if markdown.sh is available and format is text
+  if [[ "${HARM_CLI_FORMAT:-text}" == "text" ]] && [[ -f "$AI_SCRIPT_DIR/markdown.sh" ]]; then
+    # Source markdown module
+    # shellcheck source=lib/markdown.sh
+    source "$AI_SCRIPT_DIR/markdown.sh" 2>/dev/null || true
+
+    # If markdown rendering available, use it
+    if type render_markdown_pipe >/dev/null 2>&1; then
+      echo "$text" | render_markdown_pipe "" 2>/dev/null || echo "$text"
+    else
+      echo "$text"
+    fi
+  else
+    # JSON format or markdown not available - output as-is
+    echo "$text"
+  fi
+
   echo ""
 
   log_info "ai" "Query completed successfully"
