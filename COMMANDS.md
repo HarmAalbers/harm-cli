@@ -228,6 +228,376 @@ Stop current work session
 harm-cli work stop
 ```
 
+### Work Enforcement (Focus Mode)
+
+Check current violation count
+
+```bash
+harm-cli work violations
+```
+
+Reset violation counter
+
+```bash
+harm-cli work reset-violations
+```
+
+Set enforcement mode
+
+```bash
+harm-cli work set-mode strict      # Strict enforcement
+harm-cli work set-mode moderate    # Track but don't warn (default)
+harm-cli work set-mode coaching    # Gentle reminders
+harm-cli work set-mode off         # No enforcement
+```
+
+### Enforcement Modes Explained
+
+**strict** - Maximum focus enforcement
+
+- Locks you to single project
+- Warns on every project switch
+- Shows distraction count
+- Forces goal review after 3 violations
+
+**moderate** - Balanced tracking (default)
+
+- Tracks violations silently
+- No interruptions
+- View with `harm-cli work violations`
+
+**coaching** - Gentle guidance
+
+- Periodic gentle reminders
+- No strict enforcement
+- Helpful suggestions only
+
+**off** - No enforcement
+
+- Basic work session tracking only
+- No violation tracking
+
+### Configuration
+
+Set enforcement mode permanently
+
+```bash
+export HARM_WORK_ENFORCEMENT=strict
+```
+
+Set distraction threshold
+
+```bash
+export HARM_WORK_DISTRACTION_THRESHOLD=3  # Default
+export HARM_WORK_DISTRACTION_THRESHOLD=5  # More lenient
+```
+
+---
+
+## 🎯 Focus Monitoring & Pomodoro
+
+Show focus summary and score
+
+```bash
+harm-cli focus check
+harm-cli focus score
+```
+
+Start pomodoro timer
+
+```bash
+harm-cli focus pomodoro          # 25 minutes (default)
+harm-cli focus pomodoro 50       # Custom duration
+```
+
+Pomodoro timer management
+
+```bash
+harm-cli focus pomodoro-status   # Check timer status
+harm-cli focus pomodoro-stop     # Stop timer
+```
+
+### How Focus Monitoring Works
+
+**Automatic Checks:**
+
+- Runs every 15 minutes during work sessions
+- Shows focus summary with recommendations
+- Calculates focus score (1-10)
+- Tracks context switches
+
+**Focus Score Calculation:**
+
+- Base score: 5
+- Active work session: +2
+- Zero violations: +2
+- Recent activity: +1
+- Violations penalty: -1 to -3
+
+**Periodic Focus Check Includes:**
+
+- Current goal
+- Recent commands (last 10)
+- Focus score
+- Violation count
+- Actionable recommendations
+
+### Pomodoro Technique
+
+Classic 25-minute focus sessions
+
+```bash
+harm-cli work start "Implement feature X"
+harm-cli focus pomodoro 25
+# ... work for 25 minutes ...
+# 🔔 Notification: "Pomodoro Complete! Time for a 5-minute break"
+```
+
+Custom pomodoro durations
+
+```bash
+harm-cli focus pomodoro 50   # 50-minute deep work
+harm-cli focus pomodoro 15   # Quick sprint
+```
+
+### Configuration
+
+Set check interval (seconds)
+
+```bash
+export HARM_FOCUS_CHECK_INTERVAL=900   # 15 minutes (default)
+export HARM_FOCUS_CHECK_INTERVAL=1800  # 30 minutes
+```
+
+Set pomodoro duration (minutes)
+
+```bash
+export HARM_POMODORO_DURATION=25  # Default
+export HARM_POMODORO_DURATION=50  # Longer sessions
+```
+
+Set break duration (minutes)
+
+```bash
+export HARM_BREAK_DURATION=5   # Default
+export HARM_BREAK_DURATION=10  # Longer breaks
+```
+
+Enable/disable focus monitoring
+
+```bash
+export HARM_FOCUS_ENABLED=1  # Enable (default)
+export HARM_FOCUS_ENABLED=0  # Disable periodic checks
+```
+
+---
+
+## 📊 Activity Tracking
+
+Query activity log for today
+
+```bash
+harm-cli activity query today
+```
+
+Query activity for specific period
+
+```bash
+harm-cli activity query week        # Last 7 days
+harm-cli activity query month       # Last 30 days
+harm-cli activity query all         # All recorded activity
+```
+
+Show activity statistics
+
+```bash
+harm-cli activity stats today
+harm-cli activity stats week
+```
+
+Clear all activity data
+
+```bash
+harm-cli activity clear
+```
+
+Clean up old entries (>90 days)
+
+```bash
+harm-cli activity cleanup
+```
+
+### Query Activity Data with jq
+
+Extract commands only
+
+```bash
+harm-cli activity query today | jq -r '.command'
+```
+
+Find failed commands
+
+```bash
+harm-cli activity query week | jq 'select(.exit_code != 0)'
+```
+
+Find slow commands (>1 second)
+
+```bash
+harm-cli activity query today | jq 'select(.duration_ms > 1000)'
+```
+
+Get commands by project
+
+```bash
+harm-cli activity query week | jq 'select(.project == "myapp")'
+```
+
+### Configuration
+
+Enable/disable activity tracking
+
+```bash
+export HARM_ACTIVITY_ENABLED=1     # Enable (default)
+export HARM_ACTIVITY_ENABLED=0     # Disable
+```
+
+Set minimum duration threshold (ms)
+
+```bash
+export HARM_ACTIVITY_MIN_DURATION_MS=100  # Default
+export HARM_ACTIVITY_MIN_DURATION_MS=500  # Only log slow commands
+```
+
+Exclude specific commands
+
+```bash
+export HARM_ACTIVITY_EXCLUDE="ls cd pwd clear"  # Default
+```
+
+Set retention period (days)
+
+```bash
+export HARM_ACTIVITY_RETENTION_DAYS=90  # Default
+```
+
+---
+
+## 📈 Productivity Insights
+
+Show comprehensive insights dashboard
+
+```bash
+harm-cli insights show week
+harm-cli insights show today
+harm-cli insights show month
+```
+
+Show specific category insights
+
+```bash
+harm-cli insights show week commands      # Command frequency
+harm-cli insights show today performance  # Performance metrics
+harm-cli insights show week errors        # Error analysis
+harm-cli insights show month projects     # Project distribution
+harm-cli insights show week hours         # Peak hours
+```
+
+Daily summary with recommendations
+
+```bash
+harm-cli insights daily
+harm-cli insights daily yesterday
+```
+
+Export HTML report
+
+```bash
+harm-cli insights export report.html
+```
+
+Export JSON data
+
+```bash
+harm-cli insights json week
+harm-cli insights json month
+```
+
+### Insights Categories
+
+**commands** - Command frequency analysis
+
+- Most used commands
+- Command patterns
+- Usage trends
+
+**performance** - Performance metrics
+
+- Average command duration
+- Slowest commands
+- Performance patterns
+
+**errors** - Error analysis
+
+- Error rate calculation
+- Failed commands list
+- Failure patterns
+
+**projects** - Project activity
+
+- Time per project
+- Project switches
+- Focus distribution
+
+**hours** - Peak productivity
+
+- Most active hours
+- Activity heatmap
+- Time patterns
+
+### Example Workflows
+
+Morning routine
+
+```bash
+harm-cli insights daily
+harm-cli insights show week commands
+```
+
+Weekly review
+
+```bash
+harm-cli insights show week
+harm-cli insights export weekly-report.html
+```
+
+Analyze performance issues
+
+```bash
+harm-cli insights show today performance
+harm-cli insights show week errors
+```
+
+### Integration with jq
+
+Get productivity score programmatically
+
+```bash
+harm-cli insights json week | jq -r '.error_rate'
+```
+
+Find top command
+
+```bash
+harm-cli insights json today | jq -r '.top_commands[0].command'
+```
+
+Get all projects
+
+```bash
+harm-cli insights json month | jq -r '.projects[].project'
+```
+
 ---
 
 ## 🎯 Goal Tracking
@@ -261,6 +631,63 @@ Clear all completed goals
 ```bash
 harm-cli goal clear
 ```
+
+### AI Goal Validation (Automatic)
+
+**How It Works:**
+
+AI automatically validates significant commands against your active goal:
+
+1. You set a goal: `harm-cli goal set "Implement user authentication" 4h`
+2. You run a command: `git commit -m "add login form"`
+3. AI checks alignment (background, non-blocking)
+4. If misaligned, you get a notification:
+
+```
+🤔 Goal Alignment Check:
+   Goal: Implement user authentication
+   Command: npm install lodash
+
+   AI: NO - Installing lodash doesn't directly relate to
+       implementing authentication. Consider if this is necessary.
+```
+
+**Validated Commands:**
+
+- git, npm, docker, python (all development tools)
+- vim, code, emacs (file editing)
+- make, cargo, go, mvn (build tools)
+- kubectl, helm (deployment)
+
+**Ignored Commands:**
+
+- ls, cd, pwd, cat (navigation)
+- grep, find (searching)
+- history, man, help (reference)
+
+**Configuration:**
+
+Enable/disable AI validation
+
+```bash
+export HARM_GOAL_VALIDATION_ENABLED=1  # Enable (default)
+export HARM_GOAL_VALIDATION_ENABLED=0  # Disable
+```
+
+Set validation frequency (seconds)
+
+```bash
+export HARM_GOAL_VALIDATION_FREQUENCY=60   # Every minute (default)
+export HARM_GOAL_VALIDATION_FREQUENCY=300  # Every 5 minutes (less intrusive)
+```
+
+**How It Helps:**
+
+- Keeps you aligned with goals
+- Detects scope creep early
+- Prevents rabbit holes
+- Maintains focus
+- Non-blocking (doesn't slow you down)
 
 ---
 
@@ -620,6 +1047,84 @@ harm-cli work stop && harm-cli ai daily
 
 ---
 
+## 📚 Interactive Learning & Discovery
+
+### Learn Command - AI-Powered Tutorials
+
+Get comprehensive tutorial on any topic
+
+```bash
+harm-cli learn git          # Git workflows
+harm-cli learn docker       # Docker & containers
+harm-cli learn python       # Python development
+harm-cli learn bash         # Shell scripting
+harm-cli learn productivity # Time management
+harm-cli learn harm-cli     # Advanced harm-cli usage
+```
+
+List all available topics
+
+```bash
+harm-cli learn --list
+```
+
+### Discover - Feature Suggestions
+
+Get personalized feature recommendations
+
+```bash
+harm-cli discover
+```
+
+**How it works:**
+- Analyzes your command patterns from activity tracking
+- AI suggests harm-cli features that match your workflow
+- Shows specific examples for your use cases
+
+Example output:
+```
+🔍 Discovering harm-cli Features...
+
+Based on your git usage, here are features to try:
+
+1. **AI Commit Messages** - Generate conventional commits
+   Try: harm-cli git commit-msg
+
+2. **Insights** - See your git patterns
+   Try: harm-cli insights show week
+
+3. **Work Enforcement** - Stay focused on one branch
+   Try: harm-cli work set-mode strict
+```
+
+### Unused - Find What You're Missing
+
+Discover commands you haven't tried
+
+```bash
+harm-cli unused
+```
+
+Shows:
+- All harm-cli commands you've never used
+- Suggestions to explore new features
+- Helps maximize your productivity
+
+### Cheat - Quick Reference
+
+Get instant command examples
+
+```bash
+harm-cli cheat curl        # curl examples
+harm-cli cheat git         # git examples
+harm-cli cheat docker      # docker examples
+harm-cli cheat tar         # tar examples
+```
+
+**Powered by:** https://cheat.sh
+
+---
+
 ## 🪝 Shell Hooks (Advanced)
 
 harm-cli includes a powerful shell hooks system for automation and advanced features.
@@ -709,7 +1214,12 @@ export HARM_HOOKS_DEBUG=1
 | **Testing**     | `just test`                   | Run all tests           |
 | **Work**        | `harm-cli work start "task"`  | Start work session      |
 | **Goals**       | `harm-cli goal set "goal" 4h` | Set new goal            |
+| **Activity**    | `harm-cli activity stats`     | View activity stats     |
+| **Insights**    | `harm-cli insights show week` | Productivity insights   |
+| **Focus**       | `harm-cli focus check`        | Focus monitoring        |
 | **AI**          | `harm-cli ai "question"`      | Ask AI assistant        |
+| **Learn**       | `harm-cli learn git`          | Interactive tutorials   |
+| **Discover**    | `harm-cli discover`           | Feature suggestions     |
 | **Git**         | `harm-cli git commit-msg`     | Generate commit message |
 | **Projects**    | `harm-cli proj list`          | List all projects       |
 | **Docker**      | `harm-cli docker up`          | Start services          |

@@ -211,6 +211,83 @@ The contents of file "$(goal_file_for_today)" should include 'true'
 End
 End
 
+Describe 'goal_reopen'
+BeforeEach 'rm -f "$(goal_file_for_today)"'
+
+It 'reopens a completed goal with new progress'
+export HARM_CLI_FORMAT=text
+goal_set "Test goal" >/dev/null 2>&1
+goal_complete 1 >/dev/null 2>&1
+When call goal_reopen 1 50
+The status should be success
+The error should include "Goal reopened"
+End
+
+It 'sets completed=false when reopening'
+goal_set "Test goal" >/dev/null 2>&1
+goal_complete 1 >/dev/null 2>&1
+goal_reopen 1 0 >/dev/null 2>&1
+The contents of file "$(goal_file_for_today)" should include '"completed":false'
+End
+
+It 'updates progress to specified value'
+goal_set "Test goal" >/dev/null 2>&1
+goal_complete 1 >/dev/null 2>&1
+goal_reopen 1 75 >/dev/null 2>&1
+The contents of file "$(goal_file_for_today)" should include '"progress":75'
+End
+
+It 'reopens non-completed goals (for fixing mistakes)'
+goal_set "Test goal" >/dev/null 2>&1
+goal_update_progress 1 30 >/dev/null 2>&1
+goal_reopen 1 0 >/dev/null 2>&1
+The contents of file "$(goal_file_for_today)" should include '"progress":0'
+The contents of file "$(goal_file_for_today)" should include '"completed":false'
+End
+
+It 'outputs JSON format when requested'
+export HARM_CLI_FORMAT=json
+goal_set "Test goal" >/dev/null 2>&1
+goal_complete 1 >/dev/null 2>&1
+When call goal_reopen 1 50
+The output should include '"status"'
+The output should include '"reopened"'
+The output should include '"progress"'
+The output should include '50'
+The output should include '"completed"'
+The output should include 'false'
+End
+
+It 'validates progress is 0-100'
+goal_set "Test goal" >/dev/null 2>&1
+goal_complete 1 >/dev/null 2>&1
+When run bash -c "source $ROOT/lib/goals.sh && goal_reopen 1 150"
+The status should equal "$EXIT_INVALID_ARGS"
+The error should include "between 0-100"
+End
+
+It 'requires both goal_number and progress arguments'
+goal_set "Test goal" >/dev/null 2>&1
+When run bash -c "source $ROOT/lib/goals.sh && goal_reopen 1"
+The status should be failure
+The error should include "requires progress"
+End
+
+It 'validates goal_number is integer'
+goal_set "Test goal" >/dev/null 2>&1
+When run bash -c "source $ROOT/lib/goals.sh && goal_reopen 'not_a_number' 50"
+The status should equal "$EXIT_INVALID_ARGS"
+The error should include "must be an integer"
+End
+
+It 'validates progress is integer'
+goal_set "Test goal" >/dev/null 2>&1
+When run bash -c "source $ROOT/lib/goals.sh && goal_reopen 1 'not_a_number'"
+The status should equal "$EXIT_INVALID_ARGS"
+The error should include "must be an integer"
+End
+End
+
 Describe 'goal_clear'
 BeforeEach 'rm -f "$(goal_file_for_today)" && goal_set "Test goal" >/dev/null 2>&1'
 

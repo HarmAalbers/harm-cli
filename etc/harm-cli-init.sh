@@ -37,6 +37,21 @@ if [[ -f "$HARM_CLI_ROOT/lib/hooks.sh" ]]; then
   source "$HARM_CLI_ROOT/lib/hooks.sh"
 fi
 
+# Load activity tracking (uses hooks for automatic logging)
+if [[ -f "$HARM_CLI_ROOT/lib/activity.sh" ]]; then
+  source "$HARM_CLI_ROOT/lib/activity.sh"
+fi
+
+# Load focus monitoring (periodic checks, pomodoro)
+if [[ -f "$HARM_CLI_ROOT/lib/focus.sh" ]]; then
+  source "$HARM_CLI_ROOT/lib/focus.sh"
+fi
+
+# Load interactive learning (learn, discover, unused, cheat)
+if [[ -f "$HARM_CLI_ROOT/lib/learn.sh" ]]; then
+  source "$HARM_CLI_ROOT/lib/learn.sh"
+fi
+
 # ═══════════════════════════════════════════════════════════════
 # Shell Helper Functions
 # ═══════════════════════════════════════════════════════════════
