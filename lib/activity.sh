@@ -114,11 +114,14 @@ _activity_should_log() {
   # Get first word of command
   local first_word="${cmd%% *}"
 
-  # Check exclude list
+  # Check exclude list (temporarily use default IFS to split on spaces)
   local excluded
+  local old_ifs="$IFS"
+  IFS=' '
   for excluded in $HARM_ACTIVITY_EXCLUDE; do
-    [[ "$first_word" == "$excluded" ]] && return 1
+    [[ "$first_word" == "$excluded" ]] && IFS="$old_ifs" && return 1
   done
+  IFS="$old_ifs"
 
   # Skip internal harm-cli commands
   [[ "$cmd" == harm-cli* ]] || [[ "$cmd" == _harm* ]] && return 1

@@ -38,9 +38,9 @@ The output should include "format"
 The output should include "ai_timeout"
 End
 
-It 'returns exactly 17 options'
+It 'returns exactly 25 options'
 result=$(options_list_all | wc -l | tr -d ' ')
-The value "$result" should equal 17
+The value "$result" should equal 25
 End
 End
 
@@ -151,7 +151,7 @@ BeforeEach 'unset HARM_LOG_LEVEL HARM_CLI_FORMAT HARM_CLI_AI_TIMEOUT'
 It 'returns default value when no config or env var'
 rm -f "$HARM_CLI_HOME/config.sh"
 When call options_get "log_level" 2>/dev/null
-The output should equal "INFO"
+The output should equal "WARN"
 End
 
 It 'returns config file value over default'

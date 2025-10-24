@@ -330,12 +330,15 @@ git_status_enhanced() {
   status=$(git status --porcelain 2>/dev/null)
 
   # Count changes
-  local modified
-  modified=$(echo "$status" | grep -c "^ M\|^M " || echo "0")
-  local staged
-  staged=$(echo "$status" | grep -c "^M\|^A\|^D" || echo "0")
-  local untracked
-  untracked=$(echo "$status" | grep -c "^??" || echo "0")
+  local modified staged untracked
+  modified=$(echo "$status" | grep -c "^ M\|^M " || true)
+  staged=$(echo "$status" | grep -c "^M\|^A\|^D" || true)
+  untracked=$(echo "$status" | grep -c "^??" || true)
+
+  # Ensure counts are numeric (grep -c outputs 0 on no match)
+  modified=${modified:-0}
+  staged=${staged:-0}
+  untracked=${untracked:-0}
 
   # Display enhanced status
   echo "Git Status"
