@@ -266,6 +266,30 @@ _activity_log_project_switch() {
 # Hook Handlers
 # ═══════════════════════════════════════════════════════════════
 
+# _activity_get_timestamp_ms: Get current timestamp in milliseconds
+#
+# Description:
+#   Safely gets current time in milliseconds, with fallback for systems
+#   that don't support %N format in date command (BSD/macOS).
+#
+# Returns:
+#   0 - Timestamp in milliseconds (stdout)
+_activity_get_timestamp_ms() {
+  local timestamp
+  timestamp=$(date +%s%3N 2>/dev/null)
+
+  # Strip any non-numeric characters (handles literal "N" on BSD systems)
+  timestamp="${timestamp//[^0-9]/}"
+
+  # If we got a valid number, return it
+  if [[ -n "$timestamp" && "$timestamp" -gt 0 ]] 2>/dev/null; then
+    echo "$timestamp"
+  else
+    # Fallback: use seconds and convert to milliseconds
+    echo "$(($(date +%s) * 1000))"
+  fi
+}
+
 # _activity_preexec_hook: Capture command start time
 #
 # Description:
@@ -282,7 +306,7 @@ _activity_preexec_hook() {
 
   local cmd="$1"
   _ACTIVITY_LAST_CMD="$cmd"
-  _ACTIVITY_CMD_START=$(date +%s%3N) # milliseconds
+  _ACTIVITY_CMD_START=$(_activity_get_timestamp_ms)
 
   log_debug "activity" "Command starting" "cmd=$cmd"
 }
@@ -310,7 +334,7 @@ _activity_precmd_hook() {
 
   # Calculate duration
   local end_time duration_ms
-  end_time=$(date +%s%3N)
+  end_time=$(_activity_get_timestamp_ms)
   duration_ms=$((end_time - _ACTIVITY_CMD_START))
 
   # Reset start time
