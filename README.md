@@ -110,6 +110,7 @@ harm-cli proj add ~/myapp        # Add project
 harm-cli docker up               # Start services
 harm-cli docker status           # Service status
 harm-cli docker logs backend     # View logs
+harm-cli docker cleanup          # Safe resource cleanup
 
 # Python development
 harm-cli python test             # Run tests

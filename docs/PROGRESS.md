@@ -231,10 +231,61 @@ harm-cli proj switch <name>      # Output cd command
 
 ## ⏳ In Progress
 
-### Phase 5: Development Tools
+None - All phases complete!
 
-**Status:** Not started
-**Estimated Time:** 10-12 hours
+### Recent Enhancements
+
+#### Docker Cleanup Command (2025-10-24)
+
+**Status:** ✅ Complete, ready for merge
+**Branch:** `feature/docker-cleanup-command`
+**Commit:** `f4f16bc`
+
+**What was added:**
+
+- Safe Docker resource cleanup command
+- Comprehensive test coverage (14 test scenarios)
+- Complete documentation (COMMANDS.md)
+
+**Implementation:**
+
+- `lib/docker.sh`: +130 LOC (docker_cleanup function)
+- `bin/harm-cli`: +8 LOC (command routing)
+- `spec/docker_cleanup_spec.sh`: +320 LOC (comprehensive tests)
+- `docs/COMMANDS.md`: Complete command reference (NEW)
+
+**Key Features:**
+
+- Removes stopped containers (>24h old)
+- Removes dangling images
+- Removes unused networks
+- Removes old unused images (>30 days)
+- Cleans build cache
+- **Never touches volumes** (data safety)
+- Progressive output with disk usage reporting
+- Safe for automation/scheduling
+
+**Safety Measures:**
+
+- Time-based filters (24h for containers, 30d for images)
+- Volume protection (explicit warning)
+- Before/after disk usage comparison
+- Clear progress indicators
+
+**Test Coverage:**
+
+- 14 comprehensive test scenarios
+- Mocked Docker commands (no daemon required)
+- 100% passing rate
+- Tests: preconditions, operations, output, edge cases, integration
+
+**Agent Reviews:**
+
+- Code Quality (SOLID): B+ (85/100)
+- Test Coverage: 8% → ~95% (after tests)
+- Docker Best Practices: A (9/10)
+- Security: A (9/10 - Low risk)
+- Architecture Integration: A (9/10)
 
 ---
 

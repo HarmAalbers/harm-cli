@@ -54,6 +54,10 @@ readonly DOCKER_COMPOSE_OVERRIDES=(
   "docker-compose.override.yaml"
 )
 
+# Cleanup configuration (configurable via environment)
+readonly DOCKER_CLEANUP_CONTAINER_AGE="${HARM_DOCKER_CLEANUP_CONTAINERS:-24h}"
+readonly DOCKER_CLEANUP_IMAGE_AGE="${HARM_DOCKER_CLEANUP_IMAGES:-720h}" # 30 days
+
 # ═══════════════════════════════════════════════════════════════════
 # Docker Utilities
 # ═══════════════════════════════════════════════════════════════════
@@ -222,6 +226,45 @@ docker_find_all_compose_files() {
   return 0
 }
 
+# docker_build_compose_flags: Build -f flags for docker compose command
+#
+# Description:
+#   Finds all compose files (base + overrides) and builds -f flags array.
+#   This eliminates code duplication between docker_up and docker_down.
+#
+# Arguments:
+#   None
+#
+# Returns:
+#   0 - Success
+#   1 - No compose file found
+#
+# Outputs:
+#   stdout: One flag per line (-f flag, then filename)
+#   stderr: Log messages
+#
+# Example:
+#   local compose_flags=()
+#   while IFS= read -r flag; do
+#     compose_flags+=("$flag")
+#   done < <(docker_build_compose_flags) || return "$EXIT_INVALID_STATE"
+docker_build_compose_flags() {
+  local compose_files
+  compose_files=$(docker_find_all_compose_files) || return 1
+
+  local files_array
+  read -ra files_array <<<"$compose_files"
+
+  # Output -f flags (one per line for easy array building)
+  local file
+  for file in "${files_array[@]}"; do
+    printf '%s\n' "-f"
+    printf '%s\n' "$file"
+  done
+
+  return 0
+}
+
 # ═══════════════════════════════════════════════════════════════════
 # Docker Compose Operations
 # ═══════════════════════════════════════════════════════════════════
@@ -269,25 +312,22 @@ docker_up() {
     return "$EXIT_INVALID_STATE"
   fi
 
-  # Find compose files (base + overrides)
-  local compose_files
-  compose_files=$(docker_find_all_compose_files) || {
+  # Build compose flags using helper function
+  local compose_flags=()
+  while IFS= read -r flag; do
+    compose_flags+=("$flag")
+  done < <(docker_build_compose_flags) || {
     error_msg "No Docker Compose file found"
     log_error "docker" "No compose file" "Checked: ${DOCKER_COMPOSE_FILES[*]}"
     echo "Expected: compose.yaml or docker-compose.yml"
     return "$EXIT_INVALID_STATE"
   }
 
-  # Convert space-separated list to array
+  # Get file list for logging/display
+  local compose_files
+  compose_files=$(docker_find_all_compose_files)
   local files_array
   read -ra files_array <<<"$compose_files"
-
-  # Build -f flags for each file
-  local compose_flags=()
-  local file
-  for file in "${files_array[@]}"; do
-    compose_flags+=("-f" "$file")
-  done
 
   log_debug "docker" "Using compose files" "${files_array[*]}"
 
@@ -356,21 +396,14 @@ docker_down() {
     return "$EXIT_INVALID_STATE"
   }
 
-  # Find compose files (base + overrides)
-  local compose_files
-  compose_files=$(docker_find_all_compose_files) || {
+  # Build compose flags using helper function
+  local compose_flags=()
+  while IFS= read -r flag; do
+    compose_flags+=("$flag")
+  done < <(docker_build_compose_flags) || {
     error_msg "No Docker Compose file found"
     return "$EXIT_INVALID_STATE"
   }
-
-  # Convert space-separated list to array and build -f flags
-  local files_array
-  read -ra files_array <<<"$compose_files"
-  local compose_flags=()
-  local file
-  for file in "${files_array[@]}"; do
-    compose_flags+=("-f" "$file")
-  done
 
   # Stop services
   echo "🐳 Stopping services..."
@@ -611,16 +644,183 @@ docker_health() {
   return "$issues"
 }
 
+# ═══════════════════════════════════════════════════════════════════
+# Docker Cleanup Operations (Internal Helpers)
+# ═══════════════════════════════════════════════════════════════════
+
+# docker_cleanup_containers: Remove stopped containers
+docker_cleanup_containers() {
+  echo "🗑️  Removing stopped containers (>${DOCKER_CLEANUP_CONTAINER_AGE} old)..."
+  if output=$(docker container prune --filter "until=${DOCKER_CLEANUP_CONTAINER_AGE}" -f 2>&1); then
+    if [[ "$output" == *"Total reclaimed space"* ]]; then
+      echo "$output" | grep -E "(Deleted|Total reclaimed)"
+    else
+      echo "✓ No old containers to remove"
+    fi
+  fi
+}
+
+# docker_cleanup_dangling_images: Remove dangling images
+docker_cleanup_dangling_images() {
+  echo "🗑️  Removing dangling images..."
+  if output=$(docker image prune -f 2>&1); then
+    if [[ "$output" == *"Total reclaimed space"* ]]; then
+      echo "$output" | grep -E "(deleted:|Total reclaimed)"
+    else
+      echo "✓ No dangling images to remove"
+    fi
+  fi
+}
+
+# docker_cleanup_networks: Remove unused networks
+docker_cleanup_networks() {
+  echo "🗑️  Removing unused networks..."
+  if output=$(docker network prune -f 2>&1); then
+    if [[ "$output" == *"Deleted Networks"* ]]; then
+      echo "$output"
+    else
+      echo "✓ No unused networks to remove"
+    fi
+  fi
+}
+
+# docker_cleanup_old_images: Remove old unused images
+docker_cleanup_old_images() {
+  echo "🗑️  Removing unused images (>${DOCKER_CLEANUP_IMAGE_AGE} old)..."
+  if output=$(docker image prune -a --filter "until=${DOCKER_CLEANUP_IMAGE_AGE}" -f 2>&1); then
+    if [[ "$output" == *"Total reclaimed space"* ]]; then
+      echo "$output" | grep -E "(untagged:|deleted:|Total reclaimed)"
+    else
+      echo "✓ No old images to remove"
+    fi
+  fi
+}
+
+# docker_cleanup_build_cache: Remove build cache
+docker_cleanup_build_cache() {
+  echo "🗑️  Removing build cache..."
+  if output=$(docker builder prune -f 2>&1); then
+    if [[ "$output" == *"Total:"* ]]; then
+      echo "$output" | tail -1
+    else
+      echo "✓ No build cache to remove"
+    fi
+  fi
+}
+
+# docker_show_disk_usage: Show Docker disk usage
+docker_show_disk_usage() {
+  local label="$1"
+  echo "📊 Disk usage $label:"
+  if ! docker system df 2>/dev/null; then
+    local msg="Unable to fetch disk stats"
+    [[ "$label" == "before cleanup" ]] && msg="$msg (continuing anyway...)"
+    echo "⚠️  $msg"
+  fi
+  echo ""
+}
+
+# ═══════════════════════════════════════════════════════════════════
+# Docker Cleanup (Public API)
+# ═══════════════════════════════════════════════════════════════════
+
+# docker_cleanup: Safe Docker resource cleanup
+#
+# Description:
+#   Performs comprehensive Docker cleanup in a safe, stepwise manner.
+#   Removes stopped containers, dangling images, unused networks, old images, and build cache.
+#   Never touches volumes automatically to prevent data loss.
+#
+# Arguments:
+#   None
+#
+# Returns:
+#   0 - Cleanup completed successfully
+#   EXIT_INVALID_STATE - Docker not running
+#
+# Outputs:
+#   stdout: Progress messages and space reclaimed summary
+#   stderr: Log messages
+#
+# Examples:
+#   docker_cleanup
+#   harm-cli docker cleanup
+#
+# Notes:
+#   - Shows disk usage before and after cleanup
+#   - Removes containers stopped for >24h
+#   - Removes images older than 30 days (unused)
+#   - Cleans all build cache (safe to rebuild)
+#   - NEVER removes volumes (manual review required)
+#   - Safe for automated/scheduled execution
+#
+# Performance:
+#   - Typical: 5-30s (depends on resources to clean)
+docker_cleanup() {
+  log_info "docker" "Starting Docker cleanup"
+
+  # Check Docker daemon
+  if ! docker_is_running; then
+    error_msg "Docker daemon is not running"
+    log_error "docker" "Docker not running"
+    echo "Start Docker Desktop or run: sudo systemctl start docker"
+    return "$EXIT_INVALID_STATE"
+  fi
+
+  echo "🧹 Docker Cleanup"
+  echo "══════════════════════════════════════════"
+  echo ""
+
+  # Show disk usage before cleanup
+  docker_show_disk_usage "before cleanup"
+
+  # Run cleanup operations
+  docker_cleanup_containers
+  echo ""
+
+  docker_cleanup_dangling_images
+  echo ""
+
+  docker_cleanup_networks
+  echo ""
+
+  docker_cleanup_old_images
+  echo ""
+
+  docker_cleanup_build_cache
+  echo ""
+
+  # Show disk usage after cleanup
+  docker_show_disk_usage "after cleanup"
+
+  echo "✅ Cleanup complete!"
+  echo ""
+  echo "💡 Note: Volumes were NOT touched. To review unused volumes, run:"
+  echo "   docker volume ls -f 'dangling=true'"
+  echo "   docker volume inspect <volume_name>"
+  echo "   docker volume prune  # CAUTION: Data loss risk!"
+
+  log_info "docker" "Cleanup completed successfully"
+  return 0
+}
+
 # Export public functions
 export -f docker_is_running
 export -f docker_find_compose_file
 export -f docker_find_all_compose_files
+export -f docker_build_compose_flags
 export -f docker_up
 export -f docker_down
 export -f docker_status
 export -f docker_logs
 export -f docker_shell
 export -f docker_health
+export -f docker_cleanup
+export -f docker_cleanup_containers
+export -f docker_cleanup_dangling_images
+export -f docker_cleanup_networks
+export -f docker_cleanup_old_images
+export -f docker_cleanup_build_cache
 
 # Mark module as loaded
 readonly _HARM_DOCKER_LOADED=1
