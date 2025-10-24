@@ -105,12 +105,16 @@ work_send_notification() {
 
   if [[ "$(uname)" == "Darwin" ]]; then
     # macOS - use osascript
+    # Escape quotes to prevent command injection
+    local safe_title="${title//\"/\\\"}"
+    local safe_message="${message//\"/\\\"}"
+
     if [[ "$sound_enabled" == "1" ]]; then
       # With sound
-      osascript -e "display notification \"$message\" with title \"$title\" sound name \"Glass\"" 2>/dev/null || true
+      osascript -e "display notification \"$safe_message\" with title \"$safe_title\" sound name \"Glass\"" 2>/dev/null || true
     else
       # Silent
-      osascript -e "display notification \"$message\" with title \"$title\"" 2>/dev/null || true
+      osascript -e "display notification \"$safe_message\" with title \"$safe_title\"" 2>/dev/null || true
     fi
   elif command -v notify-send &>/dev/null; then
     # Linux - use notify-send

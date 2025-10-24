@@ -146,8 +146,19 @@ offer_data_removal() {
 
   read -rp "Remove user data? [y/N]: " confirm
   if [[ "$confirm" =~ ^[Yy]$ ]]; then
-    rm -rf "$HARM_CLI_DATA"
-    print_success "Removed user data: $HARM_CLI_DATA"
+    # Validate path before deletion
+    if [[ -z "$HARM_CLI_DATA" || "$HARM_CLI_DATA" == "/" || "$HARM_CLI_DATA" == "$HOME" ]]; then
+      print_error "Invalid HARM_CLI_DATA path: '$HARM_CLI_DATA'"
+      print_error "Refusing to delete for safety reasons"
+      return 1
+    fi
+
+    if [[ ! -d "$HARM_CLI_DATA" ]]; then
+      print_warning "Data directory does not exist: $HARM_CLI_DATA"
+    else
+      rm -rf "$HARM_CLI_DATA"
+      print_success "Removed user data: $HARM_CLI_DATA"
+    fi
   else
     print_info "Kept user data in: $HARM_CLI_DATA"
     print_info "To remove manually later: rm -rf $HARM_CLI_DATA"
