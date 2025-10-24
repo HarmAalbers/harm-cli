@@ -813,9 +813,9 @@ ai_query() {
   echo "🤖 Thinking..."
   log_info "ai" "Sending API request"
 
-  # Track start time for audit
+  # Track start time for audit (in seconds, convert to ms later)
   local start_time
-  start_time=$(date +%s%3N 2>/dev/null || echo "0")
+  start_time=$(get_utc_epoch)
 
   local response
   if ! response=$(_ai_make_request "$api_key" "$query" "$context"); then
@@ -825,10 +825,10 @@ ai_query() {
     return "$exit_code"
   fi
 
-  # Calculate duration
+  # Calculate duration in milliseconds
   local end_time duration_ms
-  end_time=$(date +%s%3N 2>/dev/null || echo "0")
-  duration_ms=$((end_time - start_time))
+  end_time=$(get_utc_epoch)
+  duration_ms=$(((end_time - start_time) * 1000))
 
   # Parse response
   local text

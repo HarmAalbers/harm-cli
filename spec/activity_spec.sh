@@ -34,21 +34,18 @@ When call source lib/activity.sh
 The status should be success
 End
 
-It 'sets _HARM_ACTIVITY_LOADED flag'
 Include lib/hooks.sh
 Include lib/activity.sh
+
+It 'sets _HARM_ACTIVITY_LOADED flag'
 The variable _HARM_ACTIVITY_LOADED should equal 1
 End
 
 It 'creates activity directory'
-Include lib/hooks.sh
-Include lib/activity.sh
 The directory "$HARM_ACTIVITY_DIR" should be exist
 End
 
 It 'exports activity functions'
-Include lib/hooks.sh
-Include lib/activity.sh
 The function activity_query should be defined
 The function activity_stats should be defined
 The function activity_clear should be defined
@@ -61,36 +58,40 @@ End
 # ═══════════════════════════════════════════════════════════════
 
 Describe '_activity_should_log'
+Describe 'duration threshold'
+export HARM_ACTIVITY_MIN_DURATION_MS=100
 Include lib/hooks.sh
 Include lib/activity.sh
 
 It 'returns true for commands above duration threshold'
-export HARM_ACTIVITY_MIN_DURATION_MS=100
-
 When call _activity_should_log "git status" 150
 The status should be success
 End
 
 It 'returns false for commands below duration threshold'
-export HARM_ACTIVITY_MIN_DURATION_MS=100
-
 When call _activity_should_log "git status" 50
 The status should not be success
 End
+End
+
+Describe 'exclude list'
+export HARM_ACTIVITY_EXCLUDE="ls cd pwd"
+Include lib/hooks.sh
+Include lib/activity.sh
 
 It 'excludes commands in exclude list'
-export HARM_ACTIVITY_EXCLUDE="ls cd pwd"
-
 When call _activity_should_log "ls" 200
 The status should not be success
 End
 
 It 'allows commands not in exclude list'
-export HARM_ACTIVITY_EXCLUDE="ls cd pwd"
-
 When call _activity_should_log "git status" 200
 The status should be success
 End
+End
+
+Include lib/hooks.sh
+Include lib/activity.sh
 
 It 'excludes harm-cli commands'
 When call _activity_should_log "harm-cli work status" 200
@@ -115,8 +116,8 @@ The output should equal "harm-cli"
 End
 
 It 'returns git repo name when in git repo'
-Skip if "Not in harm-cli git repo" test ! -d "$PROJECT_ROOT/.git"
-cd "$PROJECT_ROOT" || exit 1
+# This test runs in the harm-cli directory which is a git repo
+cd "$(pwd)" || exit 1
 
 When call _activity_get_project
 The output should equal "harm-cli"
@@ -130,6 +131,9 @@ End
 Describe '_activity_log_command'
 Include lib/hooks.sh
 Include lib/activity.sh
+
+# Clean up log file before each test to avoid pollution
+BeforeEach 'rm -f "$HARM_ACTIVITY_LOG"'
 
 It 'logs command to JSONL file'
 When call _activity_log_command "git status" 0 150
@@ -161,8 +165,12 @@ End
 It 'includes timestamp in ISO 8601 format'
 _activity_log_command "echo test" 0 10 >/dev/null
 
-When run jq -r '.timestamp' "$HARM_ACTIVITY_LOG"
-The output should match pattern "^[0-9]{4}-[0-9]{2}-[0-9]{2}T"
+# Check timestamp format: YYYY-MM-DDTHH:MM:SSZ
+timestamp=$(jq -r '.timestamp' "$HARM_ACTIVITY_LOG")
+When call echo "$timestamp"
+The output should start with "202" # Year starts with 202x
+The output should include "T"      # Has T separator
+The output should end with "Z"     # Ends with Z (UTC)
 End
 
 It 'includes current directory'
@@ -190,6 +198,9 @@ End
 Describe '_activity_log_project_switch'
 Include lib/hooks.sh
 Include lib/activity.sh
+
+# Clean up log file before each test to avoid pollution
+BeforeEach 'rm -f "$HARM_ACTIVITY_LOG"'
 
 It 'logs project switch to JSONL file'
 When call _activity_log_project_switch "/old/path" "/new/path"
@@ -252,8 +263,10 @@ End
 It 'returns JSONL format'
 setup_test_data
 
-When run sh -c "activity_query today | jq -r '.command' | head -1"
-The output should satisfy _is_not_empty
+# Get first command from activity query output
+result=$(activity_query today | jq -r '.command' | head -1)
+When call echo "$result"
+The output should not be blank
 End
 
 It 'handles missing log file gracefully'
@@ -385,8 +398,10 @@ echo "{\"timestamp\":\"${today}T10:00:00Z\",\"type\":\"command\",\"command\":\"t
 
 activity_cleanup >/dev/null 2>&1
 
-When run wc -l <"$HARM_ACTIVITY_LOG"
-The output should match pattern "^[ ]*1"
+# Should still have 1 entry (today's entry)
+result=$(wc -l <"$HARM_ACTIVITY_LOG" | tr -d ' ')
+When call echo "$result"
+The output should equal "1"
 End
 
 It 'handles missing log file gracefully'
@@ -426,16 +441,18 @@ End
 # ═══════════════════════════════════════════════════════════════
 
 Describe 'Activity configuration'
-It 'respects HARM_ACTIVITY_ENABLED=0'
+Describe 'respects HARM_ACTIVITY_ENABLED=0'
 export HARM_ACTIVITY_ENABLED=0
 Include lib/hooks.sh
 Include lib/activity.sh
 
+It 'does not register hooks when disabled'
 When call harm_list_hooks
 The output should not include "_activity_preexec_hook"
 End
+End
 
-It 'uses configured activity directory'
+Describe 'uses configured activity directory'
 custom_dir="${SHELLSPEC_TMPBASE}/custom-activity"
 export HARM_ACTIVITY_DIR="$custom_dir"
 export HARM_ACTIVITY_LOG="${custom_dir}/activity.jsonl"
@@ -443,21 +460,31 @@ export HARM_ACTIVITY_LOG="${custom_dir}/activity.jsonl"
 Include lib/hooks.sh
 Include lib/activity.sh
 
+It 'creates custom directory'
 The directory "$custom_dir" should be exist
 End
+End
 
-It 'respects minimum duration threshold'
+Describe 'respects minimum duration threshold'
 export HARM_ACTIVITY_MIN_DURATION_MS=500
+Include lib/hooks.sh
+Include lib/activity.sh
 
+It 'does not log commands below threshold'
 When call _activity_should_log "git status" 100
 The status should not be success
 End
+End
 
-It 'respects exclude list'
+Describe 'respects exclude list'
 export HARM_ACTIVITY_EXCLUDE="git npm docker"
+Include lib/hooks.sh
+Include lib/activity.sh
 
+It 'does not log excluded commands'
 When call _activity_should_log "git status" 200
 The status should not be success
+End
 End
 End
 
@@ -495,4 +522,7 @@ result=$(jq -r 'select(.type == "project_switch") | .old_pwd' "$HARM_ACTIVITY_LO
 When call echo "$result"
 The output should equal "/old/path"
 End
+End
+
+# Close the top-level 'lib/activity.sh' Describe block from line 4
 End

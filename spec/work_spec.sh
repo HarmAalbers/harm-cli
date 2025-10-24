@@ -4,14 +4,43 @@
 Describe 'lib/work.sh'
 Include spec/helpers/env.sh
 
-# Set up test work directory
-BeforeAll 'export HARM_WORK_DIR="$TEST_TMP/work" && export HARM_WORK_STATE_FILE="$HARM_WORK_DIR/current_session.json" && mkdir -p "$HARM_WORK_DIR"'
+# Set up test work directory and source work module
+# IMPORTANT: Must set HARM_WORK_DIR and HARM_CLI_HOME before sourcing work.sh (readonly vars)
+setup_work_test_env() {
+  export HARM_WORK_DIR="$TEST_TMP/work"
+  export HARM_WORK_STATE_FILE="$HARM_WORK_DIR/current_session.json"
+  export HARM_CLI_HOME="$TEST_TMP/harm-cli"
+  mkdir -p "$HARM_WORK_DIR" "$HARM_CLI_HOME"
+  source "$ROOT/lib/work.sh"
+}
+
+# Clean up work session artifacts and background processes
+# Defined at top level so it's accessible to all Describe blocks
+cleanup_work_session() {
+  work_stop_timer 2>/dev/null || true
+  rm -f "$HARM_WORK_STATE_FILE"* 2>/dev/null || true
+  rm -f "$HARM_WORK_DIR"/*.pid 2>/dev/null || true
+}
+
+# Helper to start a work session for test setup
+# Usage: start_test_session "goal"
+start_test_session() {
+  local goal="${1:-Test goal}"
+  work_start "$goal" >/dev/null 2>&1 || {
+    echo "ERROR: Failed to start test work session" >&2
+    return 1
+  }
+}
+
+BeforeAll 'setup_work_test_env'
 
 # Clean up after tests
-AfterAll 'rm -rf "$HARM_WORK_DIR"'
+cleanup_work_test_env() {
+  cleanup_work_session
+  rm -rf "$HARM_WORK_DIR"
+}
 
-# Source the work module
-BeforeAll 'source "$ROOT/lib/work.sh"'
+AfterAll 'cleanup_work_test_env'
 
 Describe 'Configuration'
 It 'creates work directory'
@@ -53,7 +82,7 @@ End
 End
 
 Describe 'work_start'
-BeforeEach 'rm -f "$HARM_WORK_STATE_FILE"*'
+BeforeEach 'cleanup_work_session'
 
 It 'starts a new work session'
 export HARM_CLI_FORMAT=text
@@ -66,7 +95,8 @@ End
 
 It 'saves session state as JSON'
 export HARM_CLI_FORMAT=text
-work_start "Test goal" >/dev/null 2>&1
+When call work_start "Test goal"
+The status should be success
 The contents of file "$HARM_WORK_STATE_FILE" should include '"status": "active"'
 The contents of file "$HARM_WORK_STATE_FILE" should include '"goal": "Test goal"'
 End
@@ -80,7 +110,8 @@ The error should include "[INFO]"
 End
 
 It 'fails if session already active'
-work_start "First" >/dev/null 2>&1
+When call work_start "First"
+The status should be success
 When call work_start "Second"
 The status should be failure
 The error should include "already active"
@@ -88,7 +119,7 @@ End
 End
 
 Describe 'work_status'
-BeforeEach 'rm -f "$HARM_WORK_STATE_FILE"*'
+BeforeEach 'cleanup_work_session'
 
 It 'shows inactive when no session'
 export HARM_CLI_FORMAT=text
@@ -98,7 +129,7 @@ End
 
 It 'shows active session details'
 export HARM_CLI_FORMAT=text
-work_start "Test goal" >/dev/null 2>&1
+start_test_session "Test goal"
 sleep 1
 When call work_status
 The output should include "ACTIVE"
@@ -108,7 +139,7 @@ End
 
 It 'outputs JSON format'
 export HARM_CLI_FORMAT=json
-work_start "Test goal" >/dev/null 2>&1
+start_test_session "Test goal"
 When call work_status
 The output should include '"status"'
 The output should include '"goal"'
@@ -117,7 +148,7 @@ End
 
 It 'calculates elapsed time accurately (timezone bug test)'
 export HARM_CLI_FORMAT=json
-work_start "Test goal" >/dev/null 2>&1
+start_test_session "Test goal"
 sleep 2
 result=$(work_status)
 elapsed=$(echo "$result" | jq -r '.elapsed_seconds')
@@ -129,6 +160,8 @@ End
 End
 
 Describe 'work_stop'
+BeforeEach 'cleanup_work_session'
+
 It 'fails when no active session'
 rm -f "$HARM_WORK_STATE_FILE"
 When call work_stop
@@ -138,7 +171,7 @@ End
 
 It 'stops active session'
 export HARM_CLI_FORMAT=text
-work_start "Test goal" >/dev/null 2>&1
+start_test_session "Test goal"
 sleep 1
 When call work_stop
 The status should be success
@@ -147,13 +180,13 @@ The output should include "Duration"
 End
 
 It 'removes state file after stopping'
-work_start "Test" >/dev/null 2>&1
+start_test_session "Test"
 work_stop >/dev/null 2>&1
 The file "$HARM_WORK_STATE_FILE" should not be exist
 End
 
 It 'archives session to monthly file'
-work_start "Test goal" >/dev/null 2>&1
+start_test_session "Test goal"
 sleep 1
 work_stop >/dev/null 2>&1
 archive_file="${HARM_WORK_DIR}/sessions_$(date '+%Y-%m').jsonl"
@@ -163,7 +196,7 @@ End
 
 It 'outputs JSON format'
 export HARM_CLI_FORMAT=json
-work_start "Test" >/dev/null 2>&1
+start_test_session "Test"
 sleep 1
 When call work_stop
 The status should be success
@@ -175,7 +208,7 @@ End
 It 'calculates duration accurately (timezone bug test)'
 # This test verifies the timezone bug is fixed by checking actual duration
 export HARM_CLI_FORMAT=json
-work_start "Test goal" >/dev/null 2>&1
+start_test_session "Test goal"
 sleep 2
 # Capture only stdout (JSON), stderr goes to log
 result=$(work_stop 2>/dev/null)

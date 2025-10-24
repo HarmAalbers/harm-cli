@@ -124,7 +124,9 @@ The status should equal 2
 End
 
 It 'fails gracefully when no key found'
+# Unset env var and mock security to fail (prevent finding key in keychain)
 unset GEMINI_API_KEY
+security() { return 1; }
 When call ai_get_api_key
 The status should equal 2
 The stderr should include "No API key found"
