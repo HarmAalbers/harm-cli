@@ -71,7 +71,7 @@ declare -gA OPTIONS_SCHEMA=(
   ["log_max_size"]="int:10485760:HARM_LOG_MAX_SIZE:Maximum log file size in bytes:validate_number"
   ["log_max_files"]="int:5:HARM_LOG_MAX_FILES:Number of rotated log files to keep:validate_number"
   ["debug_mode"]="bool:0:HARM_CLI_DEBUG:Enable debug mode by default (0=disabled, 1=enabled):validate_bool"
-  ["quiet_mode"]="bool:0:HARM_CLI_QUIET:Enable quiet mode by default (0=disabled, 1=enabled):validate_bool"
+  ["minimal_mode"]="bool:0:HARM_CLI_MINIMAL:Enable minimal mode by default (0=disabled, 1=enabled):validate_bool"
 
   # AI
   ["ai_cache_ttl"]="int:3600:HARM_CLI_AI_CACHE_TTL:AI cache duration in seconds:validate_number"

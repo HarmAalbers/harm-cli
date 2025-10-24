@@ -72,7 +72,7 @@ Options:
   -h, --help              Show this help message
   -v, --version           Show version information
   -F, --format FORMAT     Output format (text|json) [default: text]
-  -q, --quiet             Suppress non-error output
+  -m, --minimal           Minimal output (errors only)
   -d, --debug             Enable debug output
 
 Commands:
@@ -194,7 +194,7 @@ EOF
 
 main() {
   local format="${HARM_CLI_FORMAT:-text}"
-  local quiet=0
+  local minimal=0
   local debug=0
 
   # Parse global options
@@ -212,8 +212,8 @@ main() {
         format="${2:?--format requires an argument}"
         shift 2
         ;;
-      -q | --quiet)
-        quiet=1
+      -m | --minimal)
+        minimal=1
         shift
         ;;
       -d | --debug)
@@ -232,14 +232,17 @@ main() {
 
   # Export format for subcommands
   export HARM_CLI_FORMAT="$format"
-  export HARM_CLI_QUIET="$quiet"
+  export HARM_CLI_MINIMAL="$minimal"
   export HARM_CLI_DEBUG="$debug"
 
-  # Adjust log level based on debug mode
+  # Adjust log level based on debug/minimal mode
   # Debug mode: show all logs (DEBUG level)
-  # Normal mode: only show warnings and errors (WARN level, unless HARM_LOG_LEVEL is explicitly set)
+  # Minimal mode: show only errors (ERROR level)
+  # Normal mode: show warnings and errors (WARN level, unless HARM_LOG_LEVEL is explicitly set)
   if [[ $debug -eq 1 ]]; then
     export HARM_LOG_LEVEL="DEBUG"
+  elif [[ $minimal -eq 1 ]]; then
+    export HARM_LOG_LEVEL="ERROR"
   fi
 
   # Dispatch to command
@@ -1421,7 +1424,7 @@ Examples:
 Available Options (17 total):
   Paths: cli_home, log_dir
   Logging: log_level, log_to_file, log_to_console, log_unbuffered,
-           log_max_size, log_max_files, debug_mode, quiet_mode
+           log_max_size, log_max_files, debug_mode, minimal_mode
   AI: ai_cache_ttl, ai_timeout, ai_max_tokens, ai_model
   Hooks: hooks_enabled, hooks_debug
   Output: format
