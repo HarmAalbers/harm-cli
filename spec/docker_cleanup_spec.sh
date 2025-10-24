@@ -1,4 +1,6 @@
 #!/usr/bin/env bash
+# shellcheck disable=SC2317
+# SC2317: Mock functions called indirectly via export -f (false positive)
 # ShellSpec tests for Docker cleanup functionality
 
 Describe 'lib/docker.sh - docker_cleanup'
