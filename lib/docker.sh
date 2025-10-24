@@ -611,6 +611,135 @@ docker_health() {
   return "$issues"
 }
 
+# docker_cleanup: Safe Docker resource cleanup
+#
+# Description:
+#   Performs comprehensive Docker cleanup in a safe, stepwise manner.
+#   Removes stopped containers, dangling images, unused networks, old images, and build cache.
+#   Never touches volumes automatically to prevent data loss.
+#
+# Arguments:
+#   None
+#
+# Returns:
+#   0 - Cleanup completed successfully
+#   EXIT_INVALID_STATE - Docker not running
+#
+# Outputs:
+#   stdout: Progress messages and space reclaimed summary
+#   stderr: Log messages
+#
+# Examples:
+#   docker_cleanup
+#   harm-cli docker cleanup
+#
+# Notes:
+#   - Shows disk usage before and after cleanup
+#   - Removes containers stopped for >24h
+#   - Removes images older than 30 days (unused)
+#   - Cleans all build cache (safe to rebuild)
+#   - NEVER removes volumes (manual review required)
+#   - Safe for automated/scheduled execution
+#
+# Performance:
+#   - Typical: 5-30s (depends on resources to clean)
+docker_cleanup() {
+  log_info "docker" "Starting Docker cleanup"
+
+  # Check Docker daemon
+  if ! docker_is_running; then
+    error_msg "Docker daemon is not running"
+    log_error "docker" "Docker not running"
+    echo "Start Docker Desktop or run: sudo systemctl start docker"
+    return "$EXIT_INVALID_STATE"
+  fi
+
+  echo "🧹 Docker Cleanup"
+  echo "══════════════════════════════════════════"
+  echo ""
+
+  # Show initial disk usage
+  echo "📊 Disk usage before cleanup:"
+  if ! docker system df 2>/dev/null; then
+    echo "⚠️  Unable to fetch disk stats (continuing anyway...)"
+  fi
+  echo ""
+
+  local total_reclaimed=0
+
+  # Step 1: Remove stopped containers
+  echo "🗑️  Removing stopped containers (>24h old)..."
+  if output=$(docker container prune --filter "until=24h" -f 2>&1); then
+    if [[ "$output" == *"Total reclaimed space"* ]]; then
+      echo "$output" | grep -E "(Deleted|Total reclaimed)"
+    else
+      echo "✓ No old containers to remove"
+    fi
+  fi
+  echo ""
+
+  # Step 2: Remove dangling images
+  echo "🗑️  Removing dangling images..."
+  if output=$(docker image prune -f 2>&1); then
+    if [[ "$output" == *"Total reclaimed space"* ]]; then
+      echo "$output" | grep -E "(deleted:|Total reclaimed)"
+    else
+      echo "✓ No dangling images to remove"
+    fi
+  fi
+  echo ""
+
+  # Step 3: Remove unused networks
+  echo "🗑️  Removing unused networks..."
+  if output=$(docker network prune -f 2>&1); then
+    if [[ "$output" == *"Deleted Networks"* ]]; then
+      echo "$output"
+    else
+      echo "✓ No unused networks to remove"
+    fi
+  fi
+  echo ""
+
+  # Step 4: Remove old unused images
+  echo "🗑️  Removing unused images (>30 days old)..."
+  if output=$(docker image prune -a --filter "until=720h" -f 2>&1); then
+    if [[ "$output" == *"Total reclaimed space"* ]]; then
+      echo "$output" | grep -E "(untagged:|deleted:|Total reclaimed)"
+    else
+      echo "✓ No old images to remove"
+    fi
+  fi
+  echo ""
+
+  # Step 5: Remove build cache
+  echo "🗑️  Removing build cache..."
+  if output=$(docker builder prune -f 2>&1); then
+    if [[ "$output" == *"Total:"* ]]; then
+      echo "$output" | tail -1
+    else
+      echo "✓ No build cache to remove"
+    fi
+  fi
+  echo ""
+
+  # Show final disk usage
+  echo "📊 Disk usage after cleanup:"
+  if ! docker system df 2>/dev/null; then
+    echo "⚠️  Unable to fetch disk stats"
+  fi
+  echo ""
+
+  echo "✅ Cleanup complete!"
+  echo ""
+  echo "💡 Note: Volumes were NOT touched. To review unused volumes, run:"
+  echo "   docker volume ls -f 'dangling=true'"
+  echo "   docker volume inspect <volume_name>"
+  echo "   docker volume prune  # CAUTION: Data loss risk!"
+
+  log_info "docker" "Cleanup completed successfully"
+  return 0
+}
+
 # Export public functions
 export -f docker_is_running
 export -f docker_find_compose_file
@@ -621,6 +750,7 @@ export -f docker_status
 export -f docker_logs
 export -f docker_shell
 export -f docker_health
+export -f docker_cleanup
 
 # Mark module as loaded
 readonly _HARM_DOCKER_LOADED=1
