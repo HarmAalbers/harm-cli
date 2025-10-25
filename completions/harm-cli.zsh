@@ -354,6 +354,3 @@ _harm_cli_safe() {
       ;;
   esac
 }
-
-# Register completion
-_harm_cli "$@"

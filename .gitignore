@@ -50,3 +50,4 @@ spec/coverage/
 # Test artifacts
 spec/tmp/
 node_modules/
+spec/tmp/

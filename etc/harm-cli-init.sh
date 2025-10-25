@@ -31,27 +31,22 @@ if [[ -n "${BASH_VERSION:-}" ]] && [[ -f "$HARM_CLI_ROOT/completions/harm-cli.ba
   source "$HARM_CLI_ROOT/completions/harm-cli.bash"
 fi
 
-# Load hook system for advanced features (activity tracking, etc.)
-# Only loads in interactive shells
+# Load hook system (uses PROMPT_COMMAND, DEBUG trap, BASH_COMMAND)
 if [[ -f "$HARM_CLI_ROOT/lib/hooks.sh" ]]; then
   source "$HARM_CLI_ROOT/lib/hooks.sh"
 fi
-
-# Load activity tracking (uses hooks for automatic logging)
+# Load activity tracking (depends on hooks.sh)
 if [[ -f "$HARM_CLI_ROOT/lib/activity.sh" ]]; then
   source "$HARM_CLI_ROOT/lib/activity.sh"
 fi
-
 # Load focus monitoring (periodic checks, pomodoro)
 if [[ -f "$HARM_CLI_ROOT/lib/focus.sh" ]]; then
   source "$HARM_CLI_ROOT/lib/focus.sh"
 fi
-
 # Load interactive learning (learn, discover, unused, cheat)
 if [[ -f "$HARM_CLI_ROOT/lib/learn.sh" ]]; then
   source "$HARM_CLI_ROOT/lib/learn.sh"
 fi
-
 # ═══════════════════════════════════════════════════════════════
 # Shell Helper Functions
 # ═══════════════════════════════════════════════════════════════
@@ -91,12 +86,10 @@ proj() {
 }
 
 # Optional: Remind about work session if not active
-# Uncomment to enable:
+# Uncomment to enable (safe to use if not using instant prompt):
 # if command -v harm-cli >/dev/null 2>&1; then
 #   # Check work session on new shell
 #   if ! harm-cli work status >/dev/null 2>&1; then
 #     echo "💡 Tip: Start work session with: harm-cli work start"
 #   fi
 # fi
-
-echo "✓ harm-cli initialized (with proj() helper function)"
