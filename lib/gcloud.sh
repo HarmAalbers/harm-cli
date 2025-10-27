@@ -119,48 +119,66 @@ gcloud_is_installed() {
 gcloud_status() {
   log_info "gcloud" "Showing GCloud SDK status"
 
-  echo "Google Cloud SDK Status"
-  echo "══════════════════════════════════════════"
-  echo ""
+  local format="${HARM_CLI_FORMAT:-text}"
 
   # Check if installed
   if ! gcloud_is_installed; then
-    echo "✗ GCloud SDK not installed"
-    echo ""
-    echo "Installation:"
-    echo "  macOS: brew install --cask google-cloud-sdk"
-    echo "  Linux: https://cloud.google.com/sdk/docs/install"
-    echo ""
-    echo "Common installation paths checked:"
-    for path in "${GCLOUD_SDK_PATHS[@]}"; do
-      echo "  - $path"
-    done
+    if [[ "$format" == "json" ]]; then
+      jq -n '{installed: false, status: "not_installed"}'
+    else
+      echo "Google Cloud SDK Status"
+      echo "══════════════════════════════════════════"
+      echo ""
+      echo "✗ GCloud SDK not installed"
+      echo ""
+      echo "Installation:"
+      echo "  macOS: brew install --cask google-cloud-sdk"
+      echo "  Linux: https://cloud.google.com/sdk/docs/install"
+      echo ""
+      echo "Common installation paths checked:"
+      for path in "${GCLOUD_SDK_PATHS[@]}"; do
+        echo "  - $path"
+      done
+    fi
     log_info "gcloud" "GCloud SDK not installed"
     return 1
   fi
 
-  # Show version
+  # Get configuration
   local version
   version=$(gcloud version --format="value(version)" 2>/dev/null || echo "unknown")
-  echo "✓ GCloud SDK installed"
-  echo "  Version: $version"
-  echo ""
-
-  # Show active configuration
-  echo "Configuration:"
   local account
   account=$(gcloud config get-value account 2>/dev/null || echo "none")
-  echo "  Account: $account"
-
   local project
   project=$(gcloud config get-value project 2>/dev/null || echo "none")
-  echo "  Project: $project"
 
-  if [[ "$account" == "none" ]]; then
+  if [[ "$format" == "json" ]]; then
+    local configured
+    [[ "$account" != "none" ]] && configured="true" || configured="false"
+    jq -n \
+      --argjson installed true \
+      --arg version "$version" \
+      --arg account "$account" \
+      --arg project "$project" \
+      --argjson configured "$configured" \
+      '{installed: $installed, version: $version, account: $account, project: $project, configured: $configured, status: (if $configured then "configured" else "not_configured" end)}'
+  else
+    echo "Google Cloud SDK Status"
+    echo "══════════════════════════════════════════"
     echo ""
-    echo "Setup:"
-    echo "  → Authenticate: gcloud auth login"
-    echo "  → Set project: gcloud config set project PROJECT_ID"
+    echo "✓ GCloud SDK installed"
+    echo "  Version: $version"
+    echo ""
+    echo "Configuration:"
+    echo "  Account: $account"
+    echo "  Project: $project"
+
+    if [[ "$account" == "none" ]]; then
+      echo ""
+      echo "Setup:"
+      echo "  → Authenticate: gcloud auth login"
+      echo "  → Set project: gcloud config set project PROJECT_ID"
+    fi
   fi
 
   log_debug "gcloud" "Status displayed" "Account: $account, Project: $project"

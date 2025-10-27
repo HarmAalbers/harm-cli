@@ -342,14 +342,16 @@ render_markdown_pipe() {
     return 1
   }
 
-  # Ensure cleanup on function exit
-  trap 'rm -f "$tmpfile"' RETURN
-
   # Read stdin to temp file
   cat >"$tmpfile"
 
-  # Render the temp file
-  render_markdown "$tmpfile" "$@"
+  # Render the temp file (redirect stdin from /dev/null to prevent rendering tool from reading it)
+  render_markdown "$tmpfile" "$@" </dev/null
+
+  # Cleanup temp file
+  local exit_code=$?
+  rm -f "$tmpfile"
+  return $exit_code
 }
 
 # ═══════════════════════════════════════════════════════════════

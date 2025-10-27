@@ -93,3 +93,5 @@ proj() {
 #     echo "💡 Tip: Start work session with: harm-cli work start"
 #   fi
 # fi
+
+echo "✓ harm-cli initialized (with proj() helper function)"
