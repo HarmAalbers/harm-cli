@@ -216,6 +216,11 @@ main() {
         minimal=1
         shift
         ;;
+      -q | --quiet)
+        # Alias for --minimal (backward compatibility)
+        minimal=1
+        shift
+        ;;
       -d | --debug)
         debug=1
         set -x
@@ -325,8 +330,8 @@ EOF
         status) work_status "$@" ;;
         reset) work_reset_pomodoro_count "$@" && echo "✅ Pomodoro counter reset to 0" ;;
         stats)
-          shift # Remove 'stats' from args
-          local period="${1:-all}"
+          local period="${2:-all}"
+          shift 2 || shift || true # Remove 'stats' and period safely
           case "$period" in
             today) work_stats_today ;;
             week) work_stats_week ;;
@@ -601,7 +606,25 @@ Notes:
 EOF
           ;;
         set) goal_set "$@" ;;
-        show) goal_show "$@" ;;
+        show)
+          # Parse format flags before calling goal_show
+          while [[ $# -gt 0 ]]; do
+            case "$1" in
+              --json | -j)
+                export HARM_CLI_FORMAT="json"
+                shift
+                ;;
+              --format)
+                export HARM_CLI_FORMAT="${2:?--format requires argument}"
+                shift 2
+                ;;
+              *)
+                break
+                ;;
+            esac
+          done
+          goal_show "$@"
+          ;;
         progress) goal_update_progress "$@" ;;
         complete) goal_complete "$@" ;;
         reopen) goal_reopen "$@" ;;
@@ -716,7 +739,95 @@ EOF
         search) log_search "$@" ;;
         stats) log_stats "$@" ;;
         clear) log_clear "$@" ;;
-        *) die "Unknown log command: $subcmd. Try: stream, tail, search, stats, clear" 2 ;;
+        view)
+          # Parse format flags
+          local lines=50
+          local format="plain"
+          while [[ $# -gt 0 ]]; do
+            case "$1" in
+              --lines=*)
+                lines="${1#*=}"
+                shift
+                ;;
+              --lines)
+                lines="${2:?--lines requires an argument}"
+                shift 2
+                ;;
+              --format=*)
+                format="${1#*=}"
+                shift
+                ;;
+              --format)
+                format="${2:?--format requires an argument}"
+                shift 2
+                ;;
+              *) shift ;;
+            esac
+          done
+
+          # View with formatting (basic implementation)
+          if [[ "$format" == "color" ]]; then
+            log_tail "$lines"
+          else
+            log_tail "$lines"
+          fi
+          ;;
+        filter)
+          # Parse filter options
+          local pattern=""
+          local level=""
+          local lines=100
+
+          while [[ $# -gt 0 ]]; do
+            case "$1" in
+              --pattern=*)
+                pattern="${1#*=}"
+                shift
+                ;;
+              --pattern)
+                pattern="${2:?--pattern requires an argument}"
+                shift 2
+                ;;
+              --level=*)
+                level="${1#*=}"
+                shift
+                ;;
+              --level)
+                level="${2:?--level requires an argument}"
+                shift 2
+                ;;
+              --lines=*)
+                lines="${1#*=}"
+                shift
+                ;;
+              --lines)
+                lines="${2:?--lines requires an argument}"
+                shift 2
+                ;;
+              *)
+                # First positional arg is pattern
+                if [[ -z "$pattern" ]]; then
+                  pattern="$1"
+                fi
+                shift
+                ;;
+            esac
+          done
+
+          if [[ -z "$pattern" ]]; then
+            error_msg "Pattern required for filter"
+            echo "Usage: harm-cli log filter PATTERN [--level=LEVEL] [--lines=N]"
+            exit "$EXIT_INVALID_ARGS"
+          fi
+
+          # Apply filter with optional level filtering
+          if [[ -n "$level" ]]; then
+            log_tail "$lines" | grep "\[$level\]" | grep -i "$pattern" || true
+          else
+            log_tail "$lines" | grep -i "$pattern" || true
+          fi
+          ;;
+        *) die "Unknown log command: $subcmd. Try: stream, view, tail, filter, search, stats, clear" 2 ;;
       esac
       ;;
     ai)
@@ -1304,35 +1415,85 @@ EOF
     health)
       # shellcheck source=lib/health.sh
       source "$ROOT_DIR/lib/health.sh"
-      health_check "$@"
+
+      # Parse format flags before calling health_check
+      local -a health_args=()
+      while [[ $# -gt 0 ]]; do
+        case "$1" in
+          --json | -j)
+            export HARM_CLI_FORMAT="json"
+            health_args+=("--json")
+            shift
+            ;;
+          --verbose | -v)
+            health_args+=("--verbose")
+            shift
+            ;;
+          *)
+            health_args+=("$1")
+            shift
+            ;;
+        esac
+      done
+
+      health_check "${health_args[@]}"
       ;;
     md)
       # shellcheck source=lib/markdown.sh
       source "$ROOT_DIR/lib/markdown.sh"
-      subcmd="${1:-}"
-      shift || true
-      case "$subcmd" in
-        render | view)
-          render_markdown "$@"
-          ;;
-        pipe)
-          render_markdown_pipe "$@"
-          ;;
-        tui | browse)
-          markdown_tui "$@"
-          ;;
-        tools | check)
-          suggest_markdown_tools
-          ;;
-        --help | -h | "")
+
+      # SOLID-Compliant: Input type detection function (SRP)
+      _md_detect_input_type() {
+        local arg="$1"
+
+        # Check for help flags
+        if [[ "$arg" == "--help" || "$arg" == "-h" || "$arg" == "" ]]; then
+          echo "help"
+          return
+        fi
+
+        # Check for explicit subcommands
+        case "$arg" in
+          render | view | pipe | tui | browse | tools | check)
+            echo "subcommand"
+            return
+            ;;
+        esac
+
+        # Check if it's a file path (exists or has .md extension or has /)
+        if [[ -f "$arg" || "$arg" =~ \.md$ || "$arg" =~ / ]]; then
+          echo "file"
+          return
+        fi
+
+        # Check if stdin has data (pipe detection)
+        if [[ ! -t 0 ]]; then
+          echo "pipe"
+          return
+        fi
+
+        # Unknown - could be typo or missing file
+        echo "unknown"
+      }
+
+      # Determine input type
+      local first_arg="${1:-}"
+      local input_type
+      input_type=$(_md_detect_input_type "$first_arg")
+
+      # Dispatch based on input type (OCP - extensible)
+      case "$input_type" in
+        help)
           cat <<'EOF'
 harm-cli md - Markdown rendering and viewing
 
 Usage:
-  harm-cli md render FILE [OPTIONS]    Render markdown file
-  harm-cli md pipe [OPTIONS]           Render from stdin
-  harm-cli md tui [DIRECTORY]          Interactive markdown browser (glow)
-  harm-cli md tools                    Check available rendering tools
+  harm-cli md [FILE] [OPTIONS]            Render markdown file (auto-detect)
+  harm-cli md render FILE [OPTIONS]       Explicitly render file
+  harm-cli md pipe [OPTIONS]              Render from stdin
+  echo "# Test" | harm-cli md             Auto-detect pipe mode
+  harm-cli md tui [DIRECTORY]             Interactive markdown browser (glow)
+  harm-cli md tools                       Check available rendering tools
 
 Options (for render/pipe):
   --width WIDTH       Set output width (default: terminal width, max 120)
@@ -1342,9 +1503,11 @@ Options (for render/pipe):
   --tool TOOL         Force specific tool (glow|bat|rich|cat)
 
 Examples:
-  harm-cli md render README.md
+  harm-cli md README.md                   # Auto-detect file
+  harm-cli md render README.md            # Explicit render
   harm-cli md render docs/guide.md --width 100 --pager
-  echo "# Hello **World**" | harm-cli md pipe
+  echo "# Hello **World**" | harm-cli md  # Auto-detect pipe
+  echo "# Test" | harm-cli md pipe        # Explicit pipe
   harm-cli md tui docs/
   harm-cli md tools
 
@@ -1361,8 +1524,48 @@ Install Tools:
 Note: harm-cli works without these tools, using plain text fallback.
 EOF
           ;;
-        *)
-          die "Unknown md subcommand: $subcmd. Use 'harm-cli md --help'" "$EXIT_INVALID_ARGS"
+
+        file)
+          # Auto-detected file - route to render
+          render_markdown "$@"
+          ;;
+
+        pipe)
+          # Auto-detected stdin - route to pipe handler
+          if [[ -n "$first_arg" && "$first_arg" != "pipe" ]]; then
+            render_markdown_pipe "$@"
+          else
+            shift || true
+            render_markdown_pipe "$@"
+          fi
+          ;;
+
+        subcommand)
+          # Explicit subcommand - delegate to handlers
+          local subcmd="$first_arg"
+          shift || true
+          case "$subcmd" in
+            render | view)
+              render_markdown "$@"
+              ;;
+            pipe)
+              render_markdown_pipe "$@"
+              ;;
+            tui | browse)
+              markdown_tui "$@"
+              ;;
+            tools | check)
+              suggest_markdown_tools
+              ;;
+          esac
+          ;;
+
+        unknown)
+          die "Unknown md subcommand or file not found: $first_arg
+Try:
+  harm-cli md --help              Show usage
+  harm-cli md README.md           Render a file
+  echo '# Test' | harm-cli md     Render from stdin" "$EXIT_INVALID_ARGS"
           ;;
       esac
       ;;

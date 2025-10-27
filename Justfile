@@ -27,8 +27,20 @@ fmt:
 # Lint all shell scripts with shellcheck
 lint:
     @echo "🔍 Linting shell scripts..."
-    @find bin lib -type f \( -name "*.sh" -o -perm +111 \) 2>/dev/null | xargs shellcheck
-    @shellcheck install.sh uninstall.sh 2>/dev/null || true
+    @echo "Finding files..."
+    @file_count=$$(find bin lib -type f \( -name "*.sh" -o -perm +111 \) 2>/dev/null | wc -l | tr -d ' '); \
+    echo "Found $$file_count files to check..."; \
+    current=0; \
+    find bin lib -type f \( -name "*.sh" -o -perm +111 \) 2>/dev/null | \
+        while read -r file; do \
+            current=$$((current + 1)); \
+            echo "  [$$current/$$file_count] $$(basename $$file)"; \
+            shellcheck "$$file" || exit 1; \
+        done
+    @echo "  Checking: install.sh"
+    @shellcheck install.sh 2>/dev/null || true
+    @echo "  Checking: uninstall.sh"
+    @shellcheck uninstall.sh 2>/dev/null || true
     @echo "✅ Linting complete"
 
 # Run codespell on documentation

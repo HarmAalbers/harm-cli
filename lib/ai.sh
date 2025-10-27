@@ -544,24 +544,24 @@ _ai_make_request() {
     # Use gum spinner for beautiful progress
     response=$(gum spin --spinner dot --title "Thinking..." -- \
       curl -s -w "\n%{http_code}" \
-        -m "$AI_TIMEOUT" \
-        -H "Content-Type: application/json" \
-        -H "x-goog-api-key: $api_key" \
-        -d "$request_body" \
-        "$api_url" 2>&1 | sed 's/x-goog-api-key:[^[:space:]]*/x-goog-api-key:***REDACTED***/g')
+      -m "$AI_TIMEOUT" \
+      -H "Content-Type: application/json" \
+      -H "x-goog-api-key: $api_key" \
+      -d "$request_body" \
+      "$api_url" 2>&1 | sed 's/x-goog-api-key:[^[:space:]]*/x-goog-api-key:***REDACTED***/g')
   else
     # Fallback: simple text spinner
     if [[ -t 1 ]]; then
       printf "🤖 Thinking... "
     fi
-    
+
     response=$(curl -s -w "\n%{http_code}" \
       -m "$AI_TIMEOUT" \
       -H "Content-Type: application/json" \
       -H "x-goog-api-key: $api_key" \
       -d "$request_body" \
       "$api_url" 2>&1)
-    
+
     if [[ -t 1 ]]; then
       printf "\r✓ Response received\n"
     fi
@@ -622,7 +622,6 @@ _ai_make_request() {
       ;;
   esac
 }
-
 
 # Parse Gemini API response and extract text
 # Args: json_response
@@ -1025,8 +1024,9 @@ ai_review() {
   echo "📝 Reviewing code changes with AI..."
   log_info "ai" "Sending code review request" "Lines: $line_count"
 
-  # Build full query
-  local full_query="$context\n\n$prompt"
+  # Build full query (use printf for proper newline handling)
+  local full_query
+  full_query=$(printf "%b\n\n%b" "$context" "$prompt")
 
   # Query AI (always bypass cache for reviews)
   local response
@@ -1144,8 +1144,9 @@ ai_explain_error() {
   echo ""
   log_info "ai" "Sending error explanation request"
 
-  # Build full query
-  local full_query="$context\n\n$prompt"
+  # Build full query (use printf for proper newline handling)
+  local full_query
+  full_query=$(printf "%b\n\n%b" "$context" "$prompt")
 
   # Query AI (bypass cache)
   local response
@@ -1254,7 +1255,14 @@ ai_daily() {
   if [[ -f "$work_archive" ]]; then
     local cutoff_date
     if [[ $period_days -gt 0 ]]; then
-      cutoff_date=$(date -v-${period_days}d +%Y-%m-%d 2>/dev/null || date -d "${period_days} days ago" +%Y-%m-%d 2>/dev/null)
+      # Platform-specific date handling (BSD vs GNU)
+      if date -v-1d +%Y-%m-%d >/dev/null 2>&1; then
+        # macOS (BSD date)
+        cutoff_date=$(date -v-${period_days}d +%Y-%m-%d)
+      else
+        # Linux (GNU date)
+        cutoff_date=$(date -d "${period_days} days ago" +%Y-%m-%d)
+      fi
     else
       cutoff_date=$(date +%Y-%m-%d)
     fi
@@ -1273,7 +1281,14 @@ ai_daily() {
   # 2. Goals
   local goal_date
   if [[ $period_days -eq 1 ]]; then
-    goal_date=$(date -v-1d +%Y-%m-%d 2>/dev/null || date -d "yesterday" +%Y-%m-%d 2>/dev/null)
+    # Platform-specific date handling (BSD vs GNU)
+    if date -v-1d +%Y-%m-%d >/dev/null 2>&1; then
+      # macOS (BSD date)
+      goal_date=$(date -v-1d +%Y-%m-%d)
+    else
+      # Linux (GNU date)
+      goal_date=$(date -d "yesterday" +%Y-%m-%d)
+    fi
   else
     goal_date=$(date +%Y-%m-%d)
   fi
@@ -1330,8 +1345,9 @@ ai_daily() {
 
   log_info "ai" "Sending daily insights request" "Period: $period"
 
-  # Build full query
-  local full_query="$context\n\n$prompt"
+  # Build full query (use printf for proper newline handling)
+  local full_query
+  full_query=$(printf "%b\n\n%b" "$context" "$prompt")
 
   # Query AI (bypass cache for personalized insights)
   local response

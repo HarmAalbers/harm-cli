@@ -252,7 +252,7 @@ git_commit_msg() {
   prompt+="4. **Details**: 2-5 bullet points explaining what changed\n\n"
   prompt+="Be specific and follow conventional commit standards."
 
-  echo "🤖 Analyzing staged changes and generating commit message..."
+  # Note: _ai_make_request shows its own "🤖 Thinking..." message
   local file_count
   file_count=$(echo "$changed_files" | wc -l | tr -d ' ')
   log_info "git" "Requesting AI commit message" "Lines: $line_count, Files: $file_count"

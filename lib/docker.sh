@@ -238,7 +238,7 @@ docker_find_all_compose_files() {
 # Returns:
 #   0 - Services started successfully
 #   EXIT_INVALID_STATE - Docker not running or no compose file
-#   EXIT_COMMAND_FAILED - Docker command failed
+#   EXIT_ERROR - Docker command failed
 #
 # Outputs:
 #   stdout: Docker Compose output
@@ -305,7 +305,7 @@ docker_up() {
   else
     error_msg "Failed to start services"
     log_error "docker" "docker compose up failed"
-    return "$EXIT_COMMAND_FAILED"
+    return "$EXIT_ERROR"
   fi
 }
 
@@ -320,7 +320,7 @@ docker_up() {
 # Returns:
 #   0 - Services stopped successfully
 #   EXIT_INVALID_STATE - Docker not running or no compose file
-#   EXIT_COMMAND_FAILED - Docker command failed
+#   EXIT_ERROR - Docker command failed
 #
 # Outputs:
 #   stdout: Docker Compose output
@@ -384,7 +384,7 @@ docker_down() {
   else
     error_msg "Failed to stop services"
     log_error "docker" "docker compose down failed"
-    return "$EXIT_COMMAND_FAILED"
+    return "$EXIT_ERROR"
   fi
 }
 
