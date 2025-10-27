@@ -178,10 +178,14 @@ safe_rm() {
     return 0
   fi
 
-  # Require confirmation if dangerous or multiple files
-  if [[ $is_dangerous -eq 1 ]] || [[ $count -gt 5 ]]; then
-    _safety_confirm "Delete $count items" "delete" || return 130
+  # SECURITY: ALWAYS require confirmation for any deletion
+  # This is "safe_rm" - it should be safer than regular rm
+  # Users can use regular rm if they want no confirmation
+  echo ""
+  if [[ $is_dangerous -eq 1 ]]; then
+    echo "⚠️  WARNING: Recursive or force deletion detected"
   fi
+  _safety_confirm "Delete $count items" "delete" || return 130
 
   # Perform deletion
   _safety_log "rm" "Args: $*, Count: $count"
@@ -233,12 +237,20 @@ safe_docker_prune() {
     return "$EXIT_INVALID_STATE"
   fi
 
-  # Show what will be removed
+  # Show what will be removed (with progress indicator)
   echo "Docker System Prune Preview:"
   echo ""
 
+  # Use progress indicator for potentially slow df command
   local space
-  space=$(docker system df 2>/dev/null || echo "")
+  if command -v show_spinner >/dev/null 2>&1; then
+    space=$(show_spinner "Analyzing Docker disk usage..." docker system df 2>/dev/null)
+  else
+    # Fallback if util.sh not loaded yet
+    echo "Analyzing Docker disk usage..." >&2
+    space=$(docker system df 2>/dev/null || echo "")
+  fi
+
   if [[ -n "$space" ]]; then
     echo "$space"
     echo ""
@@ -249,14 +261,27 @@ safe_docker_prune() {
   # Log operation
   _safety_log "docker system prune" "Args: $*"
 
-  # Perform prune
-  if docker system prune -f "$@"; then
-    echo "✓ Docker system pruned"
-    log_info "safety" "Docker pruned successfully"
-    return 0
+  # Perform prune (with progress indicator)
+  echo ""
+  if command -v show_spinner >/dev/null 2>&1; then
+    if show_spinner "Pruning Docker system..." docker system prune -f "$@"; then
+      echo "✓ Docker system pruned"
+      log_info "safety" "Docker pruned successfully"
+      return 0
+    else
+      error_msg "Docker prune failed"
+      return "$EXIT_COMMAND_FAILED"
+    fi
   else
-    error_msg "Docker prune failed"
-    return "$EXIT_COMMAND_FAILED"
+    # Fallback without progress
+    if docker system prune -f "$@"; then
+      echo "✓ Docker system pruned"
+      log_info "safety" "Docker pruned successfully"
+      return 0
+    else
+      error_msg "Docker prune failed"
+      return "$EXIT_COMMAND_FAILED"
+    fi
   fi
 }
 
@@ -308,9 +333,64 @@ safe_git_reset() {
   echo "Backup will be created: $backup_branch"
   echo ""
 
-  # Show what will be lost
-  echo "Commits that will be lost:"
-  git log "$ref..HEAD" --oneline 2>/dev/null || echo "  (none)"
+  # Show what will be lost - COMPREHENSIVE CHECK
+  echo "═══════════════════════════════════════════"
+  echo "  RESET IMPACT ANALYSIS"
+  echo "═══════════════════════════════════════════"
+  echo ""
+
+  # 1. Commits that will be lost
+  echo "1. Commits that will be lost:"
+  local lost_commits
+  lost_commits=$(git log "$ref..HEAD" --oneline 2>/dev/null)
+  if [[ -n "$lost_commits" ]]; then
+    echo "$lost_commits" | sed 's/^/     /'
+    echo ""
+    local commit_count
+    commit_count=$(echo "$lost_commits" | wc -l | tr -d ' ')
+    echo "     Total: $commit_count commit(s)"
+  else
+    echo "     (none)"
+  fi
+  echo ""
+
+  # 2. Staged changes that will be lost
+  echo "2. Staged changes that will be lost:"
+  local staged_files
+  staged_files=$(git diff --cached --name-only 2>/dev/null)
+  if [[ -n "$staged_files" ]]; then
+    echo "     ⚠️  WARNING: You have staged changes!"
+    echo "$staged_files" | sed 's/^/       - /'
+  else
+    echo "     (none)"
+  fi
+  echo ""
+
+  # 3. Uncommitted changes that will be lost
+  echo "3. Uncommitted changes in working directory:"
+  local working_files
+  working_files=$(git diff --name-only 2>/dev/null)
+  if [[ -n "$working_files" ]]; then
+    echo "     ⚠️  WARNING: You have uncommitted changes!"
+    echo "$working_files" | sed 's/^/       - /'
+  else
+    echo "     (none)"
+  fi
+  echo ""
+
+  # Overall risk assessment
+  local risk_level="LOW"
+  if [[ -n "$working_files" ]] || [[ -n "$staged_files" ]]; then
+    risk_level="⚠️  HIGH - UNCOMMITTED WORK WILL BE LOST"
+  elif [[ -n "$lost_commits" ]]; then
+    risk_level="⚠️  MEDIUM - COMMITS WILL BE LOST"
+  else
+    risk_level="✓ LOW - No local changes"
+  fi
+
+  echo "═══════════════════════════════════════════"
+  echo "  RISK LEVEL: $risk_level"
+  echo "═══════════════════════════════════════════"
   echo ""
 
   _safety_confirm "Reset $current_branch to $ref" "reset" || return 130

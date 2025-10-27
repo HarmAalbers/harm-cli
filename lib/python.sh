@@ -279,14 +279,70 @@ python_status() {
 # Performance:
 #   - Depends on test suite size
 #   - Framework startup: ~100-500ms
+
+# _python_find_and_activate_venv: Find and activate virtual environment
+#
+# Description:
+#   Internal helper that finds and activates venv if available but not active.
+#   Modifies current shell environment to activate venv.
+#
+# Returns:
+#   0 - Venv activated or already active
+#   1 - No venv found
+_python_find_and_activate_venv() {
+  # Already active
+  if python_is_venv_active; then
+    log_debug "python" "Virtual environment already active" "$VIRTUAL_ENV"
+    return 0
+  fi
+
+  # Find venv directory
+  local venv_dir=""
+  if [[ -d ".venv" ]]; then
+    venv_dir=".venv"
+  elif [[ -d "venv" ]]; then
+    venv_dir="venv"
+  else
+    log_debug "python" "No virtual environment found"
+    return 1
+  fi
+
+  # Activate venv
+  local activate_script="$venv_dir/bin/activate"
+  if [[ -f "$activate_script" ]]; then
+    log_info "python" "Activating virtual environment" "$venv_dir"
+    # Source activate script (modifies environment)
+    # shellcheck disable=SC1090
+    source "$activate_script"
+    return 0
+  else
+    log_warn "python" "Virtual environment directory exists but activate script not found" "$venv_dir"
+    return 1
+  fi
+}
+
 python_test() {
   log_info "python" "Running Python tests"
 
+  # Auto-activate venv if available (non-fatal if not found)
+  if ! python_is_venv_active; then
+    if _python_find_and_activate_venv; then
+      echo "✓ Activated virtual environment"
+    else
+      echo "⚠  No virtual environment found (continuing anyway)"
+    fi
+  fi
+
   # Django project
-  if [[ -f "manage.py" ]] && python_is_venv_active; then
-    echo "🧪 Running Django tests..."
-    python manage.py test "$@"
-    return $?
+  if [[ -f "manage.py" ]]; then
+    if python_is_venv_active; then
+      echo "🧪 Running Django tests..."
+      python manage.py test "$@"
+      return $?
+    else
+      warn_msg "Django project detected but no venv active"
+      echo "Consider running: source .venv/bin/activate"
+    fi
   fi
 
   # pytest (preferred)

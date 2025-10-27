@@ -504,6 +504,121 @@ validate_iso8601_timestamp() {
 }
 
 # ═══════════════════════════════════════════════════════════════
+# Progress Indication Utilities
+# ═══════════════════════════════════════════════════════════════
+
+# show_spinner: Display spinner during long-running command
+#
+# Description:
+#   Shows visual progress indicator during command execution.
+#   Uses gum if available, falls back to simple text spinner.
+#   Only shows in TTY (silent in scripts/CI).
+#
+# Arguments:
+#   $1 - message (string): Progress message
+#   $@ - command and args: Command to execute
+#
+# Returns:
+#   Exit code of wrapped command
+#
+# Examples:
+#   show_spinner "Analyzing..." docker system df
+#   show_spinner "Running tests..." pytest -v
+#
+# Notes:
+#   - TTY-aware (skips in non-interactive)
+#   - Prefers gum for beautiful spinners
+#   - Falls back to simple text indicator
+show_spinner() {
+  local message="${1:?show_spinner requires message}"
+  shift
+
+  # Skip if not in TTY (scripts/CI)
+  if [[ ! -t 1 ]]; then
+    "$@"
+    return $?
+  fi
+
+  # Use gum if available (beautiful spinner)
+  if command -v gum >/dev/null 2>&1; then
+    gum spin --spinner dot --title "$message" -- "$@"
+    return $?
+  fi
+
+  # Fallback: simple text indicator
+  printf "%s " "$message" >&2
+  local output
+  if output=$("$@" 2>&1); then
+    printf "✓\n" >&2
+    echo "$output"
+    return 0
+  else
+    local exit_code=$?
+    printf "✗\n" >&2
+    echo "$output"
+    return $exit_code
+  fi
+}
+
+# show_progress_dots: Show dots during command execution
+#
+# Description:
+#   Displays animated dots (...) while command runs.
+#   Simpler than spinner, good for file operations.
+#
+# Arguments:
+#   $1 - message (string): Progress message
+#   $@ - command and args: Command to execute
+#
+# Returns:
+#   Exit code of wrapped command
+show_progress_dots() {
+  local message="${1:?show_progress_dots requires message}"
+  shift
+
+  # Skip if not in TTY
+  if [[ ! -t 1 ]]; then
+    "$@"
+    return $?
+  fi
+
+  printf "%s" "$message" >&2
+
+  # Start background dots animation
+  {
+    while true; do
+      for dots in "" "." ".." "..."; do
+        printf "\r%s%s   " "$message" "$dots" >&2
+        sleep 0.3
+      done
+    done
+  } &
+  local dots_pid=$!
+
+  # Run command
+  local output exit_code
+  if output=$("$@" 2>&1); then
+    exit_code=0
+  else
+    exit_code=$?
+  fi
+
+  # Stop dots animation
+  kill "$dots_pid" 2>/dev/null
+  wait "$dots_pid" 2>/dev/null
+
+  # Show result
+  if [[ $exit_code -eq 0 ]]; then
+    printf "\r%s ✓\n" "$message" >&2
+  else
+    printf "\r%s ✗\n" "$message" >&2
+  fi
+
+  echo "$output"
+  return $exit_code
+}
+
+# ═══════════════════════════════════════════════════════════════
 # Exports
 # ═══════════════════════════════════════════════════════════════
 
@@ -515,3 +630,4 @@ export -f is_running
 export -f parse_duration format_duration get_utc_timestamp get_utc_epoch iso8601_to_epoch
 export -f json_get json_validate
 export -f format_command_response validate_iso8601_timestamp
+export -f show_spinner show_progress_dots

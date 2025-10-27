@@ -1,0 +1,86 @@
+#!/usr/bin/env bash
+# .githooks/commit-msg - Validate conventional commit format
+# 
+# This hook ensures all commits follow the Conventional Commits specification.
+# To install: git config core.hooksPath .githooks
+#
+# Format: type(scope): description
+# Example: feat(git): add commit message validation hook
+
+set -Eeuo pipefail
+
+commit_msg_file="$1"
+commit_msg=$(cat "$commit_msg_file")
+
+# Skip merge commits
+if echo "$commit_msg" | grep -qE "^Merge (branch|pull request)"; then
+  exit 0
+fi
+
+# Skip revert commits
+if echo "$commit_msg" | grep -qE "^Revert "; then
+  exit 0
+fi
+
+# Check conventional commit format
+# Pattern: type(scope): description
+# - type: feat|fix|docs|style|refactor|test|chore|perf|ci|build|revert
+# - scope: optional, alphanumeric with dashes/underscores
+# - description: 10-72 characters
+if ! echo "$commit_msg" | grep -qE "^(feat|fix|docs|style|refactor|test|chore|perf|ci|build|revert)(\(.+\))?: .{10,}"; then
+  cat <<'ERRMSG'
+❌ Invalid commit message format
+
+Expected: type(scope): description
+
+Types:
+  feat     - New feature
+  fix      - Bug fix
+  docs     - Documentation
+  test     - Tests
+  refactor - Code refactoring
+  chore    - Maintenance
+  style    - Formatting
+  perf     - Performance
+  ci       - CI/CD
+  build    - Build system
+  revert   - Revert previous commit
+
+Scope (optional):
+  Component affected (e.g., goals, work, ai, git)
+
+Description:
+  - Minimum 10 characters
+  - Use imperative mood ("add" not "added")
+  - Lowercase first letter
+  - No period at the end
+
+Examples:
+  feat(git): add commit message validation hook
+  fix(work): resolve timer cleanup on stop
+  docs: update installation guide
+  test(goals): add edge case tests for reopen
+
+💡 Tip: Use 'harm-cli git commit-msg' to generate AI-powered commit messages
+
+ERRMSG
+  echo "Your message:"
+  echo "$commit_msg" | head -1
+  exit 1
+fi
+
+# Check description length
+description=$(echo "$commit_msg" | head -1 | sed 's/^[^:]*: //')
+if [ ${#description} -lt 10 ]; then
+  echo "❌ Description too short (min 10 chars): '$description'"
+  exit 1
+fi
+
+if [ ${#description} -gt 72 ]; then
+  echo "⚠️  Warning: Description longer than 72 chars: ${#description} chars"
+  echo "   Consider shortening for better readability"
+  # Don't fail, just warn
+fi
+
+# Success!
+exit 0

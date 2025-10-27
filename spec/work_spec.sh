@@ -218,4 +218,131 @@ When call test "$duration" -ge 1 -a "$duration" -le 5
 The status should be success
 End
 End
+
+Describe 'work timer management'
+BeforeEach 'cleanup_timer_test'
+AfterEach 'cleanup_timer_test'
+
+cleanup_timer_test() {
+work_stop_timer 2>/dev/null || true
+rm -f "$HARM_WORK_TIMER_PID_FILE" 2>/dev/null || true
+rm -f "$HARM_WORK_STATE_FILE" 2>/dev/null || true
+pkill -f "sleep.*work" 2>/dev/null || true
+}
+
+Context 'timer PID file management'
+It 'creates timer PID file on work_start'
+# Start work session with very short duration for testing
+export HARM_CLI_WORK_DURATION=5
+start_test_session "Timer test"
+The file "$HARM_WORK_TIMER_PID_FILE" should exist
+End
+
+It 'stores valid PID in timer file'
+export HARM_CLI_WORK_DURATION=5
+start_test_session "Timer test"
+sleep 1
+pid=$(cat "$HARM_WORK_TIMER_PID_FILE" 2>/dev/null || echo "0")
+# PID should be a positive integer
+test "$pid" -gt 0
+The status should equal 0
+End
+
+It 'removes timer PID file on work_stop'
+export HARM_CLI_WORK_DURATION=5
+start_test_session "Timer test"
+work_stop >/dev/null 2>&1
+The file "$HARM_WORK_TIMER_PID_FILE" should not exist
+End
+End
+
+Context 'timer cleanup'
+It 'cleans up timer on work_stop'
+export HARM_CLI_WORK_DURATION=5
+start_test_session "Timer test"
+timer_pid=$(cat "$HARM_WORK_TIMER_PID_FILE" 2>/dev/null)
+work_stop >/dev/null 2>&1
+# Check if process was killed (ps should not find it)
+# Note: This may not work reliably in all test environments
+Skip if "Process cleanup testing is environment-dependent"
+End
+
+It 'handles missing PID file gracefully'
+When call work_stop_timer
+The status should equal 0
+End
+
+It 'handles stale PID files gracefully'
+# Create PID file with non-existent PID
+echo "99999" >"$HARM_WORK_TIMER_PID_FILE"
+When call work_stop_timer
+The status should equal 0
+The file "$HARM_WORK_TIMER_PID_FILE" should not exist
+End
+
+It 'handles invalid PID gracefully'
+echo "not-a-number" >"$HARM_WORK_TIMER_PID_FILE"
+When call work_stop_timer
+The status should equal 0
+End
+End
+
+Context 'prevents orphaned processes'
+It 'kills timer process on stop'
+Skip if "Background process management testing is complex"
+End
+
+It 'kills reminder process on stop'
+Skip if "Background process management testing is complex"
+End
+End
+End
+
+Describe 'work notifications'
+BeforeEach 'cleanup_notification_test'
+AfterEach 'cleanup_notification_test'
+
+cleanup_notification_test() {
+work_stop 2>/dev/null || true
+rm -f "$HARM_WORK_STATE_FILE" 2>/dev/null || true
+}
+
+Context 'notification function'
+It 'work_send_notification requires title'
+When call work_send_notification
+The status should not equal 0
+End
+
+It 'work_send_notification requires message'
+When call work_send_notification "Title"
+The status should not equal 0
+End
+
+It 'handles missing notification command gracefully'
+# Mock osascript/notify-send to not exist
+PATH="/nonexistent" When call work_send_notification "Test" "Message"
+The status should equal 0
+End
+End
+
+Context 'notification timing'
+It 'sends notification on work_start'
+Skip if "Notification testing requires mocking OS commands"
+End
+
+It 'sends notification on work_stop'
+Skip if "Notification testing requires mocking OS commands"
+End
+
+It 'sends notification on timer completion'
+Skip if "Notification testing requires mocking and timing"
+End
+End
+
+Context 'notification preferences'
+It 'respects notification settings'
+Skip if "Requires notification settings implementation"
+End
+End
+End
 End

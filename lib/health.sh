@@ -444,6 +444,7 @@ health_check() {
   local category="all"
   local quick=0
   local json_output=0
+  local verbose=0
 
   # Parse options
   while [[ $# -gt 0 ]]; do
@@ -454,6 +455,10 @@ health_check() {
         ;;
       --json | -j)
         json_output=1
+        shift
+        ;;
+      --verbose | -v)
+        verbose=1
         shift
         ;;
       system | git | docker | python | ai | all)
