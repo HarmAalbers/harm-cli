@@ -574,23 +574,27 @@ log_stream() {
       || [[ "$format_cmd" == "_log_format_structured_line" ]] \
       || [[ "$format_cmd" == "_log_format_colored_line" ]]; then
       # For shell functions, use while-read loop
-      eval "stdbuf -o0 $tail_cmd '$log_file' | stdbuf -o0 $filter_cmd" | while IFS= read -r line; do
+      # SECURITY FIX (MEDIUM-2): Removed eval to prevent command injection
+      stdbuf -o0 $tail_cmd "$log_file" | stdbuf -o0 $filter_cmd | while IFS= read -r line; do
         $format_cmd <<<"$line"
       done
     else
       # For builtins/executables, pipe directly
-      eval "stdbuf -o0 $tail_cmd '$log_file' | stdbuf -o0 $filter_cmd | stdbuf -o0 $format_cmd"
+      # SECURITY FIX (MEDIUM-2): Removed eval to prevent command injection
+      stdbuf -o0 $tail_cmd "$log_file" | stdbuf -o0 $filter_cmd | stdbuf -o0 $format_cmd
     fi
   else
     # Fallback without stdbuf
     if [[ "$format_cmd" == "_log_format_json_line" ]] \
       || [[ "$format_cmd" == "_log_format_structured_line" ]] \
       || [[ "$format_cmd" == "_log_format_colored_line" ]]; then
-      eval "$tail_cmd '$log_file' | $filter_cmd" | while IFS= read -r line; do
+      # SECURITY FIX (MEDIUM-2): Removed eval to prevent command injection
+      $tail_cmd "$log_file" | $filter_cmd | while IFS= read -r line; do
         $format_cmd <<<"$line"
       done
     else
-      eval "$tail_cmd '$log_file' | $filter_cmd | $format_cmd"
+      # SECURITY FIX (MEDIUM-2): Removed eval to prevent command injection
+      $tail_cmd "$log_file" | $filter_cmd | $format_cmd
     fi
   fi
 }

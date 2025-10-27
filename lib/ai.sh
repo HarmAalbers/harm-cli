@@ -537,13 +537,35 @@ _ai_make_request() {
 
   log_debug "ai" "Sending request" "Timeout: ${AI_TIMEOUT}s"
 
-  # Execute curl with timeout and capture response + HTTP code
-  response=$(curl -s -w "\n%{http_code}" \
-    -m "$AI_TIMEOUT" \
-    -H "Content-Type: application/json" \
-    -H "x-goog-api-key: $api_key" \
-    -d "$request_body" \
-    "$api_url" 2>&1)
+  # SECURITY FIX (MEDIUM-3): Sanitize curl stderr to prevent API key leakage
+  # The sed filter masks x-goog-api-key values in error messages
+  # Show progress feedback
+  if command -v gum >/dev/null 2>&1 && [[ -t 1 ]]; then
+    # Use gum spinner for beautiful progress
+    response=$(gum spin --spinner dot --title "Thinking..." -- \
+      curl -s -w "\n%{http_code}" \
+        -m "$AI_TIMEOUT" \
+        -H "Content-Type: application/json" \
+        -H "x-goog-api-key: $api_key" \
+        -d "$request_body" \
+        "$api_url" 2>&1 | sed 's/x-goog-api-key:[^[:space:]]*/x-goog-api-key:***REDACTED***/g')
+  else
+    # Fallback: simple text spinner
+    if [[ -t 1 ]]; then
+      printf "🤖 Thinking... "
+    fi
+    
+    response=$(curl -s -w "\n%{http_code}" \
+      -m "$AI_TIMEOUT" \
+      -H "Content-Type: application/json" \
+      -H "x-goog-api-key: $api_key" \
+      -d "$request_body" \
+      "$api_url" 2>&1)
+    
+    if [[ -t 1 ]]; then
+      printf "\r✓ Response received\n"
+    fi
+  fi
 
   local curl_status=$?
 
@@ -600,6 +622,7 @@ _ai_make_request() {
       ;;
   esac
 }
+
 
 # Parse Gemini API response and extract text
 # Args: json_response

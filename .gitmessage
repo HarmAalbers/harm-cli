@@ -1,0 +1,34 @@
+# type(scope): subject (max 72 chars)
+# |<----  Using a Maximum Of 72 Characters  ---->|
+
+
+# --- Type (choose one) ---
+# feat:     New feature for the user
+# fix:      Bug fix for the user
+# docs:     Documentation only changes
+# style:    Changes that do not affect code meaning (formatting, etc)
+# refactor: Code change that neither fixes a bug nor adds a feature
+# perf:     Code change that improves performance
+# test:     Adding missing tests or correcting existing tests
+# chore:    Changes to build process, tooling, dependencies, etc
+# ci:       Changes to CI configuration files and scripts
+# build:    Changes that affect the build system
+# revert:   Reverts a previous commit
+
+# --- Scope (optional) ---
+# Component being changed (e.g., goals, work, ai, git, config)
+
+# --- Body (optional, explain WHAT and WHY, not HOW) ---
+
+
+# --- Footer (optional) ---
+# Reference issues: Closes #123, Fixes #456
+# Breaking changes: BREAKING CHANGE: describe the breaking change
+
+
+# Example commits:
+# feat(goals): add reopen command to restore completed goals
+# fix(work): resolve timer cleanup on stop
+# docs: update installation guide with Homebrew instructions
+# test(ai): add edge case tests for model selection
+# chore(deps): update shellcheck to v0.10.0

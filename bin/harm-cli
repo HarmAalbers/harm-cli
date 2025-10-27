@@ -374,11 +374,10 @@ EOF
         start) break_start "$@" ;;
         stop) break_stop "$@" ;;
         status) break_status "$@" ;;
-        *) die "Unknown break command: $subcmd. Try: start, stop, status" 2 ;;
         violations) work_get_violations ;;
         reset-violations) work_reset_violations ;;
         set-mode) work_set_enforcement "$@" ;;
-        *) die "Unknown work command: $subcmd. Try: start, stop, status, violations, reset-violations, set-mode" 2 ;;
+        *) die "Unknown break command: $subcmd. Try: start, stop, status, violations, reset-violations, set-mode" 2 ;;
       esac
       ;;
     activity)

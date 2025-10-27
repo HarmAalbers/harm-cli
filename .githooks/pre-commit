@@ -1,0 +1,56 @@
+#!/usr/bin/env bash
+# .githooks/pre-commit - Run quality checks before commit
+#
+# This hook runs:
+#   1. Shell script formatting (shfmt)
+#   2. Shell script linting (shellcheck)
+#   3. Test suite (shellspec)
+#
+# To skip: git commit --no-verify
+
+set -Eeuo pipefail
+
+echo "🪝 Running pre-commit checks..."
+
+# Change to project root
+PROJECT_ROOT="$(git rev-parse --show-toplevel)"
+cd "$PROJECT_ROOT"
+
+# 1. Format check
+echo "📝 Checking formatting..."
+if command -v shfmt >/dev/null 2>&1; then
+  if ! shfmt -d -i 2 -ci -bn bin/* lib/*.sh lib/**/*.sh 2>/dev/null; then
+    echo "❌ Formatting issues found. Run: just fmt"
+    exit 1
+  fi
+  echo "✅ Formatting OK"
+else
+  echo "⚠️  shfmt not installed, skipping format check"
+fi
+
+# 2. Lint check
+echo "🔍 Running shellcheck..."
+if command -v shellcheck >/dev/null 2>&1; then
+  if ! just lint >/dev/null 2>&1; then
+    echo "❌ Linting failed. Run: just lint"
+    exit 1
+  fi
+  echo "✅ Linting OK"
+else
+  echo "⚠️  shellcheck not installed, skipping lint check"
+fi
+
+# 3. Test suite (optional, can be slow)
+if [ "${SKIP_TESTS:-0}" != "1" ]; then
+  echo "🧪 Running tests..."
+  if ! just test >/dev/null 2>&1; then
+    echo "❌ Tests failed. Fix errors or use SKIP_TESTS=1 git commit"
+    exit 1
+  fi
+  echo "✅ Tests passed"
+else
+  echo "⚠️  Tests skipped (SKIP_TESTS=1)"
+fi
+
+echo "✅ All pre-commit checks passed!"
+exit 0
