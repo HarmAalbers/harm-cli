@@ -289,7 +289,9 @@ Usage:
   harm-cli break [COMMAND]
 
 Work Commands:
-  start <description>  Start a new work session (25-min pomodoro)
+  start [description]  Start a new work session (25-min pomodoro)
+                       • Interactive: Omit description to choose from today's goals
+                       • CLI: Provide description for direct start
   stop                 Stop current work session
   status               Show current work session status (default)
   reset                Reset pomodoro counter to 0
@@ -311,7 +313,8 @@ Enforcement Modes:
   off        No enforcement
 
 Examples:
-  harm-cli work start "Phase 3 implementation"
+  harm-cli work start                          # Interactive: Choose from goals
+  harm-cli work start "Phase 3 implementation" # CLI: Direct start
   harm-cli work stop
   harm-cli work stats today
   harm-cli work reset
@@ -568,7 +571,9 @@ Usage:
 Basic Commands:
   set <description> <duration>  Set a new goal for today
   show                          Show all goals for today (default)
-  progress <id> <percent>       Update goal progress (0-100)
+  progress [id] [percent]       Update goal progress (0-100)
+                                • Interactive: Omit args to select from menu
+                                • CLI: Provide id and percent for direct update
   complete <id>                 Mark goal as complete (100%)
   reopen <id> <percent>         Reopen a goal with new progress (0-100)
   clear                         Clear all goals (requires --force)
@@ -586,10 +591,11 @@ GitHub Integration:
 
 Examples:
   harm-cli goal set "Complete refactoring" 4h
+  harm-cli goal progress         # Interactive: Select goal and enter progress
+  harm-cli goal progress 1 50    # CLI: Direct update
   harm-cli goal ai-plan 1        # AI generates implementation plan
   harm-cli goal ai-next          # AI suggests next action
   harm-cli goal link-github 1 42 # Link goal #1 to issue #42
-  harm-cli goal progress 1 50
   harm-cli goal complete 1
   harm-cli goal reopen 1 0       # Restart goal from scratch
   harm-cli goal reopen 2 75      # Fix accidental completion
