@@ -120,6 +120,56 @@ EOF
 }
 
 cmd_doctor() {
+  local format="${HARM_CLI_FORMAT:-text}"
+
+  if [[ "$format" == "json" ]]; then
+    # JSON output
+    local required_json="["
+    local optional_json="["
+    local required_missing=0
+
+    # Check required dependencies
+    local deps=(bash jq git)
+    local first=1
+    for dep in "${deps[@]}"; do
+      [[ $first -eq 0 ]] && required_json+=","
+      first=0
+      if command -v "$dep" >/dev/null 2>&1; then
+        required_json+="{\"name\":\"$dep\",\"installed\":true}"
+      else
+        required_json+="{\"name\":\"$dep\",\"installed\":false}"
+        ((required_missing++))
+      fi
+    done
+    required_json+="]"
+
+    # Check optional dependencies
+    local opt_deps=(zsh curl docker python3)
+    first=1
+    for dep in "${opt_deps[@]}"; do
+      [[ $first -eq 0 ]] && optional_json+=","
+      first=0
+      if command -v "$dep" >/dev/null 2>&1; then
+        optional_json+="{\"name\":\"$dep\",\"installed\":true}"
+      else
+        optional_json+="{\"name\":\"$dep\",\"installed\":false}"
+      fi
+    done
+    optional_json+="]"
+
+    jq -n \
+      --arg shell "bash" \
+      --arg shell_version "$BASH_VERSION" \
+      --argjson required "$required_json" \
+      --argjson optional "$optional_json" \
+      --argjson missing "$required_missing" \
+      --arg status "$([ $required_missing -eq 0 ] && echo "healthy" || echo "missing_dependencies")" \
+      '{shell: $shell, shell_version: $shell_version, required: $required, optional: $optional, missing_count: $missing, status: $status}'
+
+    return $required_missing
+  fi
+
+  # Text output
   log "🏥 Checking system health..."
   echo ""
 
@@ -164,28 +214,21 @@ cmd_doctor() {
 }
 
 cmd_init() {
-  cat <<'EOF'
-# harm-cli shell integration
-
-To enable harm-cli in your shell, add this to your ~/.bashrc or ~/.zshrc:
-
-  # Load harm-cli
-  eval "$(harm-cli init)"
-
-Or source the initialization script directly:
-
-  # Bash
-  source /path/to/harm-cli/etc/harm-cli.bash
-
-  # Zsh
-  source /path/to/harm-cli/etc/harm-cli.zsh
-
-This will:
-  - Add harm-cli to your PATH
-  - Enable command completions
-  - Set up helpful aliases
-  - Initialize work session tracking
+  # Output the actual initialization script for eval "$(harm-cli init)"
+  if [[ -f "$ROOT_DIR/etc/harm-cli-init.sh" ]]; then
+    # Skip shebang line when outputting for eval
+    tail -n +2 "$ROOT_DIR/etc/harm-cli-init.sh"
+  else
+    # Fallback: minimal init if script not found
+    cat <<EOF
+# harm-cli minimal initialization
+export HARM_CLI_ROOT="$ROOT_DIR"
+export PATH="\$HARM_CLI_ROOT/bin:\$PATH"
+export HARM_CLI_HOME="\${HARM_CLI_HOME:-\$HOME/.harm-cli}"
+[[ ! -d "\$HARM_CLI_HOME" ]] && mkdir -p "\$HARM_CLI_HOME"
+echo "✓ harm-cli initialized (minimal mode)"
 EOF
+  fi
 }
 
 # ═══════════════════════════════════════════════════════════════
@@ -724,7 +767,7 @@ Environment Variables:
 EOF
           ;;
         stream) log_stream "$@" ;;
-        tail)
+        tail | view)
           # Parse --lines flag
           local lines=50
           while [[ $# -gt 0 ]]; do
@@ -1460,6 +1503,12 @@ EOF
       _md_detect_input_type() {
         local arg="$1"
 
+        # Check if stdin has data (pipe detection) - FIRST to handle piped input with no args
+        if [[ ! -t 0 ]]; then
+          echo "pipe"
+          return
+        fi
+
         # Check for help flags
         if [[ "$arg" == "--help" || "$arg" == "-h" || "$arg" == "" ]]; then
           echo "help"
@@ -1477,12 +1526,6 @@ EOF
         # Check if it's a file path (exists or has .md extension or has /)
         if [[ -f "$arg" || "$arg" =~ \.md$ || "$arg" =~ / ]]; then
           echo "file"
-          return
-        fi
-
-        # Check if stdin has data (pipe detection)
-        if [[ ! -t 0 ]]; then
-          echo "pipe"
           return
         fi
 

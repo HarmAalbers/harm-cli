@@ -193,7 +193,8 @@ docker_find_all_compose_files() {
 
   local files=("$base_file")
 
-  # Check for standard override files
+  # Check for ALL standard override files (Docker Compose accepts mixing conventions)
+  # Docker Compose will use any override file it finds, regardless of naming convention
   local override_file
   for override_file in "${DOCKER_COMPOSE_OVERRIDES[@]}"; do
     if [[ -f "$override_file" ]]; then
@@ -452,21 +453,34 @@ docker_status() {
     return "$EXIT_INVALID_STATE"
   }
 
-  # Find compose file
-  local compose_file
-  compose_file=$(docker_find_compose_file) || {
+  # Find all compose files (base + overrides)
+  local compose_files
+  compose_files=$(docker_find_all_compose_files) || {
     error_msg "No Docker Compose file found"
     return "$EXIT_INVALID_STATE"
   }
 
+  local files_array
+  read -ra files_array <<<"$compose_files"
+
+  # Build compose flags
+  local compose_flags=()
+  while IFS= read -r flag; do
+    compose_flags+=("$flag")
+  done < <(docker_build_compose_flags)
+
   echo "Docker Compose Status"
   echo "══════════════════════════════════════════"
   echo ""
-  echo "Compose file: $compose_file"
+  if ((${#files_array[@]} > 1)); then
+    echo "Compose files: ${files_array[*]}"
+  else
+    echo "Compose file: ${files_array[0]}"
+  fi
   echo ""
 
   # Show service status
-  docker compose -f "$compose_file" ps
+  docker compose "${compose_flags[@]}" ps
 
   log_debug "docker" "Status displayed"
   return 0
