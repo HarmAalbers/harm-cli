@@ -41,6 +41,12 @@
 - shellcheck (linting)
 - shfmt (formatting)
 
+**Optional (Enhanced UX):**
+
+- [gum](https://github.com/charmbracelet/gum) - Beautiful interactive menus and spinners
+- [fzf](https://github.com/junegunn/fzf) - Fuzzy finding for selections
+- *Note: Without these, interactive features gracefully degrade to bash `select` menus*
+
 ### Quick Install
 
 ```bash
@@ -129,6 +135,92 @@ harm-cli safe git-reset          # Safe git reset with backup
 harm-cli help
 harm-cli ai --help
 ```
+
+---
+
+## ✨ Interactive Mode
+
+`harm-cli` features beautiful interactive menus when you omit arguments. This provides a more intuitive experience while keeping full CLI compatibility for scripts and automation.
+
+### How It Works
+
+Commands automatically switch to interactive mode when:
+- ✅ No arguments provided
+- ✅ Running in a TTY (terminal)
+- ✅ Not in JSON format mode
+
+**Three-Tier Progressive Enhancement:**
+
+1. **Tier 1 (Always Works)**: Pure bash, CLI arguments required
+2. **Tier 2 (Enhanced)**: Bash `select` menus when interactive
+3. **Tier 3 (Delightful)**: Beautiful `gum`/`fzf` interfaces
+
+### Interactive Commands
+
+#### Work Session Wizard
+
+```bash
+# Interactive: Choose from today's goals or enter custom
+$ harm-cli work start
+🍅 Start Pomodoro Session
+
+What are you working on?
+> Complete documentation updates
+  Fix authentication bug
+  Custom goal...
+
+# CLI: Still works for scripts/automation
+$ harm-cli work start "Complete documentation updates"
+```
+
+#### Goal Selection Menu
+
+```bash
+# Interactive: Select goal and enter progress
+$ harm-cli goal progress
+📊 Update Goal Progress
+
+Select goal to update:
+  1. Complete documentation updates (25%)
+> 2. Fix authentication bug (0%)
+
+New progress (0-100): 50
+
+# CLI: Still works directly
+$ harm-cli goal progress 2 50
+```
+
+#### AI Progress Feedback
+
+```bash
+# Shows spinner during API requests
+$ harm-cli ai "What should I focus on next?"
+⠋ Thinking...  # Beautiful animated spinner
+
+# Works in scripts without visual output
+$ HARM_CLI_FORMAT=json harm-cli ai "query"  # No spinner
+```
+
+### Features
+
+- ✅ **Zero Breaking Changes** - CLI arguments always work
+- ✅ **Script-Safe** - Interactive skipped in non-TTY/JSON mode
+- ✅ **Graceful Degradation** - Works without gum/fzf
+- ✅ **Cancel-Friendly** - Ctrl+C properly handled
+- ✅ **Input Validation** - All inputs validated before use
+
+### Installation (Optional)
+
+```bash
+# macOS
+brew install gum fzf
+
+# Linux (Debian/Ubuntu)
+# gum: https://github.com/charmbracelet/gum#installation
+sudo apt install fzf
+```
+
+Without these tools, interactive mode still works using bash's built-in `select`.
 
 ---
 

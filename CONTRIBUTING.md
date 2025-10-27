@@ -96,6 +96,62 @@ my_function() {
 }
 ```
 
+#### 2b. Interactive Pattern (Optional Enhancement)
+
+For commands that benefit from interactive selection, use this pattern:
+
+```bash
+my_command() {
+  local arg="${1:-}"
+
+  # Interactive mode: when no args, TTY, and not JSON format
+  if [[ -z "$arg" ]] && [[ -t 0 ]] && [[ -t 1 ]] && [[ "${HARM_CLI_FORMAT:-text}" == "text" ]]; then
+    # Source interactive module if available
+    if [[ -f "$SCRIPT_DIR/interactive.sh" ]]; then
+      # shellcheck source=lib/interactive.sh
+      source "$SCRIPT_DIR/interactive.sh"
+    fi
+
+    # Use interactive functions if available
+    if type interactive_choose >/dev/null 2>&1; then
+      local -a options=("Option 1" "Option 2" "Custom...")
+
+      if arg=$(interactive_choose "Select option:" "${options[@]}"); then
+        log_debug "my_command" "Interactive selection" "$arg"
+      else
+        error_msg "Selection cancelled"
+        return $EXIT_USER_CANCELLED
+      fi
+    fi
+  fi
+
+  # Validate (works whether interactive or CLI)
+  [[ -n "$arg" ]] || die "Argument required" 2
+
+  # Original function logic continues...
+  # (unchanged, works with $arg regardless of source)
+}
+```
+
+**Key Principles:**
+- ✅ **Non-invasive**: Interactive code at top, original logic unchanged
+- ✅ **Safe fallback**: Multiple checks before interactive mode
+- ✅ **Script-safe**: Skipped in non-TTY or JSON mode
+- ✅ **Zero breaking changes**: CLI arguments always work
+- ✅ **Progressive enhancement**: Uses gum/fzf if available, falls back to bash `select`
+
+**Three-Tier Enhancement:**
+1. **Tier 1 (Always)**: Pure bash, CLI arguments required
+2. **Tier 2 (Enhanced)**: Bash `select` menus for TTY
+3. **Tier 3 (Delightful)**: `gum`/`fzf` for beautiful UX
+
+**When to Use Interactive Mode:**
+- ✅ Commands with multiple options to choose from
+- ✅ Frequently used commands that benefit from convenience
+- ✅ Commands where remembering IDs/names is tedious
+- ❌ Commands that modify multiple items (keep explicit)
+- ❌ Commands primarily used in scripts
+
 #### 3. Input Validation
 
 ```bash
