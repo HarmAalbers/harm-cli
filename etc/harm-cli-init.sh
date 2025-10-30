@@ -51,6 +51,10 @@ fi
 # Shell Helper Functions
 # ═══════════════════════════════════════════════════════════════
 
+# Remove any existing proj alias to avoid conflicts
+builtin unalias proj 2>/dev/null || true
+
+# Use 'function' keyword syntax to avoid alias expansion issues in zsh
 # proj() - Wrapper for harm-cli proj with automatic directory switching
 #
 # This function wraps the 'harm-cli proj' command and automatically
@@ -63,20 +67,21 @@ fi
 #   proj sw myapp      # Short alias for switch
 #
 # Note: For all other proj subcommands, this passes through to harm-cli.
-proj() {
+function proj {
   # Handle switch/sw subcommand specially
   if [[ "${1:-}" == "switch" || "${1:-}" == "sw" ]]; then
-    # Execute harm-cli proj switch and capture output
+    # Execute harm-cli proj switch and capture output (stdout only)
+    # Note: stderr (logs) go directly to terminal, only cd command captured
     local switch_cmd
-    switch_cmd="$(harm-cli proj "$@" 2>&1)"
+    switch_cmd="$(harm-cli proj "$@")"
     local exit_code=$?
 
     # If successful and output starts with "cd ", evaluate it
     if [[ $exit_code -eq 0 ]] && [[ "$switch_cmd" =~ ^cd\  ]]; then
       eval "$switch_cmd"
     else
-      # Print error message if failed
-      echo "$switch_cmd"
+      # Print error message if failed (stderr already shown)
+      [[ -n "$switch_cmd" ]] && echo "$switch_cmd"
       return $exit_code
     fi
   else

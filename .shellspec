@@ -22,4 +22,6 @@
 # Exit codes: 0 = success, 1 = failures, 101 = warnings (not failures)
 
 ## Execution
---jobs 1
+# Use 4 parallel jobs for faster test execution
+# Adjust based on your CPU cores (use --jobs $(nproc) for auto-detection)
+--jobs 4
