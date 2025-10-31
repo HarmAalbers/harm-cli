@@ -414,8 +414,8 @@ EOF
       # shellcheck source=lib/work.sh
       source "$ROOT_DIR/lib/work.sh"
 
-      local subcmd="${2:-status}"
-      shift 2 2>/dev/null || shift 1
+      local subcmd="${1:-status}"
+      shift || true
 
       case "$subcmd" in
         --help | help)
@@ -432,15 +432,38 @@ Commands:
   --help                   Show this help
 
 Examples:
-  harm-cli break start          # Auto-detect break type based on pomodoros
-  harm-cli break start 300      # Custom 5-minute break
-  harm-cli break stop
-  harm-cli break status
+  harm-cli break start                    # Interactive countdown (default: popup)
+  harm-cli break start --background       # Background timer (non-blocking)
+  harm-cli break start 300 short          # Custom 5-minute break
+  harm-cli break stop                     # Stop break early
+  harm-cli break status                   # Check break status
+
+Modes:
+  --blocking      Interactive countdown with live progress (default)
+                  Opens in NEW TERMINAL WINDOW (impossible to ignore)
+                  Falls back to inline mode if GUI unavailable
+  --background    Background timer with notifications only
+                  Non-blocking, runs in background
+
+Configuration:
+  harm-cli options set break_popup_mode 1          # Enable popup (default)
+  harm-cli options set break_popup_mode 0          # Inline mode
+  harm-cli options set break_skip_mode never       # Cannot skip
+  harm-cli options set break_skip_mode after50     # Skip after 50%
+  harm-cli options set break_skip_mode always      # Skip anytime (default)
+  harm-cli options set break_skip_mode type-based  # Short=always, Long=after50
+
+Scheduled Breaks:
+  harm-cli options set break_scheduled_enabled 1   # Enable scheduled breaks
+  harm-cli options set break_scheduled_interval 120 # Every 2 hours
 
 Notes:
   - Short breaks: 5 minutes (after pomodoros 1-3)
   - Long breaks: 15 minutes (after every 4th pomodoro)
   - Breaks can auto-start after work sessions (configurable)
+  - Popup mode opens break timer in separate terminal window
+  - Skip behavior is configurable per break type
+  - Scheduled breaks trigger automatically when enabled
 EOF
           ;;
         start) break_start "$@" ;;
@@ -788,7 +811,7 @@ Environment Variables:
 EOF
           ;;
         stream) log_stream "$@" ;;
-        tail | view)
+        tail)
           # Parse --lines flag
           local lines=50
           while [[ $# -gt 0 ]]; do
