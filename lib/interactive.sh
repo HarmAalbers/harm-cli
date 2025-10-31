@@ -25,13 +25,14 @@ IFS=$'\n\t'
 declare -g _LIB_INTERACTIVE_LOADED=1
 
 # Source dependencies
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+INTERACTIVE_SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+readonly INTERACTIVE_SCRIPT_DIR
 # shellcheck source=lib/common.sh
-source "${SCRIPT_DIR}/common.sh"
+source "${INTERACTIVE_SCRIPT_DIR}/common.sh"
 # shellcheck source=lib/error.sh
-source "${SCRIPT_DIR}/error.sh"
+source "${INTERACTIVE_SCRIPT_DIR}/error.sh"
 # shellcheck source=lib/logging.sh
-source "${SCRIPT_DIR}/logging.sh"
+source "${INTERACTIVE_SCRIPT_DIR}/logging.sh"
 
 # Global variable to store detected tool
 declare -g INTERACTIVE_TOOL=""
