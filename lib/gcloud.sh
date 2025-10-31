@@ -117,18 +117,35 @@ gcloud_is_installed() {
 #   - With GCloud: 100-500ms (depends on config)
 #   - Without GCloud: <50ms
 gcloud_status() {
-  log_info "gcloud" "Showing GCloud SDK status"
-
+  # Parse format flags
   local format="${HARM_CLI_FORMAT:-text}"
+  while [[ $# -gt 0 ]]; do
+    case "$1" in
+      --format)
+        format="${2:?--format requires an argument}"
+        shift 2
+        ;;
+      --format=*)
+        format="${1#*=}"
+        shift
+        ;;
+      -F)
+        format="${2:?-F requires an argument}"
+        shift 2
+        ;;
+      *)
+        shift
+        ;;
+    esac
+  done
+
+  [[ "$format" != "json" ]] && log_info "gcloud" "Showing GCloud SDK status"
 
   # Check if installed
   if ! gcloud_is_installed; then
     if [[ "$format" == "json" ]]; then
-      jq -n '{installed: false, status: "not_installed"}'
+      jq -n '{installed: false, version: null, account: null, project: null}'
     else
-      echo "Google Cloud SDK Status"
-      echo "══════════════════════════════════════════"
-      echo ""
       echo "✗ GCloud SDK not installed"
       echo ""
       echo "Installation:"
@@ -139,29 +156,29 @@ gcloud_status() {
       for path in "${GCLOUD_SDK_PATHS[@]}"; do
         echo "  - $path"
       done
+      log_info "gcloud" "GCloud SDK not installed"
     fi
-    log_info "gcloud" "GCloud SDK not installed"
     return 1
   fi
 
-  # Get configuration
+  # Get status info
   local version
   version=$(gcloud version --format="value(version)" 2>/dev/null || echo "unknown")
+
   local account
   account=$(gcloud config get-value account 2>/dev/null || echo "none")
+
   local project
   project=$(gcloud config get-value project 2>/dev/null || echo "none")
 
+  # Output format
   if [[ "$format" == "json" ]]; then
-    local configured
-    [[ "$account" != "none" ]] && configured="true" || configured="false"
     jq -n \
       --argjson installed true \
       --arg version "$version" \
       --arg account "$account" \
       --arg project "$project" \
-      --argjson configured "$configured" \
-      '{installed: $installed, version: $version, account: $account, project: $project, configured: $configured, status: (if $configured then "configured" else "not_configured" end)}'
+      '{installed: $installed, version: $version, account: $account, project: $project}'
   else
     echo "Google Cloud SDK Status"
     echo "══════════════════════════════════════════"

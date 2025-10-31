@@ -121,7 +121,27 @@ EOF
 }
 
 cmd_doctor() {
+  # Parse format flags
   local format="${HARM_CLI_FORMAT:-text}"
+  while [[ $# -gt 0 ]]; do
+    case "$1" in
+      --format)
+        format="${2:?--format requires an argument}"
+        shift 2
+        ;;
+      --format=*)
+        format="${1#*=}"
+        shift
+        ;;
+      -F)
+        format="${2:?-F requires an argument}"
+        shift 2
+        ;;
+      *)
+        shift
+        ;;
+    esac
+  done
 
   if [[ "$format" == "json" ]]; then
     # JSON output
@@ -872,7 +892,15 @@ EOF
 
           # Apply filter with optional level filtering
           if [[ -n "$level" ]]; then
-            log_tail "$lines" | grep "\[$level\]" | grep -i "$pattern" || true
+            local grep_pattern
+            case "$level" in
+              DEBUG) grep_pattern="\[(DEBUG|INFO|WARN|ERROR)\]" ;;
+              INFO)  grep_pattern="\[(INFO|WARN|ERROR)\]" ;;
+              WARN)  grep_pattern="\[(WARN|ERROR)\]" ;;
+              ERROR) grep_pattern="\[ERROR\]" ;;
+              *) grep_pattern="\[$level\]" ;;  # Fallback for unknown levels
+            esac
+            log_tail "$lines" | grep -E "$grep_pattern" | grep -i "$pattern" || true
           else
             log_tail "$lines" | grep -i "$pattern" || true
           fi
