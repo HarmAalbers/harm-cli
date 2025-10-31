@@ -895,10 +895,10 @@ EOF
             local grep_pattern
             case "$level" in
               DEBUG) grep_pattern="\[(DEBUG|INFO|WARN|ERROR)\]" ;;
-              INFO)  grep_pattern="\[(INFO|WARN|ERROR)\]" ;;
-              WARN)  grep_pattern="\[(WARN|ERROR)\]" ;;
+              INFO) grep_pattern="\[(INFO|WARN|ERROR)\]" ;;
+              WARN) grep_pattern="\[(WARN|ERROR)\]" ;;
               ERROR) grep_pattern="\[ERROR\]" ;;
-              *) grep_pattern="\[$level\]" ;;  # Fallback for unknown levels
+              *) grep_pattern="\[$level\]" ;; # Fallback for unknown levels
             esac
             log_tail "$lines" | grep -E "$grep_pattern" | grep -i "$pattern" || true
           else
@@ -1787,7 +1787,19 @@ Notes:
 EOF
           ;;
         set)
-          options_set_interactive
+          # Support both interactive and direct set
+          if [[ $# -eq 0 ]]; then
+            # No arguments: interactive mode
+            options_set_interactive
+          elif [[ $# -eq 2 ]]; then
+            # Two arguments: direct set key value
+            key="$1"
+            value="$2"
+            shift 2
+            options_set "$key" "$value"
+          else
+            die "Usage: options set [<key> <value>]  (no args for interactive)" 2
+          fi
           ;;
         show | info | "")
           options_show
@@ -1801,7 +1813,7 @@ EOF
           options_reset "$key"
           ;;
         *)
-          die "Unknown options command: $subcmd. Try: set, show, get <key>, reset <key>" 2
+          die "Unknown options command: $subcmd. Try: set [<key> <value>], show, get <key>, reset <key>" 2
           ;;
       esac
       ;;

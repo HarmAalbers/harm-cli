@@ -302,7 +302,7 @@ work_load_state() {
 #   - Session persists across shell restarts
 work_start() {
   local goal="${1:-}"
-  
+
   # Interactive mode if no goal provided and TTY available
   if [[ -z "$goal" ]] && [[ -t 0 ]] && [[ -t 1 ]] && [[ "${HARM_CLI_FORMAT:-text}" == "text" ]]; then
     # Source interactive module if available
@@ -310,46 +310,46 @@ work_start() {
       # shellcheck source=lib/interactive.sh
       source "$WORK_SCRIPT_DIR/interactive.sh"
     fi
-    
+
     # Check if interactive functions available
     if type interactive_choose >/dev/null 2>&1; then
       log_debug "work" "Starting interactive work session wizard"
-      
+
       echo "🍅 Start Pomodoro Session"
       echo ""
-      
+
       # Build goal options
       local -a goal_options=()
-      
+
       # Load goals module if available
       if [[ -f "$WORK_SCRIPT_DIR/goals.sh" ]]; then
         # shellcheck source=lib/goals.sh
         source "$WORK_SCRIPT_DIR/goals.sh" 2>/dev/null || true
       fi
-      
+
       # Add existing incomplete goals
       if type goal_exists_today >/dev/null 2>&1 && goal_exists_today 2>/dev/null; then
         local goal_file
         goal_file=$(goal_file_for_today 2>/dev/null)
-        
+
         if [[ -f "$goal_file" ]]; then
           # Read incomplete goals
           while IFS= read -r line; do
             local completed
             completed=$(echo "$line" | jq -r '.completed' 2>/dev/null || echo "true")
-            
+
             if [[ "$completed" == "false" ]]; then
               local goal_text
               goal_text=$(echo "$line" | jq -r '.goal' 2>/dev/null)
               [[ -n "$goal_text" ]] && goal_options+=("$goal_text")
             fi
-          done < "$goal_file"
+          done <"$goal_file"
         fi
       fi
-      
+
       # Always add "Custom goal..." option
       goal_options+=("Custom goal...")
-      
+
       # Interactive selection
       if goal=$(interactive_choose "What are you working on?" "${goal_options[@]}" 2>/dev/null); then
         # If custom goal selected, prompt for input
@@ -358,14 +358,14 @@ work_start() {
             error_msg "Goal input cancelled"
             return "$EXIT_ERROR"
           fi
-          
+
           # Empty input check
           if [[ -z "$goal" ]]; then
             error_msg "Goal cannot be empty"
             return "$EXIT_ERROR"
           fi
         fi
-        
+
         log_info "work" "Interactive wizard completed" "Goal: $goal"
       else
         error_msg "Work session cancelled"
@@ -378,6 +378,61 @@ work_start() {
   if work_is_active; then
     error_msg "Work session already active" "$EXIT_ERROR"
     return "$EXIT_ERROR"
+  fi
+
+  # Strict mode enforcement checks
+  if [[ "$HARM_WORK_ENFORCEMENT" == "strict" ]]; then
+    # Check if project switching is blocked and active session in different project
+    local block_switch
+    block_switch=$(options_get strict_block_project_switch 2>/dev/null || echo "0")
+
+    if [[ "$block_switch" == "1" ]] && [[ -n "${_WORK_ACTIVE_PROJECT:-}" ]]; then
+      local current_project
+      current_project=$(basename "$PWD")
+
+      if [[ "$current_project" != "$_WORK_ACTIVE_PROJECT" ]]; then
+        error_msg "Cannot start work session in different project" "$EXIT_ERROR"
+        echo "" >&2
+        echo "🚫 Project switch blocked by strict mode!" >&2
+        echo "   Active project: $_WORK_ACTIVE_PROJECT" >&2
+        echo "   Current location: $current_project" >&2
+        echo "" >&2
+        echo "   Options:" >&2
+        echo "   1. Navigate to active project first" >&2
+        echo "   2. Stop current session: harm-cli work stop" >&2
+        echo "" >&2
+        return "$EXIT_ERROR"
+      fi
+    fi
+
+    # Check if break is required before starting new session
+    local require_break
+    require_break=$(options_get strict_require_break 2>/dev/null || echo "0")
+
+    if [[ "$require_break" == "1" ]]; then
+      # Load enforcement state to check break requirement
+      work_enforcement_load_state 2>/dev/null || true
+
+      # Check enforcement file for break_required flag
+      if [[ -f "$HARM_WORK_ENFORCEMENT_FILE" ]]; then
+        local break_required
+        break_required=$(jq -r '.break_required // false' "$HARM_WORK_ENFORCEMENT_FILE" 2>/dev/null)
+
+        if [[ "$break_required" == "true" ]]; then
+          local required_break_type
+          required_break_type=$(jq -r '.break_type_required // "short"' "$HARM_WORK_ENFORCEMENT_FILE" 2>/dev/null)
+
+          error_msg "Break required before starting new work session" "$EXIT_ERROR"
+          echo "" >&2
+          echo "☕ Break required by strict mode!" >&2
+          echo "   You must complete a ${required_break_type} break before starting a new session." >&2
+          echo "" >&2
+          echo "   Start break: harm-cli break start" >&2
+          echo "" >&2
+          return "$EXIT_ERROR"
+        fi
+      fi
+    fi
   fi
 
   local start_time
@@ -460,7 +515,6 @@ work_start() {
   fi
 }
 
-
 # work_stop: Stop current work session
 #
 # Description:
@@ -514,6 +568,50 @@ work_stop() {
   end_epoch="$(get_utc_epoch)"
   local total_seconds=$((end_epoch - start_epoch - paused_duration))
 
+  # Check for early termination if strict mode enabled
+  local work_duration termination_reason=""
+  work_duration=$(options_get work_duration)
+  local early_stop="false"
+
+  if ((total_seconds * 100 < work_duration * 80)); then
+    early_stop="true"
+
+    # Check if confirmation is required for early stops
+    local confirm_early
+    confirm_early=$(options_get strict_confirm_early_stop 2>/dev/null || echo "0")
+
+    if [[ "$confirm_early" == "1" ]] && [[ -t 0 ]] && [[ -t 1 ]]; then
+      # Source interactive module
+      if [[ -f "$WORK_SCRIPT_DIR/interactive.sh" ]]; then
+        source "$WORK_SCRIPT_DIR/interactive.sh" 2>/dev/null || true
+      fi
+
+      # Check if interactive functions available
+      if type interactive_confirm >/dev/null 2>&1; then
+        local minutes_worked=$((total_seconds / 60))
+        local minutes_expected=$((work_duration / 60))
+
+        echo "" >&2
+        echo "⚠️  Early termination detected!" >&2
+        echo "   Expected: ${minutes_expected} minutes" >&2
+        echo "   Actual: ${minutes_worked} minutes" >&2
+        echo "" >&2
+
+        if ! interactive_confirm "Do you want to stop this session early?" "no"; then
+          echo "Session stop cancelled." >&2
+          return 0
+        fi
+
+        # Prompt for reason
+        if type interactive_input >/dev/null 2>&1; then
+          if termination_reason=$(interactive_input "Reason for early stop (optional)" 2>/dev/null); then
+            log_info "work" "Early stop reason" "Reason: ${termination_reason:-none}"
+          fi
+        fi
+      fi
+    fi
+  fi
+
   # Increment pomodoro count
   local pomodoro_count
   pomodoro_count=$(work_increment_pomodoro_count)
@@ -542,21 +640,57 @@ work_stop() {
     --argjson duration "$total_seconds" \
     --arg goal "$goal" \
     --argjson pomodoro_count "$pomodoro_count" \
+    --argjson early_stop "$early_stop" \
+    --arg termination_reason "$termination_reason" \
     '{
       start_time: $start_time,
       end_time: $end_time,
       duration_seconds: $duration,
       goal: $goal,
-      pomodoro_count: $pomodoro_count
+      pomodoro_count: $pomodoro_count,
+      early_stop: ($early_stop == "true"),
+      termination_reason: (if $termination_reason != "" then $termination_reason else null end)
     }' >>"$archive_file"
 
   # Remove current state
   rm -f "$HARM_WORK_STATE_FILE"
 
-  # Clear enforcement state
-  work_enforcement_clear 2>/dev/null || true
+  # Set break requirement flag if strict mode enabled
+  if [[ "$HARM_WORK_ENFORCEMENT" == "strict" ]]; then
+    local require_break
+    require_break=$(options_get strict_require_break 2>/dev/null || echo "0")
 
-  log_info "work" "Work session stopped" "Duration: ${total_seconds}s, Pomodoro: #${pomodoro_count}"
+    if [[ "$require_break" == "1" ]]; then
+      # Update enforcement state to require break before next session
+      jq -n \
+        --argjson violations "${_WORK_VIOLATIONS:-0}" \
+        --arg project "${_WORK_ACTIVE_PROJECT:-}" \
+        --arg goal "" \
+        --arg updated "$end_time" \
+        --arg last_session_end "$end_time" \
+        --argjson break_required true \
+        --arg break_type_required "$break_type" \
+        '{
+          violations: $violations,
+          project: $project,
+          goal: $goal,
+          updated: $updated,
+          last_session_end: $last_session_end,
+          break_required: $break_required,
+          break_type_required: $break_type_required
+        }' | atomic_write "$HARM_WORK_ENFORCEMENT_FILE"
+
+      log_info "work" "Break requirement set" "Type: $break_type"
+    else
+      # Clear enforcement state normally
+      work_enforcement_clear 2>/dev/null || true
+    fi
+  else
+    # Clear enforcement state normally
+    work_enforcement_clear 2>/dev/null || true
+  fi
+
+  log_info "work" "Work session stopped" "Duration: ${total_seconds}s, Pomodoro: #${pomodoro_count}, Early: $early_stop"
 
   # Send notification suggesting break
   work_send_notification "✅ Work Complete!" "Pomodoro #${pomodoro_count} done. Take a ${break_min}-minute ${break_type} break!"
@@ -919,9 +1053,10 @@ break_stop() {
 
   local state
   state=$(cat "$HARM_BREAK_STATE_FILE")
-  local start_time break_type
-  start_time=$(json_get "$state" ".start_time")
-  break_type=$(json_get "$state" ".type")
+  local start_time break_type duration_planned
+  read -r start_time break_type duration_planned < <(
+    jq -r '[.start_time, .type, .duration_seconds] | @tsv' "$HARM_BREAK_STATE_FILE"
+  )
 
   local end_time
   end_time="$(get_utc_timestamp)"
@@ -932,10 +1067,58 @@ break_stop() {
   end_epoch="$(get_utc_epoch)"
   local total_seconds=$((end_epoch - start_epoch))
 
+  # Determine if break was completed fully (>= 80% of planned duration)
+  local completed_fully="false"
+  if ((total_seconds * 100 >= duration_planned * 80)); then
+    completed_fully="true"
+  fi
+
+  # Archive break if tracking is enabled
+  local track_breaks
+  track_breaks=$(options_get strict_track_breaks 2>/dev/null || echo "0")
+
+  if [[ "$track_breaks" == "1" ]]; then
+    local archive_file
+    archive_file="${HARM_WORK_DIR}/breaks_$(date '+%Y-%m').jsonl"
+    jq -n \
+      --arg start_time "$start_time" \
+      --arg end_time "$end_time" \
+      --argjson duration "$total_seconds" \
+      --argjson planned_duration "$duration_planned" \
+      --arg type "$break_type" \
+      --argjson completed_fully "$completed_fully" \
+      '{
+        start_time: $start_time,
+        end_time: $end_time,
+        duration_seconds: $duration,
+        planned_duration_seconds: $planned_duration,
+        type: $type,
+        completed_fully: $completed_fully
+      }' >>"$archive_file"
+
+    log_debug "break" "Break archived" "Duration: ${total_seconds}s, Completed: $completed_fully"
+  fi
+
+  # Clear break_required flag if strict mode enabled and break completed fully
+  if [[ "$HARM_WORK_ENFORCEMENT" == "strict" ]] && [[ "$completed_fully" == "true" ]]; then
+    local require_break
+    require_break=$(options_get strict_require_break 2>/dev/null || echo "0")
+
+    if [[ "$require_break" == "1" ]] && [[ -f "$HARM_WORK_ENFORCEMENT_FILE" ]]; then
+      # Update enforcement state to clear break requirement
+      local current_state
+      current_state=$(cat "$HARM_WORK_ENFORCEMENT_FILE" 2>/dev/null || echo '{}')
+      echo "$current_state" | jq '.break_required = false | .break_type_required = null | .last_break_end = $time' \
+        --arg time "$end_time" | atomic_write "$HARM_WORK_ENFORCEMENT_FILE"
+
+      log_info "break" "Break requirement cleared" "Type: $break_type"
+    fi
+  fi
+
   # Remove break state
   rm -f "$HARM_BREAK_STATE_FILE"
 
-  log_info "break" "Break session stopped" "Duration: ${total_seconds}s, Type: $break_type"
+  log_info "break" "Break session stopped" "Duration: ${total_seconds}s, Type: $break_type, Completed: $completed_fully"
 
   # Send notification
   work_send_notification "💪 Break Complete!" "Let's get back to work!"
@@ -1207,6 +1390,121 @@ work_stats() {
 }
 
 # ═══════════════════════════════════════════════════════════════
+# Break Compliance & Tracking
+# ═══════════════════════════════════════════════════════════════
+
+# work_break_compliance: Show break compliance report
+#
+# Description:
+#   Analyzes break history and reports compliance metrics:
+#   - Total breaks taken vs. required
+#   - Break completion rate (how many were finished fully)
+#   - Average break duration vs. target
+#   - Skipped breaks
+#
+# Returns:
+#   0 on success
+work_break_compliance() {
+  local current_month
+  current_month=$(date '+%Y-%m')
+  local breaks_file="${HARM_WORK_DIR}/breaks_${current_month}.jsonl"
+  local sessions_file="${HARM_WORK_DIR}/sessions_${current_month}.jsonl"
+
+  if [[ ! -f "$breaks_file" ]]; then
+    if [[ "${HARM_CLI_FORMAT:-text}" == "json" ]]; then
+      jq -n '{breaks_taken: 0, breaks_expected: 0, completion_rate: 0, message: "No break data available"}'
+    else
+      echo "No break data available for this month."
+      echo "Enable break tracking: harm-cli options set strict_track_breaks 1"
+    fi
+    return 0
+  fi
+
+  # Count work sessions (expected breaks = number of work sessions)
+  local work_sessions=0
+  if [[ -f "$sessions_file" ]]; then
+    work_sessions=$(wc -l <"$sessions_file" | tr -d ' ')
+  fi
+
+  # Count breaks taken
+  local breaks_taken
+  breaks_taken=$(wc -l <"$breaks_file" | tr -d ' ')
+
+  # Count completed breaks (>= 80% of planned duration)
+  local breaks_completed
+  breaks_completed=$(jq -r 'select(.completed_fully == true)' "$breaks_file" | wc -l | tr -d ' ')
+
+  # Calculate average break duration
+  local avg_duration avg_planned
+  avg_duration=$(jq -r '.duration_seconds // 0' "$breaks_file" | awk '{sum+=$1; count++} END {if(count>0) print int(sum/count); else print 0}')
+  avg_planned=$(jq -r '.planned_duration_seconds // 0' "$breaks_file" | awk '{sum+=$1; count++} END {if(count>0) print int(sum/count); else print 0}')
+
+  # Calculate compliance rate
+  local completion_rate=0
+  if ((breaks_taken > 0)); then
+    completion_rate=$(((breaks_completed * 100) / breaks_taken))
+  fi
+
+  local compliance_rate=0
+  if ((work_sessions > 0)); then
+    compliance_rate=$(((breaks_taken * 100) / work_sessions))
+  fi
+
+  if [[ "${HARM_CLI_FORMAT:-text}" == "json" ]]; then
+    jq -n \
+      --argjson work_sessions "$work_sessions" \
+      --argjson breaks_taken "$breaks_taken" \
+      --argjson breaks_completed "$breaks_completed" \
+      --argjson completion_rate "$completion_rate" \
+      --argjson compliance_rate "$compliance_rate" \
+      --argjson avg_duration "$avg_duration" \
+      --argjson avg_planned "$avg_planned" \
+      '{
+        work_sessions: $work_sessions,
+        breaks_taken: $breaks_taken,
+        breaks_completed_fully: $breaks_completed,
+        completion_rate_percent: $completion_rate,
+        compliance_rate_percent: $compliance_rate,
+        avg_break_duration_seconds: $avg_duration,
+        avg_planned_duration_seconds: $avg_planned
+      }'
+  else
+    echo "═══════════════════════════════════════════════════════════════"
+    echo "  Break Compliance Report ($current_month)"
+    echo "═══════════════════════════════════════════════════════════════"
+    echo ""
+    echo "  📊 Work sessions: $work_sessions"
+    echo "  ☕ Breaks taken: $breaks_taken"
+    echo "  ✅ Breaks completed fully: $breaks_completed"
+    echo ""
+    echo "  📈 Compliance rate: ${compliance_rate}%"
+    echo "  📈 Completion rate: ${completion_rate}%"
+    echo ""
+
+    if ((avg_planned > 0)); then
+      local avg_min=$((avg_duration / 60))
+      local planned_min=$((avg_planned / 60))
+      echo "  ⏱  Average break: ${avg_min} min (target: ${planned_min} min)"
+    fi
+
+    echo ""
+
+    # Provide feedback
+    if ((compliance_rate < 50)); then
+      echo "  ⚠️  Warning: Less than half of work sessions followed by breaks"
+      echo "     Consider enabling: strict_require_break"
+    elif ((completion_rate < 50)); then
+      echo "  ⚠️  Warning: Many breaks stopped early"
+      echo "     Try to complete full break duration for better recovery"
+    elif ((compliance_rate >= 80 && completion_rate >= 80)); then
+      echo "  🎉 Excellent! You're maintaining good work-break balance"
+    fi
+
+    echo ""
+  fi
+}
+
+# ═══════════════════════════════════════════════════════════════
 # Work Enforcement System
 # ═══════════════════════════════════════════════════════════════
 
@@ -1287,15 +1585,16 @@ work_enforcement_clear() {
 #
 # Description:
 #   Chpwd hook that detects when user switches projects during
-#   a work session in strict mode. Increments violation counter
-#   and warns user.
+#   a work session in strict mode. Can warn or block depending on
+#   strict_block_project_switch option.
 #
 # Arguments:
 #   $1 - old_pwd (string): Previous directory
 #   $2 - new_pwd (string): New directory
 #
 # Returns:
-#   0 - Always succeeds
+#   0 - Switch allowed or warning only
+#   1 - Switch blocked (if strict_block_project_switch enabled)
 work_check_project_switch() {
   # Only enforce in strict mode
   [[ "$HARM_WORK_ENFORCEMENT" == "strict" ]] || return 0
@@ -1324,27 +1623,53 @@ work_check_project_switch() {
 
   # Project switch detected!
   if [[ "$new_project" != "$_WORK_ACTIVE_PROJECT" ]]; then
-    _WORK_VIOLATIONS=$((_WORK_VIOLATIONS + 1))
-    work_enforcement_save_state
+    # Check if blocking is enabled
+    local block_enabled
+    block_enabled=$(options_get strict_block_project_switch 2>/dev/null || echo "0")
 
-    echo "" >&2
-    echo "⚠️  CONTEXT SWITCH DETECTED!" >&2
-    echo "   Active project: $_WORK_ACTIVE_PROJECT" >&2
-    echo "   Switched to: $new_project" >&2
-    echo "   Violations: $_WORK_VIOLATIONS" >&2
-
-    # Warning threshold
-    if [[ $_WORK_VIOLATIONS -ge $HARM_WORK_DISTRACTION_THRESHOLD ]]; then
+    if [[ "$block_enabled" == "1" ]]; then
+      # BLOCKING MODE: Prevent the switch
       echo "" >&2
-      echo "❌ TOO MANY DISTRACTIONS!" >&2
-      echo "   Consider:" >&2
-      echo "   1. Stop work: harm-cli work stop" >&2
-      echo "   2. Review goal: harm-cli goal show" >&2
-      echo "   3. Refocus on: $_WORK_ACTIVE_PROJECT" >&2
-    fi
-    echo "" >&2
+      echo "🚫 PROJECT SWITCH BLOCKED!" >&2
+      echo "   Active work session in: $_WORK_ACTIVE_PROJECT" >&2
+      echo "   Cannot switch to: $new_project" >&2
+      echo "" >&2
+      echo "   To switch projects:" >&2
+      echo "   1. Stop current session: harm-cli work stop" >&2
+      echo "   2. Then switch projects" >&2
+      echo "" >&2
 
-    log_warn "work" "Project switch violation" "from=$_WORK_ACTIVE_PROJECT to=$new_project violations=$_WORK_VIOLATIONS"
+      log_error "work" "Project switch blocked" "from=$_WORK_ACTIVE_PROJECT to=$new_project"
+
+      # Change back to original directory
+      cd "$old_pwd" || true
+      return 1
+    else
+      # WARNING MODE: Increment violations and warn
+      _WORK_VIOLATIONS=$((_WORK_VIOLATIONS + 1))
+      work_enforcement_save_state
+
+      echo "" >&2
+      echo "⚠️  CONTEXT SWITCH DETECTED!" >&2
+      echo "   Active project: $_WORK_ACTIVE_PROJECT" >&2
+      echo "   Switched to: $new_project" >&2
+      echo "   Violations: $_WORK_VIOLATIONS" >&2
+
+      # Warning threshold
+      if [[ $_WORK_VIOLATIONS -ge $HARM_WORK_DISTRACTION_THRESHOLD ]]; then
+        echo "" >&2
+        echo "❌ TOO MANY DISTRACTIONS!" >&2
+        echo "   Consider:" >&2
+        echo "   1. Stop work: harm-cli work stop" >&2
+        echo "   2. Review goal: harm-cli goal show" >&2
+        echo "   3. Refocus on: $_WORK_ACTIVE_PROJECT" >&2
+        echo "" >&2
+        echo "   💡 Tip: Enable strict_block_project_switch to prevent this" >&2
+      fi
+      echo "" >&2
+
+      log_warn "work" "Project switch violation" "from=$_WORK_ACTIVE_PROJECT to=$new_project violations=$_WORK_VIOLATIONS"
+    fi
   fi
 
   return 0
@@ -1438,5 +1763,6 @@ export -f work_send_notification work_stop_timer
 export -f work_get_pomodoro_count work_increment_pomodoro_count work_reset_pomodoro_count
 export -f break_is_active break_start break_stop break_status
 export -f work_stats work_stats_today work_stats_week work_stats_month
+export -f work_break_compliance
 export -f work_enforcement_load_state work_enforcement_save_state work_enforcement_clear
 export -f work_check_project_switch work_get_violations work_reset_violations work_set_enforcement

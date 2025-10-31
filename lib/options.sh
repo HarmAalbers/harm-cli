@@ -14,8 +14,11 @@
 set -Eeuo pipefail
 IFS=$'\n\t'
 
-# Prevent multiple loading
-[[ -n "${_HARM_OPTIONS_LOADED:-}" ]] && return 0
+# Prevent multiple loading ONLY if schema is already declared
+# (Associative arrays don't export to subshells, so we may need to re-declare)
+if [[ -n "${_HARM_OPTIONS_LOADED:-}" ]] && declare -p OPTIONS_SCHEMA &>/dev/null && [[ ${#OPTIONS_SCHEMA[@]} -gt 0 ]]; then
+  return 0
+fi
 
 # Require bash 4.0+ for associative arrays
 if ((BASH_VERSINFO[0] < 4)); then
@@ -97,6 +100,12 @@ declare -gA OPTIONS_SCHEMA=(
   ["work_notifications"]="bool:1:HARM_WORK_NOTIFICATIONS:Desktop notifications for transitions (0=disabled, 1=enabled):validate_bool"
   ["work_sound_notifications"]="bool:1:HARM_WORK_SOUND:Sound alerts for notifications (0=disabled, 1=enabled):validate_bool"
   ["work_reminder_interval"]="int:30:HARM_WORK_REMINDER:Reminder interval in minutes (0=disabled):validate_number"
+
+  # Work Strict Mode (Discipline & Focus Enforcement)
+  ["strict_block_project_switch"]="bool:0:HARM_STRICT_BLOCK_PROJECT_SWITCH:Block project switching during active work sessions (0=warn only, 1=block):validate_bool"
+  ["strict_require_break"]="bool:0:HARM_STRICT_REQUIRE_BREAK:Require break completion before starting new work session (0=disabled, 1=enabled):validate_bool"
+  ["strict_confirm_early_stop"]="bool:0:HARM_STRICT_CONFIRM_EARLY_STOP:Require confirmation when stopping session early (0=disabled, 1=enabled):validate_bool"
+  ["strict_track_breaks"]="bool:0:HARM_STRICT_TRACK_BREAKS:Track and report break compliance (0=disabled, 1=enabled):validate_bool"
 
   # Cleanup Configuration
   ["cleanup_min_size"]="string:104857600:HARM_CLEANUP_MIN_SIZE:Minimum file size in bytes (or with suffix like 100M, 1G):validate_string"
@@ -254,7 +263,12 @@ options_get() {
 
   # Check if OPTIONS_SCHEMA is available
   # In some contexts (like ShellSpec's When call), associative arrays may not be inherited
-  if [[ ! -v OPTIONS_SCHEMA ]] || [[ ! -v OPTIONS_SCHEMA[$key] ]]; then
+  local use_schema=0
+  if [[ ${#OPTIONS_SCHEMA[@]} -gt 0 ]] && [[ -n "${OPTIONS_SCHEMA[$key]:-}" ]]; then
+    use_schema=1
+  fi
+
+  if [[ $use_schema -eq 0 ]]; then
     # Fallback: Try to get from environment or use hardcoded defaults
     # This makes tests work without full schema initialization
     local env_var default_value
@@ -292,6 +306,22 @@ options_get() {
       work_reminder_interval)
         env_var="HARM_WORK_REMINDER"
         default_value="30"
+        ;;
+      strict_block_project_switch)
+        env_var="HARM_STRICT_BLOCK_PROJECT_SWITCH"
+        default_value="0"
+        ;;
+      strict_require_break)
+        env_var="HARM_STRICT_REQUIRE_BREAK"
+        default_value="0"
+        ;;
+      strict_confirm_early_stop)
+        env_var="HARM_STRICT_CONFIRM_EARLY_STOP"
+        default_value="0"
+        ;;
+      strict_track_breaks)
+        env_var="HARM_STRICT_TRACK_BREAKS"
+        default_value="0"
         ;;
       *)
         # For unknown keys, try schema if available
