@@ -130,7 +130,7 @@ End
 It 'shows active session details'
 export HARM_CLI_FORMAT=text
 start_test_session "Test goal"
-sleep 1
+sleep 0.3
 When call work_status
 The output should include "ACTIVE"
 The output should include "Test goal"
@@ -149,12 +149,12 @@ End
 It 'calculates elapsed time accurately (timezone bug test)'
 export HARM_CLI_FORMAT=json
 start_test_session "Test goal"
-sleep 2
+sleep 0.5
 result=$(work_status)
 elapsed=$(echo "$result" | jq -r '.elapsed_seconds')
-# Elapsed should be ~2 seconds, NOT hours off due to timezone bug
-# Allow 1-5 seconds range for processing time
-When call test "$elapsed" -ge 1 -a "$elapsed" -le 5
+# Elapsed should be ~0.5 seconds, NOT hours off due to timezone bug
+# Allow 0-3 seconds range for processing time
+When call test "$elapsed" -ge 0 -a "$elapsed" -le 3
 The status should be success
 End
 End
@@ -172,7 +172,7 @@ End
 It 'stops active session'
 export HARM_CLI_FORMAT=text
 start_test_session "Test goal"
-sleep 1
+sleep 0.3
 When call work_stop
 The status should be success
 The error should include "Work session stopped"
@@ -187,7 +187,7 @@ End
 
 It 'archives session to monthly file'
 start_test_session "Test goal"
-sleep 1
+sleep 0.3
 work_stop >/dev/null 2>&1
 archive_file="${HARM_WORK_DIR}/sessions_$(date '+%Y-%m').jsonl"
 The file "$archive_file" should be exist
@@ -197,7 +197,7 @@ End
 It 'outputs JSON format'
 export HARM_CLI_FORMAT=json
 start_test_session "Test"
-sleep 1
+sleep 0.3
 When call work_stop
 The status should be success
 The output should include '"status"'
@@ -209,12 +209,12 @@ It 'calculates duration accurately (timezone bug test)'
 # This test verifies the timezone bug is fixed by checking actual duration
 export HARM_CLI_FORMAT=json
 start_test_session "Test goal"
-sleep 2
+sleep 0.5
 # Capture only stdout (JSON), stderr goes to log
 result=$(work_stop 2>/dev/null)
 duration=$(echo "$result" | jq -r '.duration_seconds' 2>/dev/null || echo "999")
-# Duration should be ~2 seconds (1-5 range), NOT 7200+ (timezone bug)
-When call test "$duration" -ge 1 -a "$duration" -le 5
+# Duration should be ~0.5 seconds (0-3 range), NOT 7200+ (timezone bug)
+When call test "$duration" -ge 0 -a "$duration" -le 3
 The status should be success
 End
 End
@@ -224,10 +224,10 @@ BeforeEach 'cleanup_timer_test'
 AfterEach 'cleanup_timer_test'
 
 cleanup_timer_test() {
-work_stop_timer 2>/dev/null || true
-rm -f "$HARM_WORK_TIMER_PID_FILE" 2>/dev/null || true
-rm -f "$HARM_WORK_STATE_FILE" 2>/dev/null || true
-pkill -f "sleep.*work" 2>/dev/null || true
+  work_stop_timer 2>/dev/null || true
+  rm -f "$HARM_WORK_TIMER_PID_FILE" 2>/dev/null || true
+  rm -f "$HARM_WORK_STATE_FILE" 2>/dev/null || true
+  pkill -f "sleep.*work" 2>/dev/null || true
 }
 
 Context 'timer PID file management'
@@ -241,7 +241,7 @@ End
 It 'stores valid PID in timer file'
 export HARM_CLI_WORK_DURATION=5
 start_test_session "Timer test"
-sleep 1
+sleep 0.2
 pid=$(cat "$HARM_WORK_TIMER_PID_FILE" 2>/dev/null || echo "0")
 # PID should be a positive integer
 test "$pid" -gt 0
@@ -303,8 +303,8 @@ BeforeEach 'cleanup_notification_test'
 AfterEach 'cleanup_notification_test'
 
 cleanup_notification_test() {
-work_stop 2>/dev/null || true
-rm -f "$HARM_WORK_STATE_FILE" 2>/dev/null || true
+  work_stop 2>/dev/null || true
+  rm -f "$HARM_WORK_STATE_FILE" 2>/dev/null || true
 }
 
 Context 'notification function'

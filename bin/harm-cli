@@ -96,6 +96,7 @@ Commands:
   git                     Enhanced git workflows with AI
   proj                    Project management and switching
   docker                  Docker and Docker Compose management
+  cleanup                 Find and remove large files
   python                  Python development environment
   gcloud                  Google Cloud SDK integration
   health                  System and project health checks
@@ -1315,6 +1316,69 @@ EOF
         *)
           error_msg "Unknown docker command: $subcmd"
           echo "Try: harm-cli docker --help"
+          exit "$EXIT_INVALID_ARGS"
+          ;;
+      esac
+      ;;
+    cleanup)
+      # shellcheck source=lib/cleanup.sh
+      source "$ROOT_DIR/lib/cleanup.sh"
+      subcmd="${1:-scan}"
+      shift || true
+      case "$subcmd" in
+        --help | -h)
+          cat <<'EOF'
+harm-cli cleanup - Large file discovery and cleanup
+
+Usage:
+  harm-cli cleanup [COMMAND] [ARGS]
+
+Commands:
+  scan [OPTIONS]            Scan for large files (default)
+  delete <files...>         Delete specific files with confirmation
+  delete --interactive      Scan and interactively select files to delete
+  preview <files...>        Preview file deletion (dry-run)
+  --help                    Show this help
+
+Scan Options:
+  --path PATH               Search path (default: $HOME)
+  --min-size SIZE           Minimum file size like "100M", "1G" (default: 100M)
+  --max-results N           Maximum results to return (default: 50)
+
+Examples:
+  harm-cli cleanup scan
+  harm-cli cleanup scan --path /var/log --min-size 500M
+  harm-cli cleanup scan --format json | jq '.files[].path'
+  harm-cli cleanup delete --interactive
+  harm-cli cleanup delete --interactive --min-size 500M
+  harm-cli cleanup preview file1.bin file2.bin
+  harm-cli cleanup delete file1.bin file2.bin
+
+Notes:
+  - Scans user-accessible directories only (respects permissions)
+  - Excludes: .git, node_modules, .Trash, .npm, .cache by default
+  - All deletions require explicit confirmation
+  - All operations are logged to audit file
+  - Use --format json for scripting
+
+Configuration:
+  harm-cli options set cleanup_min_size 200M
+  harm-cli options set cleanup_search_path "/home/user"
+  harm-cli options set cleanup_exclude_patterns ".git,node_modules"
+EOF
+          ;;
+        scan)
+          cleanup_scan "$@"
+          ;;
+        delete | del | rm)
+          cleanup_delete "$@"
+          ;;
+        preview | dry-run)
+          cleanup_preview "$@"
+          ;;
+        *)
+          error_msg "Unknown cleanup command: $subcmd"
+          echo "Try: harm-cli cleanup --help"
           exit "$EXIT_INVALID_ARGS"
           ;;
       esac

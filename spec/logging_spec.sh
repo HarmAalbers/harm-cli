@@ -339,13 +339,13 @@ It 'immediately shows logs written from another process'
 Skip if "Implementation pending" true
 # Start streaming in background with timeout
 timeout 2 log_stream >"$TEST_TMP/stream_output" 2>&1 &
-sleep 0.3
+sleep 0.15
 
 # Write a log entry (simulating another terminal)
 log_info "cross_terminal_test" "Message from another terminal"
 
 # Wait briefly for stream to catch up
-sleep 0.5
+sleep 0.25
 
 # Verify the message appeared in the stream
 When call cat "$TEST_TMP/stream_output"

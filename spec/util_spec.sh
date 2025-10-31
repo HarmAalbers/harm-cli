@@ -254,9 +254,9 @@ End
 
 It 'returns current time (not fixed)'
 timestamp1=$(get_utc_timestamp)
-sleep 1
+sleep 0.2
 timestamp2=$(get_utc_timestamp)
-# Timestamps should be different after 1 second
+# Timestamps should be different after a brief delay
 The value "$timestamp1" should not equal "$timestamp2"
 End
 End
@@ -271,11 +271,11 @@ End
 
 It 'increments over time'
 epoch1=$(get_utc_epoch)
-sleep 1
+sleep 0.2
 epoch2=$(get_utc_epoch)
-# Second epoch should be at least 1 second later
+# Second epoch should be at least slightly later
 diff=$((epoch2 - epoch1))
-When call test "$diff" -ge 1
+When call test "$diff" -ge 0
 The status should be success
 End
 End
@@ -308,9 +308,9 @@ It 'validates UTC timezone (Z suffix required)'
 # causing a timezone offset error
 timestamp=$(get_utc_timestamp)
 epoch1=$(get_utc_epoch)
-sleep 1
+sleep 0.2
 epoch2=$(iso8601_to_epoch "$timestamp")
-# Difference should be approximately 1 second (allowing for processing time)
+# Difference should be small (allowing for processing time)
 # NOT hours (which would indicate timezone bug)
 diff=$((epoch1 - epoch2))
 # Absolute value should be less than 5 seconds

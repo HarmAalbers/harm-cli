@@ -97,6 +97,12 @@ declare -gA OPTIONS_SCHEMA=(
   ["work_notifications"]="bool:1:HARM_WORK_NOTIFICATIONS:Desktop notifications for transitions (0=disabled, 1=enabled):validate_bool"
   ["work_sound_notifications"]="bool:1:HARM_WORK_SOUND:Sound alerts for notifications (0=disabled, 1=enabled):validate_bool"
   ["work_reminder_interval"]="int:30:HARM_WORK_REMINDER:Reminder interval in minutes (0=disabled):validate_number"
+
+  # Cleanup Configuration
+  ["cleanup_min_size"]="string:104857600:HARM_CLEANUP_MIN_SIZE:Minimum file size in bytes (or with suffix like 100M, 1G):validate_string"
+  ["cleanup_max_results"]="int:50:HARM_CLEANUP_MAX_RESULTS:Maximum number of results to return:validate_positive_int"
+  ["cleanup_search_path"]="string:$HOME:HARM_CLEANUP_SEARCH_PATH:Default search path for cleanup scan:validate_path"
+  ["cleanup_exclude_patterns"]="string:.git,node_modules,.Trash,.npm,.cache:HARM_CLEANUP_EXCLUDES:Comma-separated exclude patterns:validate_string"
 )
 
 # Dummy path validator (for now)
