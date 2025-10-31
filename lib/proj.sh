@@ -149,7 +149,30 @@ _proj_exists() {
 #   - 10 projects: <50ms
 #   - 100 projects: <200ms
 proj_list() {
-  log_info "proj" "Listing projects"
+  # Parse format flags
+  local format="${HARM_CLI_FORMAT:-text}"
+  while [[ $# -gt 0 ]]; do
+    case "$1" in
+      --format)
+        format="${2:?--format requires an argument}"
+        shift 2
+        ;;
+      --format=*)
+        format="${1#*=}"
+        shift
+        ;;
+      -F)
+        format="${2:?-F requires an argument}"
+        shift 2
+        ;;
+      *)
+        shift
+        ;;
+    esac
+  done
+
+  # Only log in non-JSON mode
+  [[ "$format" != "json" ]] && log_info "proj" "Listing projects"
 
   _proj_ensure_config || return "$EXIT_IO_ERROR"
 
@@ -157,7 +180,7 @@ proj_list() {
   if [[ ! -f "$PROJ_REGISTRY" ]] || [[ ! -s "$PROJ_REGISTRY" ]]; then
     log_debug "proj" "No projects in registry"
 
-    if [[ "${HARM_CLI_FORMAT:-text}" == "json" ]]; then
+    if [[ "$format" == "json" ]]; then
       echo "[]"
     else
       echo "No projects registered"
@@ -173,7 +196,7 @@ proj_list() {
   log_debug "proj" "Found projects" "Count: $count"
 
   # Output format
-  if [[ "${HARM_CLI_FORMAT:-text}" == "json" ]]; then
+  if [[ "$format" == "json" ]]; then
     jq -s '.' "$PROJ_REGISTRY"
   else
     echo "Projects ($count):"
