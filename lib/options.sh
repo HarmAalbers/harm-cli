@@ -107,6 +107,12 @@ declare -gA OPTIONS_SCHEMA=(
   ["strict_confirm_early_stop"]="bool:0:HARM_STRICT_CONFIRM_EARLY_STOP:Require confirmation when stopping session early (0=disabled, 1=enabled):validate_bool"
   ["strict_track_breaks"]="bool:0:HARM_STRICT_TRACK_BREAKS:Track and report break compliance (0=disabled, 1=enabled):validate_bool"
 
+  # Break Popup & Skip Configuration
+  ["break_popup_mode"]="bool:1:HARM_BREAK_POPUP:Open break timer in new window (0=inline, 1=popup):validate_bool"
+  ["break_skip_mode"]="enum:always:HARM_BREAK_SKIP_MODE:Skip behavior (never/after50/always/type-based):validate_break_skip_mode"
+  ["break_scheduled_enabled"]="bool:0:HARM_BREAK_SCHEDULED:Enable scheduled break reminders (0=disabled, 1=enabled):validate_bool"
+  ["break_scheduled_interval"]="int:120:HARM_BREAK_SCHEDULED_INTERVAL:Scheduled break interval in minutes:validate_positive_int"
+
   # Cleanup Configuration
   ["cleanup_min_size"]="string:104857600:HARM_CLEANUP_MIN_SIZE:Minimum file size in bytes (or with suffix like 100M, 1G):validate_string"
   ["cleanup_max_results"]="int:50:HARM_CLEANUP_MAX_RESULTS:Maximum number of results to return:validate_positive_int"
@@ -196,7 +202,8 @@ options_load_config() {
 
   # Source the config file to load values
   # shellcheck disable=SC1090
-  source "$OPTIONS_CONFIG_FILE"
+  # Suppress "readonly variable" warnings (benign - variable already set correctly)
+  source "$OPTIONS_CONFIG_FILE" 2>/dev/null || true
 
   log_debug "options" "Loaded config from $OPTIONS_CONFIG_FILE" ""
   return 0
@@ -323,6 +330,22 @@ options_get() {
         env_var="HARM_STRICT_TRACK_BREAKS"
         default_value="0"
         ;;
+      break_popup_mode)
+        env_var="HARM_BREAK_POPUP"
+        default_value="1"
+        ;;
+      break_skip_mode)
+        env_var="HARM_BREAK_SKIP_MODE"
+        default_value="always"
+        ;;
+      break_scheduled_enabled)
+        env_var="HARM_BREAK_SCHEDULED"
+        default_value="0"
+        ;;
+      break_scheduled_interval)
+        env_var="HARM_BREAK_SCHEDULED_INTERVAL"
+        default_value="120"
+        ;;
       *)
         # For unknown keys, try schema if available
         if [[ -v OPTIONS_SCHEMA ]] && [[ -v OPTIONS_SCHEMA[$key] ]]; then
@@ -350,7 +373,8 @@ options_get() {
   # Priority 2: Config file (source it if not already loaded)
   if [[ -f "$OPTIONS_CONFIG_FILE" ]]; then
     # shellcheck disable=SC1090
-    source "$OPTIONS_CONFIG_FILE"
+    # Suppress "readonly variable" warnings (benign - variable already set correctly)
+    source "$OPTIONS_CONFIG_FILE" 2>/dev/null || true
 
     if [[ -n "${!env_var:-}" ]]; then
       echo "${!env_var}"

@@ -116,6 +116,32 @@ validate_ai_model() {
   esac
 }
 
+# Validate break skip mode
+#
+# Arguments:
+#   $1 - Skip mode to validate (never|after50|always|type-based)
+#
+# Returns:
+#   0 if valid, 1 if invalid
+validate_break_skip_mode() {
+  local mode="$1"
+  case "$mode" in
+    never | after50 | always | type-based) return 0 ;;
+    *) return 1 ;;
+  esac
+}
+
+# Validate string (generic)
+#
+# Arguments:
+#   $1 - String to validate
+#
+# Returns:
+#   0 always (strings are always valid)
+validate_string() {
+  return 0
+}
+
 # Export functions for use in other scripts
 export -f validate_log_level
 export -f validate_yes_no
@@ -124,6 +150,8 @@ export -f validate_number
 export -f validate_positive_int
 export -f validate_format
 export -f validate_ai_model
+export -f validate_break_skip_mode
+export -f validate_string
 
 # Mark module as loaded
 readonly _HARM_CONFIG_VALIDATION_LOADED=1

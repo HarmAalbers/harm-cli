@@ -29,6 +29,8 @@ source "$WORK_SCRIPT_DIR/logging.sh"
 source "$WORK_SCRIPT_DIR/util.sh"
 # shellcheck source=lib/options.sh
 source "$WORK_SCRIPT_DIR/options.sh"
+# shellcheck source=lib/terminal_launcher.sh
+source "$WORK_SCRIPT_DIR/terminal_launcher.sh"
 
 # ═══════════════════════════════════════════════════════════════
 # Configuration
@@ -61,6 +63,10 @@ export HARM_BREAK_STATE_FILE
 HARM_BREAK_TIMER_PID_FILE="${HARM_BREAK_TIMER_PID_FILE:-${HARM_WORK_DIR}/break_timer.pid}"
 readonly HARM_BREAK_TIMER_PID_FILE
 export HARM_BREAK_TIMER_PID_FILE
+
+HARM_SCHEDULED_BREAK_PID_FILE="${HARM_SCHEDULED_BREAK_PID_FILE:-${HARM_WORK_DIR}/scheduled_break.pid}"
+readonly HARM_SCHEDULED_BREAK_PID_FILE
+export HARM_SCHEDULED_BREAK_PID_FILE
 
 # Initialize work directory
 ensure_dir "$HARM_WORK_DIR"
@@ -302,6 +308,11 @@ work_load_state() {
 #   - Session persists across shell restarts
 work_start() {
   local goal="${1:-}"
+
+  # Check if break is required in strict mode
+  if ! work_strict_enforce_break; then
+    return "$EXIT_ERROR"
+  fi
 
   # Interactive mode if no goal provided and TTY available
   if [[ -z "$goal" ]] && [[ -t 0 ]] && [[ -t 1 ]] && [[ "${HARM_CLI_FORMAT:-text}" == "text" ]]; then
@@ -720,10 +731,11 @@ work_stop() {
     if [[ "$auto_start_break" == "1" ]]; then
       echo "  🔄 Auto-starting ${break_type} break (${break_min} minutes)..."
       echo ""
-      # Auto-start the break
-      break_start "$break_duration" "$break_type"
+      # Auto-start the break in background mode (non-blocking)
+      break_start --background "$break_duration" "$break_type"
     else
       echo "  💡 Suggested: Take a ${break_min}-minute ${break_type} break!"
+      echo "  Run: harm-cli break start (interactive blocking mode)"
     fi
   fi
 }
@@ -934,6 +946,95 @@ work_focus_score() {
 # Break Session Commands
 # ═══════════════════════════════════════════════════════════════
 
+# break_countdown_interactive: Show interactive countdown with live progress
+#
+# Arguments:
+#   $1 - duration (seconds): Total break duration
+#   $2 - break_type (string): "short", "long", or "custom"
+#
+# Returns:
+#   0 - Countdown completed
+#   1 - Interrupted (Ctrl+C)
+#
+# Notes:
+#   - Blocks terminal during countdown
+#   - Shows live progress bar and remaining time
+#   - Cannot be interrupted except with Ctrl+C
+break_countdown_interactive() {
+  local duration="${1:?break_countdown_interactive requires duration}"
+  local break_type="${2:-break}"
+  local start_time end_time elapsed remaining
+
+  start_time=$(date +%s)
+  end_time=$((start_time + duration))
+
+  # Clear screen and show header
+  echo ""
+  echo "╔════════════════════════════════════════════════════════════╗"
+  echo "║                    ☕ BREAK TIME ☕                         ║"
+  echo "╚════════════════════════════════════════════════════════════╝"
+  echo ""
+  echo "  Type: ${break_type^} break"
+  echo "  Duration: $(format_duration "$duration")"
+  echo ""
+  echo "  💡 Tip: Step away from the screen, stretch, hydrate!"
+  echo ""
+  echo "─────────────────────────────────────────────────────────────"
+  echo ""
+
+  # Pre-generate progress bar characters (PERF: once outside loop)
+  local bar_width=50
+  local progress_full="████████████████████████████████████████████████████" # 50 filled chars
+  local progress_empty="░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░"  # 50 empty chars
+
+  # Countdown loop (PERF: using $SECONDS instead of date +%s)
+  SECONDS=0
+  while true; do
+    elapsed=$SECONDS
+    remaining=$((duration - elapsed))
+
+    # Break completed
+    if [[ $remaining -le 0 ]]; then
+      remaining=0
+      break
+    fi
+
+    # Calculate progress
+    local percent=$((elapsed * 100 / duration))
+    local filled=$((percent * bar_width / 100))
+    local empty=$((bar_width - filled))
+
+    # Build progress bar (PERF: pure bash substring, no loops)
+    local bar="[${progress_full:0:filled}${progress_empty:0:empty}]"
+
+    # Format remaining time
+    local min=$((remaining / 60))
+    local sec=$((remaining % 60))
+    local time_str=$(printf "%02d:%02d" "$min" "$sec")
+
+    # Update display (PERF: single printf for all output)
+    printf "\033[4A\033[J  %s %d%%\n  Time remaining: ${SUCCESS_GREEN}%s${RESET}\n\n  Press Ctrl+C to stop break early\n" \
+      "$bar" "$percent" "$time_str"
+
+    # Sleep for 1 second
+    sleep 1
+  done
+
+  # Show completion (PERF: single printf)
+  printf "\033[4A\033[J  [%s] 100%%\n  Time remaining: ${SUCCESS_GREEN}00:00${RESET}\n\n\n" "$progress_full"
+  echo "╔════════════════════════════════════════════════════════════╗"
+  echo "║              ✅ BREAK COMPLETE! ✅                         ║"
+  echo "╚════════════════════════════════════════════════════════════╝"
+  echo ""
+  echo "  ${SUCCESS_GREEN}Great job!${RESET} You've recharged. Ready to work!"
+  echo ""
+
+  # Pause for 2 seconds to show completion
+  sleep 2
+
+  return 0
+}
+
 # break_is_active: Check if break session is currently active
 break_is_active() {
   [[ -f "$HARM_BREAK_STATE_FILE" ]] \
@@ -943,15 +1044,75 @@ break_is_active() {
 # break_start: Start a break session
 #
 # Arguments:
+#   --blocking        - Use interactive blocking mode (default)
+#   --background      - Run timer in background (non-blocking)
 #   $1 - duration (optional): Break duration in seconds (defaults to break_short or break_long)
 #   $2 - type (optional): "short" or "long" (auto-detected if not specified)
 #
 # Returns:
 #   0 - Break started successfully
 #   1 - Break already active
+#
+# Notes:
+#   - Default mode is --blocking (interactive countdown)
+#   - Use --background for old behavior (notification only)
+#   - Auto-start breaks use --background mode
 break_start() {
-  local duration="${1:-}"
-  local break_type="${2:-}"
+  # Handle help flag first
+  if [[ "${1:-}" == "--help" || "${1:-}" == "-h" || "${1:-}" == "help" ]]; then
+    cat <<'EOF'
+Start a break session
+
+Usage:
+  break_start [OPTIONS] [duration] [type]
+
+Options:
+  --blocking       Interactive countdown with live progress (default)
+  --background     Background timer with notifications only
+  -h, --help       Show this help
+
+Arguments:
+  duration         Break duration in seconds (default: auto-detect based on pomodoros)
+  type             Break type: "short", "long", or "custom" (default: auto-detect)
+
+Examples:
+  break_start                      # Auto-detect break type, interactive countdown
+  break_start --background         # Auto-detect, background mode
+  break_start 300 short            # 5-minute short break, interactive
+  break_start --background 900     # 15-minute break, background mode
+
+Notes:
+  - Interactive mode (--blocking) blocks the terminal and shows live countdown
+  - Background mode runs timer in background with notifications
+  - Default is --blocking when running in a terminal (TTY)
+  - Auto-falls back to --background when no TTY available (e.g., scripts, CI)
+EOF
+    return 0
+  fi
+
+  local duration="" break_type="" blocking_mode="true"
+
+  # Parse flags
+  while [[ $# -gt 0 ]]; do
+    case "$1" in
+      --blocking)
+        blocking_mode="true"
+        shift
+        ;;
+      --background)
+        blocking_mode="false"
+        shift
+        ;;
+      *)
+        if [[ -z "$duration" ]]; then
+          duration="$1"
+        elif [[ -z "$break_type" ]]; then
+          break_type="$1"
+        fi
+        shift
+        ;;
+    esac
+  done
 
   # Check if already active
   if break_is_active; then
@@ -987,16 +1148,82 @@ break_start() {
     --arg start_time "$start_time" \
     --argjson duration "$duration" \
     --arg type "$break_type" \
+    --arg mode "$blocking_mode" \
     '{
       status: $status,
       start_time: $start_time,
       duration_seconds: $duration,
-      type: $type
+      type: $type,
+      blocking_mode: ($mode == "true")
     }' | atomic_write "$HARM_BREAK_STATE_FILE"
 
-  log_info "break" "Break session started" "Type: $break_type, Duration: ${duration}s"
+  log_info "break" "Break session started" "Type: $break_type, Duration: ${duration}s, Blocking: $blocking_mode"
 
-  # Start background timer (non-blocking)
+  # BLOCKING MODE: Interactive countdown
+  if [[ "$blocking_mode" == "true" ]] && [[ -t 0 ]] && [[ -t 1 ]] && [[ "${HARM_CLI_FORMAT:-text}" == "text" ]]; then
+    # Check if popup mode is enabled
+    local popup_mode
+    popup_mode=$(options_get break_popup_mode)
+
+    # Send start notification
+    work_send_notification "☕ Break Started" "${break_type^} break - $(($duration / 60)) minutes to recharge"
+
+    if [[ "$popup_mode" == "1" ]]; then
+      # POPUP MODE: Launch break timer in new terminal window
+      local skip_mode
+      skip_mode=$(options_get break_skip_mode)
+
+      log_info "break" "Launching break timer in popup window" "skip_mode=$skip_mode"
+
+      # Launch the break timer UI in a new terminal
+      if terminal_launch_script "$ROOT_DIR/libexec/break-timer-ui.sh" \
+        --duration "$duration" \
+        --type "$break_type" \
+        --skip-mode "$skip_mode"; then
+
+        # Success - popup opened
+        if [[ "${HARM_CLI_FORMAT:-text}" == "json" ]]; then
+          jq -n \
+            --arg start_time "$start_time" \
+            --argjson duration "$duration" \
+            --arg type "$break_type" \
+            '{status: "started", start_time: $start_time, duration_seconds: $duration, type: $type, mode: "popup"}'
+        else
+          success_msg "Break timer opened in new window"
+          echo "  Type: ${break_type^} break"
+          echo "  Duration: $(($duration / 60)) minutes"
+          echo "  Skip mode: $skip_mode"
+          echo ""
+          echo "  💡 The break timer is running in a separate window"
+          echo "  💡 Note: Break will auto-complete, but you need to manually run 'harm-cli break stop' after"
+        fi
+
+        return 0
+      else
+        # Popup failed - fallback to inline mode
+        warn_msg "Failed to open popup window, falling back to inline mode"
+        log_warn "break" "Popup launch failed, using inline countdown"
+
+        # Run interactive countdown (blocks terminal)
+        break_countdown_interactive "$duration" "$break_type"
+
+        # Auto-stop break after countdown completes
+        break_stop
+        return $?
+      fi
+    else
+      # INLINE MODE: Run interactive countdown in current terminal
+      # Run interactive countdown (blocks terminal)
+      break_countdown_interactive "$duration" "$break_type"
+
+      # Auto-stop break after countdown completes
+      break_stop
+      return $?
+    fi
+  fi
+
+  # BACKGROUND MODE: Non-blocking timer
+  # Start background timer
   (
     sleep "$duration"
 
@@ -1019,12 +1246,14 @@ break_start() {
       --arg start_time "$start_time" \
       --argjson duration "$duration" \
       --arg type "$break_type" \
-      '{status: "started", start_time: $start_time, duration_seconds: $duration, type: $type}'
+      '{status: "started", start_time: $start_time, duration_seconds: $duration, type: $type, mode: "background"}'
   else
-    success_msg "Break session started"
+    success_msg "Break session started (background mode)"
     echo "  Type: ${break_type^} break"
     echo "  Duration: ${duration_min} minutes"
     echo "  Timer running in background (non-blocking)"
+    echo ""
+    echo "  💡 Tip: Use 'harm-cli break start' without --background for interactive mode"
   fi
 }
 
@@ -1118,6 +1347,17 @@ break_stop() {
   # Remove break state
   rm -f "$HARM_BREAK_STATE_FILE"
 
+  # In strict mode, clear break requirement after break is taken
+  if [[ "$HARM_WORK_ENFORCEMENT" == "strict" ]] && [[ -f "$HARM_WORK_ENFORCEMENT_FILE" ]]; then
+    local current_state
+    current_state=$(cat "$HARM_WORK_ENFORCEMENT_FILE" 2>/dev/null || echo '{}')
+
+    # Clear break_required flag
+    echo "$current_state" | jq '.break_required = false' | atomic_write "$HARM_WORK_ENFORCEMENT_FILE"
+
+    log_info "break" "Break requirement cleared"
+  fi
+
   log_info "break" "Break session stopped" "Duration: ${total_seconds}s, Type: $break_type, Completed: $completed_fully"
 
   # Send notification
@@ -1185,6 +1425,165 @@ break_status() {
     echo "  Started: $start_time"
     echo "  Elapsed: $elapsed_formatted"
     echo "  Remaining: $remaining_formatted"
+  fi
+}
+
+# ═══════════════════════════════════════════════════════════════
+# Scheduled Break Daemon
+# ═══════════════════════════════════════════════════════════════
+
+# scheduled_break_start_daemon: Start scheduled break reminder daemon
+#
+# Description:
+#   Starts a background daemon that triggers break reminders at regular intervals.
+#   Only starts if break_scheduled_enabled option is enabled.
+#
+# Returns:
+#   0 - Daemon started successfully
+#   1 - Daemon already running or disabled
+scheduled_break_start_daemon() {
+  # Check if scheduled breaks are enabled
+  local enabled
+  enabled=$(options_get break_scheduled_enabled)
+
+  if [[ "$enabled" != "1" ]]; then
+    log_debug "scheduled_break" "Scheduled breaks are disabled"
+    return 1
+  fi
+
+  # Check if daemon is already running
+  if [[ -f "$HARM_SCHEDULED_BREAK_PID_FILE" ]]; then
+    local pid
+    pid=$(cat "$HARM_SCHEDULED_BREAK_PID_FILE")
+
+    if kill -0 "$pid" 2>/dev/null; then
+      log_debug "scheduled_break" "Daemon already running" "PID=$pid"
+      return 1
+    else
+      # Stale PID file
+      rm -f "$HARM_SCHEDULED_BREAK_PID_FILE"
+    fi
+  fi
+
+  # Get interval from options (in minutes)
+  local interval_min
+  interval_min=$(options_get break_scheduled_interval)
+  local interval_sec=$((interval_min * 60))
+
+  log_info "scheduled_break" "Starting scheduled break daemon" "interval=${interval_min}m"
+
+  # Start daemon process
+  (
+    while true; do
+      sleep "$interval_sec"
+
+      # Check if file still exists (daemon could be stopped)
+      [[ ! -f "$HARM_SCHEDULED_BREAK_PID_FILE" ]] && break
+
+      # Only trigger break if no work session or break is active
+      if ! work_is_active && ! break_is_active; then
+        log_info "scheduled_break" "Triggering scheduled break"
+
+        # Determine break type based on recent activity
+        local break_type="short"
+        local duration
+        duration=$(options_get break_short)
+
+        # Send notification
+        work_send_notification "⏰ Scheduled Break Time!" "It's been ${interval_min} minutes. Time for a break!"
+
+        # Auto-start break in background mode
+        break_start --background "$duration" "$break_type" 2>/dev/null || true
+      else
+        log_debug "scheduled_break" "Skipping scheduled break (work/break active)"
+      fi
+    done
+  ) &
+
+  # Save daemon PID
+  echo $! >"$HARM_SCHEDULED_BREAK_PID_FILE"
+
+  log_info "scheduled_break" "Daemon started" "PID=$!, interval=${interval_min}m"
+  return 0
+}
+
+# scheduled_break_stop_daemon: Stop scheduled break reminder daemon
+#
+# Description:
+#   Stops the running scheduled break daemon if active.
+#
+# Returns:
+#   0 - Daemon stopped successfully
+#   1 - Daemon was not running
+scheduled_break_stop_daemon() {
+  if [[ ! -f "$HARM_SCHEDULED_BREAK_PID_FILE" ]]; then
+    log_debug "scheduled_break" "Daemon not running"
+    return 1
+  fi
+
+  local pid
+  pid=$(cat "$HARM_SCHEDULED_BREAK_PID_FILE")
+
+  if kill -0 "$pid" 2>/dev/null; then
+    kill "$pid" 2>/dev/null || true
+    log_info "scheduled_break" "Daemon stopped" "PID=$pid"
+  else
+    log_debug "scheduled_break" "Daemon already stopped (stale PID)"
+  fi
+
+  rm -f "$HARM_SCHEDULED_BREAK_PID_FILE"
+  return 0
+}
+
+# scheduled_break_status: Show scheduled break daemon status
+#
+# Returns:
+#   0 - Always succeeds
+scheduled_break_status() {
+  local enabled
+  enabled=$(options_get break_scheduled_enabled)
+
+  if [[ "$enabled" != "1" ]]; then
+    if [[ "${HARM_CLI_FORMAT:-text}" == "json" ]]; then
+      jq -n '{status: "disabled"}'
+    else
+      echo "Scheduled breaks: ${WARN_YELLOW}DISABLED${RESET}"
+      echo "  Enable: harm-cli options set break_scheduled_enabled 1"
+    fi
+    return 0
+  fi
+
+  # Check if daemon is running
+  local running="false"
+  local pid=""
+
+  if [[ -f "$HARM_SCHEDULED_BREAK_PID_FILE" ]]; then
+    pid=$(cat "$HARM_SCHEDULED_BREAK_PID_FILE")
+
+    if kill -0 "$pid" 2>/dev/null; then
+      running="true"
+    fi
+  fi
+
+  local interval_min
+  interval_min=$(options_get break_scheduled_interval)
+
+  if [[ "${HARM_CLI_FORMAT:-text}" == "json" ]]; then
+    jq -n \
+      --arg status "$running" \
+      --arg pid "$pid" \
+      --argjson interval "$interval_min" \
+      '{status: ($status == "true" | if . then "running" else "stopped" end), pid: $pid, interval_minutes: $interval}'
+  else
+    if [[ "$running" == "true" ]]; then
+      echo "Scheduled breaks: ${SUCCESS_GREEN}RUNNING${RESET}"
+      echo "  PID: $pid"
+      echo "  Interval: ${interval_min} minutes"
+    else
+      echo "Scheduled breaks: ${ERROR_RED}STOPPED${RESET}"
+      echo "  Interval: ${interval_min} minutes (when running)"
+      echo "  Start: harm-cli work init (or restart shell)"
+    fi
   fi
 }
 
@@ -1738,18 +2137,138 @@ work_set_enforcement() {
 }
 
 # ═══════════════════════════════════════════════════════════════
+# Strict Mode Blocking Functions
+# ═══════════════════════════════════════════════════════════════
+
+# work_strict_cd: Wrapper for cd command in strict mode
+#
+# Description:
+#   Blocks directory changes to different projects during work sessions.
+#   Only active when HARM_WORK_ENFORCEMENT=strict.
+#
+# Arguments:
+#   $@ - Arguments to pass to builtin cd
+#
+# Returns:
+#   0 - Directory change allowed
+#   1 - Directory change blocked
+work_strict_cd() {
+  # Get target directory (handle various cd formats)
+  local target="${1:-.}"
+
+  # Resolve to absolute path
+  local target_path
+  if [[ "$target" == "-" ]]; then
+    # cd - (go back)
+    target_path="${OLDPWD:-$HOME}"
+  elif [[ "${target:0:1}" != "/" ]]; then
+    # Relative path
+    target_path="$(cd "$target" 2>/dev/null && pwd)" || target_path="$HOME"
+  else
+    # Absolute path
+    target_path="$target"
+  fi
+
+  # Get current and target project names
+  local current_project target_project
+  current_project=$(basename "$PWD")
+  target_project=$(basename "$target_path")
+
+  # First time - set the active project
+  if [[ -z "$_WORK_ACTIVE_PROJECT" ]] && work_is_active; then
+    _WORK_ACTIVE_PROJECT="$target_project"
+    work_enforcement_save_state
+    builtin cd "$@"
+    return $?
+  fi
+
+  # Check if this would switch projects during active work session
+  if work_is_active && [[ -n "$_WORK_ACTIVE_PROJECT" ]] && [[ "$target_project" != "$_WORK_ACTIVE_PROJECT" ]]; then
+    echo "" >&2
+    echo "🚫 ${ERROR_RED}BLOCKED${RESET}: Project switch during work session" >&2
+    echo "   Active project: $_WORK_ACTIVE_PROJECT" >&2
+    echo "   Attempted: $target_project" >&2
+    echo "" >&2
+    echo "   You are in STRICT mode. To switch projects:" >&2
+    echo "   1. Stop work: ${BOLD}harm-cli work stop${RESET}" >&2
+    echo "   2. Then change directory" >&2
+    echo "" >&2
+
+    # Increment violation counter
+    _WORK_VIOLATIONS=$((_WORK_VIOLATIONS + 1))
+    work_enforcement_save_state
+
+    log_warn "work" "Blocked project switch" "from=$_WORK_ACTIVE_PROJECT to=$target_project"
+
+    return 1
+  fi
+
+  # Allow the cd
+  builtin cd "$@"
+  return $?
+}
+
+# work_strict_enforce_break: Check if break is required before new work
+#
+# Description:
+#   In strict mode, after certain violations or completing work sessions,
+#   a break may be required before starting new work.
+#
+# Returns:
+#   0 - No break required or break completed
+#   1 - Break required but not taken
+work_strict_enforce_break() {
+  [[ "$HARM_WORK_ENFORCEMENT" == "strict" ]] || return 0
+
+  if [[ -f "$HARM_WORK_ENFORCEMENT_FILE" ]]; then
+    local state
+    state=$(cat "$HARM_WORK_ENFORCEMENT_FILE" 2>/dev/null || echo '{}')
+
+    local break_required
+    break_required=$(echo "$state" | jq -r '.break_required // false')
+
+    if [[ "$break_required" == "true" ]]; then
+      local break_type
+      break_type=$(echo "$state" | jq -r '.break_type_required // "short"')
+
+      echo "" >&2
+      echo "🚫 ${ERROR_RED}BREAK REQUIRED${RESET}" >&2
+      echo "   You must take a $break_type break before starting new work" >&2
+      echo "   Run: ${BOLD}harm-cli break start${RESET}" >&2
+      echo "" >&2
+
+      return 1
+    fi
+  fi
+
+  return 0
+}
+
+# ═══════════════════════════════════════════════════════════════
 # Hook Registration
 # ═══════════════════════════════════════════════════════════════
 
 # Register enforcement hooks if in strict mode
-if [[ "$HARM_WORK_ENFORCEMENT" == "strict" ]] && type harm_add_hook >/dev/null 2>&1; then
+if [[ "$HARM_WORK_ENFORCEMENT" == "strict" ]]; then
   # Load existing state
   work_enforcement_load_state 2>/dev/null || true
 
-  # Register project switch detection
-  harm_add_hook chpwd work_check_project_switch 2>/dev/null || true
+  # Register project switch detection (if hooks module available)
+  if type harm_add_hook >/dev/null 2>&1; then
+    harm_add_hook chpwd work_check_project_switch 2>/dev/null || true
+  fi
 
   log_debug "work" "Work enforcement enabled" "mode=$HARM_WORK_ENFORCEMENT"
+
+  # Override cd with strict wrapper - This actually BLOCKS directory changes
+  # Works in both interactive and non-interactive shells
+  if [[ "${BASH_VERSION:-}" != "" ]]; then
+    cd() {
+      work_strict_cd "$@"
+    }
+    export -f cd
+    log_debug "work" "Strict cd wrapper enabled"
+  fi
 fi
 
 # ═══════════════════════════════════════════════════════════════
@@ -1761,8 +2280,10 @@ export -f work_start work_stop work_status
 export -f work_require_active work_remind work_focus_score
 export -f work_send_notification work_stop_timer
 export -f work_get_pomodoro_count work_increment_pomodoro_count work_reset_pomodoro_count
-export -f break_is_active break_start break_stop break_status
+export -f break_is_active break_start break_stop break_status break_countdown_interactive
+export -f scheduled_break_start_daemon scheduled_break_stop_daemon scheduled_break_status
 export -f work_stats work_stats_today work_stats_week work_stats_month
 export -f work_break_compliance
 export -f work_enforcement_load_state work_enforcement_save_state work_enforcement_clear
 export -f work_check_project_switch work_get_violations work_reset_violations work_set_enforcement
+export -f work_strict_cd work_strict_enforce_break
