@@ -386,8 +386,8 @@ _log_build_level_filter() {
     fi
   done
 
-  # Return grep command with pattern
-  echo "grep --line-buffered -E '($pattern)'"
+  # Return just the pattern (not the full grep command)
+  echo "($pattern)"
 }
 
 # _log_format_json_line: Convert log line to JSON format
@@ -521,12 +521,21 @@ log_stream() {
 
   # Build streaming pipeline
   # KEY: Use tail -F (capital F) for rotation-aware following
-  local tail_cmd="tail -F -n 0"
+  # Resolve command paths once for reliability
+  local TAIL_BIN GREP_BIN
+  TAIL_BIN=$(command -v tail) || {
+    error_msg "tail command not found in PATH"
+    return 1
+  }
+  GREP_BIN=$(command -v grep) || {
+    error_msg "grep command not found in PATH"
+    return 1
+  }
 
   # Add level filtering if specified (MINIMUM LEVEL - shows level and above)
-  local filter_cmd="cat"
+  local filter_pattern=""
   if [[ -n "$level" ]]; then
-    filter_cmd=$(_log_build_level_filter "$level")
+    filter_pattern=$(_log_build_level_filter "$level")
   fi
 
   # Handle format and color interaction
@@ -574,27 +583,51 @@ log_stream() {
       || [[ "$format_cmd" == "_log_format_structured_line" ]] \
       || [[ "$format_cmd" == "_log_format_colored_line" ]]; then
       # For shell functions, use while-read loop
-      # SECURITY FIX (MEDIUM-2): Removed eval to prevent command injection
-      stdbuf -o0 $tail_cmd "$log_file" | stdbuf -o0 $filter_cmd | while IFS= read -r line; do
-        $format_cmd <<<"$line"
-      done
+      if [[ -n "$filter_pattern" ]]; then
+        stdbuf -o0 "$TAIL_BIN" -F -n 0 "$log_file" \
+          | stdbuf -o0 "$GREP_BIN" --line-buffered -E "$filter_pattern" \
+          | while IFS= read -r line; do
+            $format_cmd <<<"$line"
+          done
+      else
+        stdbuf -o0 "$TAIL_BIN" -F -n 0 "$log_file" \
+          | while IFS= read -r line; do
+            $format_cmd <<<"$line"
+          done
+      fi
     else
       # For builtins/executables, pipe directly
-      # SECURITY FIX (MEDIUM-2): Removed eval to prevent command injection
-      stdbuf -o0 $tail_cmd "$log_file" | stdbuf -o0 $filter_cmd | stdbuf -o0 $format_cmd
+      if [[ -n "$filter_pattern" ]]; then
+        stdbuf -o0 "$TAIL_BIN" -F -n 0 "$log_file" \
+          | stdbuf -o0 "$GREP_BIN" --line-buffered -E "$filter_pattern" \
+          | stdbuf -o0 $format_cmd
+      else
+        stdbuf -o0 "$TAIL_BIN" -F -n 0 "$log_file" | stdbuf -o0 $format_cmd
+      fi
     fi
   else
     # Fallback without stdbuf
     if [[ "$format_cmd" == "_log_format_json_line" ]] \
       || [[ "$format_cmd" == "_log_format_structured_line" ]] \
       || [[ "$format_cmd" == "_log_format_colored_line" ]]; then
-      # SECURITY FIX (MEDIUM-2): Removed eval to prevent command injection
-      $tail_cmd "$log_file" | $filter_cmd | while IFS= read -r line; do
-        $format_cmd <<<"$line"
-      done
+      if [[ -n "$filter_pattern" ]]; then
+        "$TAIL_BIN" -F -n 0 "$log_file" \
+          | "$GREP_BIN" --line-buffered -E "$filter_pattern" \
+          | while IFS= read -r line; do
+            $format_cmd <<<"$line"
+          done
+      else
+        "$TAIL_BIN" -F -n 0 "$log_file" \
+          | while IFS= read -r line; do
+            $format_cmd <<<"$line"
+          done
+      fi
     else
-      # SECURITY FIX (MEDIUM-2): Removed eval to prevent command injection
-      $tail_cmd "$log_file" | $filter_cmd | $format_cmd
+      if [[ -n "$filter_pattern" ]]; then
+        "$TAIL_BIN" -F -n 0 "$log_file" | "$GREP_BIN" --line-buffered -E "$filter_pattern" | $format_cmd
+      else
+        "$TAIL_BIN" -F -n 0 "$log_file" | $format_cmd
+      fi
     fi
   fi
 }
