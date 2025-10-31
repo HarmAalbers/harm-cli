@@ -236,7 +236,7 @@ run_core_tests() {
 }
 
 run_work_tests() {
-  print_header "Category 2: Work Session Management (6 tests)"
+  print_header "Category 2: Work Session Management (10 tests)"
 
   local category="Work Sessions"
   local tests_passed=0
@@ -292,6 +292,42 @@ run_work_tests() {
   result=$(run_test "2.6" "harm-cli work status --format json - JSON format" \
     "harm-cli work status --format json" "Valid JSON with session data" \
     "$category" "work JSON")
+  case "$result" in
+    PASS) tests_passed=$((tests_passed + 1)) ;; FAIL) tests_failed=$((tests_failed + 1)) ;;
+    SKIP) tests_skipped=$((tests_skipped + 1)) ;; QUIT) return 1 ;;
+  esac
+
+  # Test 2.7: Work reset pomodoro
+  result=$(run_test "2.7" "harm-cli work reset - Reset pomodoro counter" \
+    "harm-cli work reset" "Pomodoro counter reset to 0" \
+    "$category" "work reset")
+  case "$result" in
+    PASS) tests_passed=$((tests_passed + 1)) ;; FAIL) tests_failed=$((tests_failed + 1)) ;;
+    SKIP) tests_skipped=$((tests_skipped + 1)) ;; QUIT) return 1 ;;
+  esac
+
+  # Test 2.8: Work violations
+  result=$(run_test "2.8" "harm-cli work violations - Show violation count" \
+    "harm-cli work violations" "Current violation count" \
+    "$category" "work violations")
+  case "$result" in
+    PASS) tests_passed=$((tests_passed + 1)) ;; FAIL) tests_failed=$((tests_failed + 1)) ;;
+    SKIP) tests_skipped=$((tests_skipped + 1)) ;; QUIT) return 1 ;;
+  esac
+
+  # Test 2.9: Work reset violations
+  result=$(run_test "2.9" "harm-cli work reset-violations - Reset violations" \
+    "harm-cli work reset-violations" "Violations reset to 0" \
+    "$category" "work reset-violations")
+  case "$result" in
+    PASS) tests_passed=$((tests_passed + 1)) ;; FAIL) tests_failed=$((tests_failed + 1)) ;;
+    SKIP) tests_skipped=$((tests_skipped + 1)) ;; QUIT) return 1 ;;
+  esac
+
+  # Test 2.10: Work set-mode
+  result=$(run_test "2.10" "harm-cli work set-mode strict - Set enforcement mode" \
+    "harm-cli work set-mode strict" "Enforcement mode set to strict" \
+    "$category" "work set-mode")
   case "$result" in
     PASS) tests_passed=$((tests_passed + 1)) ;; FAIL) tests_failed=$((tests_failed + 1)) ;;
     SKIP) tests_skipped=$((tests_skipped + 1)) ;; QUIT) return 1 ;;
@@ -1182,6 +1218,374 @@ run_just_tests() {
   return 0
 }
 
+run_break_tests() {
+  print_header "Category 15: Break Management (3 tests)"
+
+  local category="Break Management"
+  local tests_passed=0
+  local tests_failed=0
+  local tests_skipped=0
+
+  # Test 15.1: Start break
+  result=$(run_test "15.1" "harm-cli break start - Start break session" \
+    "harm-cli break start" "Break started (auto-detects short/long)" \
+    "$category" "break start")
+  case "$result" in
+    PASS) tests_passed=$((tests_passed + 1)) ;; FAIL) tests_failed=$((tests_failed + 1)) ;;
+    SKIP) tests_skipped=$((tests_skipped + 1)) ;; QUIT) return 1 ;;
+  esac
+
+  # Test 15.2: Break status
+  result=$(run_test "15.2" "harm-cli break status - Show break status" \
+    "harm-cli break status" "Current break info or 'No active break'" \
+    "$category" "break status")
+  case "$result" in
+    PASS) tests_passed=$((tests_passed + 1)) ;; FAIL) tests_failed=$((tests_failed + 1)) ;;
+    SKIP) tests_skipped=$((tests_skipped + 1)) ;; QUIT) return 1 ;;
+  esac
+
+  # Test 15.3: Stop break
+  result=$(run_test "15.3" "harm-cli break stop - Stop break session" \
+    "harm-cli break stop" "Break stopped, duration shown" \
+    "$category" "break stop")
+  case "$result" in
+    PASS) tests_passed=$((tests_passed + 1)) ;; FAIL) tests_failed=$((tests_failed + 1)) ;;
+    SKIP) tests_skipped=$((tests_skipped + 1)) ;; QUIT) return 1 ;;
+  esac
+
+  echo ""
+  echo -e "${GREEN}Passed: $tests_passed${RESET} | ${RED}Failed: $tests_failed${RESET} | ${YELLOW}Skipped: $tests_skipped${RESET}"
+
+  return 0
+}
+
+run_activity_tests() {
+  print_header "Category 16: Activity Tracking (4 tests)"
+
+  local category="Activity Tracking"
+  local tests_passed=0
+  local tests_failed=0
+  local tests_skipped=0
+
+  # Test 16.1: Query today
+  result=$(run_test "16.1" "harm-cli activity query today - Show today's activity" \
+    "harm-cli activity query today" "JSON activity log entries" \
+    "$category" "activity query")
+  case "$result" in
+    PASS) tests_passed=$((tests_passed + 1)) ;; FAIL) tests_failed=$((tests_failed + 1)) ;;
+    SKIP) tests_skipped=$((tests_skipped + 1)) ;; QUIT) return 1 ;;
+  esac
+
+  # Test 16.2: Stats today
+  result=$(run_test "16.2" "harm-cli activity stats today - Activity statistics" \
+    "harm-cli activity stats today" "Command count, success rate, etc." \
+    "$category" "activity stats")
+  case "$result" in
+    PASS) tests_passed=$((tests_passed + 1)) ;; FAIL) tests_failed=$((tests_failed + 1)) ;;
+    SKIP) tests_skipped=$((tests_skipped + 1)) ;; QUIT) return 1 ;;
+  esac
+
+  # Test 16.3: Query week
+  result=$(run_test "16.3" "harm-cli activity query week - Week activity" \
+    "harm-cli activity query week" "Last 7 days of activity" \
+    "$category" "activity query week")
+  case "$result" in
+    PASS) tests_passed=$((tests_passed + 1)) ;; FAIL) tests_failed=$((tests_failed + 1)) ;;
+    SKIP) tests_skipped=$((tests_skipped + 1)) ;; QUIT) return 1 ;;
+  esac
+
+  # Test 16.4: Cleanup
+  result=$(run_test "16.4" "harm-cli activity cleanup - Remove old entries" \
+    "harm-cli activity cleanup" "Old entries removed (90+ days)" \
+    "$category" "activity cleanup")
+  case "$result" in
+    PASS) tests_passed=$((tests_passed + 1)) ;; FAIL) tests_failed=$((tests_failed + 1)) ;;
+    SKIP) tests_skipped=$((tests_skipped + 1)) ;; QUIT) return 1 ;;
+  esac
+
+  echo ""
+  echo -e "${GREEN}Passed: $tests_passed${RESET} | ${RED}Failed: $tests_failed${RESET} | ${YELLOW}Skipped: $tests_skipped${RESET}"
+
+  return 0
+}
+
+run_insights_tests() {
+  print_header "Category 17: Productivity Insights (4 tests)"
+
+  local category="Productivity Insights"
+  local tests_passed=0
+  local tests_failed=0
+  local tests_skipped=0
+
+  # Test 17.1: Show week insights
+  result=$(run_test "17.1" "harm-cli insights show week - Weekly insights" \
+    "harm-cli insights show week" "Dashboard with commands, errors, projects" \
+    "$category" "insights show")
+  case "$result" in
+    PASS) tests_passed=$((tests_passed + 1)) ;; FAIL) tests_failed=$((tests_failed + 1)) ;;
+    SKIP) tests_skipped=$((tests_skipped + 1)) ;; QUIT) return 1 ;;
+  esac
+
+  # Test 17.2: Daily summary
+  result=$(run_test "17.2" "harm-cli insights daily - Daily summary" \
+    "harm-cli insights daily" "Today's productivity summary" \
+    "$category" "insights daily")
+  case "$result" in
+    PASS) tests_passed=$((tests_passed + 1)) ;; FAIL) tests_failed=$((tests_failed + 1)) ;;
+    SKIP) tests_skipped=$((tests_skipped + 1)) ;; QUIT) return 1 ;;
+  esac
+
+  # Test 17.3: Show category
+  result=$(run_test "17.3" "harm-cli insights show week commands - Command analysis" \
+    "harm-cli insights show week commands" "Most used commands, patterns" \
+    "$category" "insights category")
+  case "$result" in
+    PASS) tests_passed=$((tests_passed + 1)) ;; FAIL) tests_failed=$((tests_failed + 1)) ;;
+    SKIP) tests_skipped=$((tests_skipped + 1)) ;; QUIT) return 1 ;;
+  esac
+
+  # Test 17.4: Export JSON
+  result=$(run_test "17.4" "harm-cli insights json week - JSON export" \
+    "harm-cli insights json week" "Valid JSON with insights data" \
+    "$category" "insights json")
+  case "$result" in
+    PASS) tests_passed=$((tests_passed + 1)) ;; FAIL) tests_failed=$((tests_failed + 1)) ;;
+    SKIP) tests_skipped=$((tests_skipped + 1)) ;; QUIT) return 1 ;;
+  esac
+
+  echo ""
+  echo -e "${GREEN}Passed: $tests_passed${RESET} | ${RED}Failed: $tests_failed${RESET} | ${YELLOW}Skipped: $tests_skipped${RESET}"
+
+  return 0
+}
+
+run_focus_tests() {
+  print_header "Category 18: Focus Monitoring (5 tests)"
+
+  local category="Focus Monitoring"
+  local tests_passed=0
+  local tests_failed=0
+  local tests_skipped=0
+
+  # Test 18.1: Focus check
+  result=$(run_test "18.1" "harm-cli focus check - Show focus summary" \
+    "harm-cli focus check" "Focus summary with score and recommendations" \
+    "$category" "focus check")
+  case "$result" in
+    PASS) tests_passed=$((tests_passed + 1)) ;; FAIL) tests_failed=$((tests_failed + 1)) ;;
+    SKIP) tests_skipped=$((tests_skipped + 1)) ;; QUIT) return 1 ;;
+  esac
+
+  # Test 18.2: Focus score
+  result=$(run_test "18.2" "harm-cli focus score - Show focus score" \
+    "harm-cli focus score" "Score 1-10 with explanation" \
+    "$category" "focus score")
+  case "$result" in
+    PASS) tests_passed=$((tests_passed + 1)) ;; FAIL) tests_failed=$((tests_failed + 1)) ;;
+    SKIP) tests_skipped=$((tests_skipped + 1)) ;; QUIT) return 1 ;;
+  esac
+
+  # Test 18.3: Pomodoro start
+  result=$(run_test "18.3" "harm-cli focus pomodoro 25 - Start pomodoro" \
+    "harm-cli focus pomodoro 25" "25-minute timer started" \
+    "$category" "focus pomodoro")
+  case "$result" in
+    PASS) tests_passed=$((tests_passed + 1)) ;; FAIL) tests_failed=$((tests_failed + 1)) ;;
+    SKIP) tests_skipped=$((tests_skipped + 1)) ;; QUIT) return 1 ;;
+  esac
+
+  # Test 18.4: Pomodoro status
+  result=$(run_test "18.4" "harm-cli focus pomodoro-status - Check timer" \
+    "harm-cli focus pomodoro-status" "Timer status or 'No active timer'" \
+    "$category" "focus pomodoro-status")
+  case "$result" in
+    PASS) tests_passed=$((tests_passed + 1)) ;; FAIL) tests_failed=$((tests_failed + 1)) ;;
+    SKIP) tests_skipped=$((tests_skipped + 1)) ;; QUIT) return 1 ;;
+  esac
+
+  # Test 18.5: Pomodoro stop
+  result=$(run_test "18.5" "harm-cli focus pomodoro-stop - Stop timer" \
+    "harm-cli focus pomodoro-stop" "Timer stopped" \
+    "$category" "focus pomodoro-stop")
+  case "$result" in
+    PASS) tests_passed=$((tests_passed + 1)) ;; FAIL) tests_failed=$((tests_failed + 1)) ;;
+    SKIP) tests_skipped=$((tests_skipped + 1)) ;; QUIT) return 1 ;;
+  esac
+
+  echo ""
+  echo -e "${GREEN}Passed: $tests_passed${RESET} | ${RED}Failed: $tests_failed${RESET} | ${YELLOW}Skipped: $tests_skipped${RESET}"
+
+  return 0
+}
+
+run_learning_tests() {
+  print_header "Category 19: Learning & Discovery (4 tests)"
+
+  local category="Learning & Discovery"
+  local tests_passed=0
+  local tests_failed=0
+  local tests_skipped=0
+
+  # Test 19.1: Learn topic
+  result=$(run_test "19.1" "harm-cli learn git - Learn git workflows" \
+    "harm-cli learn git" "AI tutorial on git" \
+    "$category" "learn")
+  case "$result" in
+    PASS) tests_passed=$((tests_passed + 1)) ;; FAIL) tests_failed=$((tests_failed + 1)) ;;
+    SKIP) tests_skipped=$((tests_skipped + 1)) ;; QUIT) return 1 ;;
+  esac
+
+  # Test 19.2: Discover features
+  result=$(run_test "19.2" "harm-cli discover - Feature suggestions" \
+    "harm-cli discover" "Personalized feature recommendations" \
+    "$category" "discover")
+  case "$result" in
+    PASS) tests_passed=$((tests_passed + 1)) ;; FAIL) tests_failed=$((tests_failed + 1)) ;;
+    SKIP) tests_skipped=$((tests_skipped + 1)) ;; QUIT) return 1 ;;
+  esac
+
+  # Test 19.3: Unused commands
+  result=$(run_test "19.3" "harm-cli unused - Find unused commands" \
+    "harm-cli unused" "List of commands never used" \
+    "$category" "unused")
+  case "$result" in
+    PASS) tests_passed=$((tests_passed + 1)) ;; FAIL) tests_failed=$((tests_failed + 1)) ;;
+    SKIP) tests_skipped=$((tests_skipped + 1)) ;; QUIT) return 1 ;;
+  esac
+
+  # Test 19.4: Cheat sheet
+  result=$(run_test "19.4" "harm-cli cheat curl - Quick reference" \
+    "harm-cli cheat curl" "Cheat sheet from cheat.sh" \
+    "$category" "cheat")
+  case "$result" in
+    PASS) tests_passed=$((tests_passed + 1)) ;; FAIL) tests_failed=$((tests_failed + 1)) ;;
+    SKIP) tests_skipped=$((tests_skipped + 1)) ;; QUIT) return 1 ;;
+  esac
+
+  echo ""
+  echo -e "${GREEN}Passed: $tests_passed${RESET} | ${RED}Failed: $tests_failed${RESET} | ${YELLOW}Skipped: $tests_skipped${RESET}"
+
+  return 0
+}
+
+run_github_tests() {
+  print_header "Category 20: GitHub Integration (6 tests)"
+
+  local category="GitHub Integration"
+  local tests_passed=0
+  local tests_failed=0
+  local tests_skipped=0
+
+  # Test 20.1: GitHub status
+  result=$(run_test "20.1" "harm-cli github status - Show repo status" \
+    "harm-cli github status" "Repo info, current branch, PRs" \
+    "$category" "github status")
+  case "$result" in
+    PASS) tests_passed=$((tests_passed + 1)) ;; FAIL) tests_failed=$((tests_failed + 1)) ;;
+    SKIP) tests_skipped=$((tests_skipped + 1)) ;; QUIT) return 1 ;;
+  esac
+
+  # Test 20.2: GitHub context
+  result=$(run_test "20.2" "harm-cli github context - AI context summary" \
+    "harm-cli github context" "Context summary for AI" \
+    "$category" "github context")
+  case "$result" in
+    PASS) tests_passed=$((tests_passed + 1)) ;; FAIL) tests_failed=$((tests_failed + 1)) ;;
+    SKIP) tests_skipped=$((tests_skipped + 1)) ;; QUIT) return 1 ;;
+  esac
+
+  # Test 20.3: List issues
+  result=$(run_test "20.3" "harm-cli github issues - List issues" \
+    "harm-cli github issues" "Open issues list" \
+    "$category" "github issues")
+  case "$result" in
+    PASS) tests_passed=$((tests_passed + 1)) ;; FAIL) tests_failed=$((tests_failed + 1)) ;;
+    SKIP) tests_skipped=$((tests_skipped + 1)) ;; QUIT) return 1 ;;
+  esac
+
+  # Test 20.4: List PRs
+  result=$(run_test "20.4" "harm-cli github prs - List pull requests" \
+    "harm-cli github prs" "Open PRs list" \
+    "$category" "github prs")
+  case "$result" in
+    PASS) tests_passed=$((tests_passed + 1)) ;; FAIL) tests_failed=$((tests_failed + 1)) ;;
+    SKIP) tests_skipped=$((tests_skipped + 1)) ;; QUIT) return 1 ;;
+  esac
+
+  # Test 20.5: Show issue
+  result=$(run_test "20.5" "harm-cli github issue 1 - Show issue details" \
+    "harm-cli github issue 1" "Issue #1 details in JSON" \
+    "$category" "github issue")
+  case "$result" in
+    PASS) tests_passed=$((tests_passed + 1)) ;; FAIL) tests_failed=$((tests_failed + 1)) ;;
+    SKIP) tests_skipped=$((tests_skipped + 1)) ;; QUIT) return 1 ;;
+  esac
+
+  # Test 20.6: Show PR
+  result=$(run_test "20.6" "harm-cli github pr 1 - Show PR details" \
+    "harm-cli github pr 1" "PR #1 details in JSON" \
+    "$category" "github pr")
+  case "$result" in
+    PASS) tests_passed=$((tests_passed + 1)) ;; FAIL) tests_failed=$((tests_failed + 1)) ;;
+    SKIP) tests_skipped=$((tests_skipped + 1)) ;; QUIT) return 1 ;;
+  esac
+
+  echo ""
+  echo -e "${GREEN}Passed: $tests_passed${RESET} | ${RED}Failed: $tests_failed${RESET} | ${YELLOW}Skipped: $tests_skipped${RESET}"
+
+  return 0
+}
+
+run_options_tests() {
+  print_header "Category 21: Options Management (4 tests)"
+
+  local category="Options Management"
+  local tests_passed=0
+  local tests_failed=0
+  local tests_skipped=0
+
+  # Test 21.1: Show options
+  result=$(run_test "21.1" "harm-cli options show - Show all options" \
+    "harm-cli options show" "All configuration options displayed" \
+    "$category" "options show")
+  case "$result" in
+    PASS) tests_passed=$((tests_passed + 1)) ;; FAIL) tests_failed=$((tests_failed + 1)) ;;
+    SKIP) tests_skipped=$((tests_skipped + 1)) ;; QUIT) return 1 ;;
+  esac
+
+  # Test 21.2: Get option
+  result=$(run_test "21.2" "harm-cli options get log_level - Get specific option" \
+    "harm-cli options get log_level" "Current log_level value" \
+    "$category" "options get")
+  case "$result" in
+    PASS) tests_passed=$((tests_passed + 1)) ;; FAIL) tests_failed=$((tests_failed + 1)) ;;
+    SKIP) tests_skipped=$((tests_skipped + 1)) ;; QUIT) return 1 ;;
+  esac
+
+  # Test 21.3: Interactive set
+  result=$(run_test "21.3" "harm-cli options set - Interactive configuration" \
+    "harm-cli options set" "Interactive option configuration menu" \
+    "$category" "options set")
+  case "$result" in
+    PASS) tests_passed=$((tests_passed + 1)) ;; FAIL) tests_failed=$((tests_failed + 1)) ;;
+    SKIP) tests_skipped=$((tests_skipped + 1)) ;; QUIT) return 1 ;;
+  esac
+
+  # Test 21.4: Reset option
+  result=$(run_test "21.4" "harm-cli options reset format - Reset to default" \
+    "harm-cli options reset format" "Option reset to default value" \
+    "$category" "options reset")
+  case "$result" in
+    PASS) tests_passed=$((tests_passed + 1)) ;; FAIL) tests_failed=$((tests_failed + 1)) ;;
+    SKIP) tests_skipped=$((tests_skipped + 1)) ;; QUIT) return 1 ;;
+  esac
+
+  echo ""
+  echo -e "${GREEN}Passed: $tests_passed${RESET} | ${RED}Failed: $tests_failed${RESET} | ${YELLOW}Skipped: $tests_skipped${RESET}"
+
+  return 0
+}
+
 # ═══════════════════════════════════════════════════════════════
 # Main Menu
 # ═══════════════════════════════════════════════════════════════
@@ -1197,7 +1601,7 @@ show_menu() {
   echo "Select test category to run:"
   echo ""
   echo "  1.  Core Commands (12 tests)"
-  echo "  2.  Work Session Management (6 tests)"
+  echo "  2.  Work Session Management (10 tests)"
   echo "  3.  Goal Tracking (10 tests)"
   echo "  4.  AI Assistant (11 tests)"
   echo "  5.  Git Workflows (3 tests)"
@@ -1210,8 +1614,15 @@ show_menu() {
   echo "  12. Markdown Rendering (4 tests)"
   echo "  13. Log Streaming (3 tests)"
   echo "  14. Development Tools/Just (15 tests)"
+  echo "  15. Break Management (3 tests)"
+  echo "  16. Activity Tracking (4 tests)"
+  echo "  17. Productivity Insights (4 tests)"
+  echo "  18. Focus Monitoring (5 tests)"
+  echo "  19. Learning & Discovery (4 tests)"
+  echo "  20. GitHub Integration (6 tests)"
+  echo "  21. Options Management (4 tests)"
   echo ""
-  echo "  a.  All Tests (95 tests)"
+  echo "  a.  All Tests (131 tests)"
   echo ""
   echo "  r.  View test results"
   echo "  q.  Quit"
@@ -1283,13 +1694,22 @@ main() {
       12) run_markdown_tests || continue ;;
       13) run_log_tests || continue ;;
       14) run_just_tests || continue ;;
+      15) run_break_tests || continue ;;
+      16) run_activity_tests || continue ;;
+      17) run_insights_tests || continue ;;
+      18) run_focus_tests || continue ;;
+      19) run_learning_tests || continue ;;
+      20) run_github_tests || continue ;;
+      21) run_options_tests || continue ;;
       a | A)
         echo "Running all tests..."
         run_core_tests && run_work_tests && run_goal_tests && \
         run_ai_tests && run_git_tests && run_proj_tests && \
         run_docker_tests && run_python_tests && run_gcloud_tests && \
         run_health_tests && run_safety_tests && run_markdown_tests && \
-        run_log_tests && run_just_tests
+        run_log_tests && run_just_tests && run_break_tests && \
+        run_activity_tests && run_insights_tests && run_focus_tests && \
+        run_learning_tests && run_github_tests && run_options_tests
         ;;
       r | R) view_results ;;
       q | Q)
