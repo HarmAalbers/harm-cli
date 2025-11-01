@@ -92,10 +92,11 @@ jobs:
 
       - name: Run codespell
         run: |
-          pip install codespell
+          pip install -q codespell
           codespell \
             --ignore-words-list "crate,ect,hist,nd,te,thru,afterall,iterm" \
-            --skip ".git,spec/golden"
+            --skip ".git,spec/golden" \
+            .
 
   bash-safety:
     name: Bash Safety Checks
