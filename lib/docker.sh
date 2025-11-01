@@ -302,6 +302,41 @@ docker_build_compose_flags() {
 # Performance:
 #   - Startup time: 2-30s (depends on images/services)
 #   - First run: slower (image pulls)
+
+# _docker_validate_service_names: Validate Docker Compose service names
+#
+# SECURITY FIX (HIGH-2): Prevent command injection via malicious service names
+#
+# Description:
+#   Validates that service names contain only safe characters.
+#   Prevents command injection attacks via crafted service names.
+#
+# Arguments:
+#   $@ - Service names to validate
+#
+# Returns:
+#   0 - All service names valid
+#   EXIT_INVALID_ARGS - Invalid service name detected
+#
+# Security:
+#   - Service names must match: ^[a-zA-Z0-9_-]+$
+#   - Blocks: semicolons, pipes, quotes, spaces, special chars
+#   - Prevents attacks like: harm-cli docker up "; rm -rf /"
+#
+# Examples:
+#   _docker_validate_service_names backend database  # OK
+#   _docker_validate_service_names "app; malicious"  # BLOCKED
+_docker_validate_service_names() {
+  local service
+  for service in "$@"; do
+    if [[ ! "$service" =~ ^[a-zA-Z0-9_-]+$ ]]; then
+      log_error "docker" "Invalid service name rejected" "Service: $service"
+      die "Invalid service name: $service (only alphanumeric, dash, underscore allowed)" "$EXIT_INVALID_ARGS"
+    fi
+  done
+  log_debug "docker" "Service names validated" "Count: $#"
+}
+
 docker_up() {
   log_info "docker" "Starting Docker Compose services" "Services: ${*:-all}"
 
@@ -339,6 +374,12 @@ docker_up() {
 
   # Start services
   echo "🐳 Starting services..."
+
+  # SECURITY: Validate service names before passing to docker compose
+  if [[ $# -gt 0 ]]; then
+    _docker_validate_service_names "$@"
+  fi
+
   if docker compose "${compose_flags[@]}" up -d "$@"; then
     echo "✓ Services started"
     log_info "docker" "Services started successfully"
@@ -823,6 +864,7 @@ export -f docker_is_running
 export -f docker_find_compose_file
 export -f docker_find_all_compose_files
 export -f docker_build_compose_flags
+export -f _docker_validate_service_names
 export -f docker_up
 export -f docker_down
 export -f docker_status

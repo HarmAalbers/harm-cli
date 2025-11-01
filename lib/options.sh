@@ -81,6 +81,11 @@ declare -gA OPTIONS_SCHEMA=(
   ["ai_timeout"]="int:20:HARM_CLI_AI_TIMEOUT:AI request timeout in seconds:validate_positive_int"
   ["ai_max_tokens"]="int:2048:HARM_CLI_AI_MAX_TOKENS:AI maximum tokens per request:validate_positive_int"
   ["ai_model"]="enum:gemini-2.0-flash-exp:GEMINI_MODEL:AI model to use:validate_ai_model"
+  ["ai_auto_context"]="bool:1:HARM_AI_AUTO_CONTEXT:Auto-include work sessions and goals in AI context:validate_bool"
+
+  # Work/Goals Integration
+  ["work_auto_track_goals"]="bool:1:HARM_WORK_AUTO_TRACK_GOALS:Auto-increment goal progress after work sessions:validate_bool"
+  ["work_goal_increment"]="int:10:HARM_WORK_GOAL_INCREMENT:Goal progress increment percentage per session:validate_positive_int"
 
   # Shell Hooks
   ["hooks_enabled"]="bool:1:HARM_HOOKS_ENABLED:Enable shell hooks system (0=disabled, 1=enabled):validate_bool"

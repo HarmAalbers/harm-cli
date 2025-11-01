@@ -97,6 +97,45 @@ log_error() { _log "$LOG_LEVEL_ERROR" "ERROR" "$@"; }
 # Simple log (always prints, for user-visible output)
 log() { echo "$@" >&2; }
 
+# CODE QUALITY IMPROVEMENT: Safe logging wrapper
+# Eliminates 80+ duplicate "declare -F" checks across the codebase
+#
+# safe_log: Wrapper that checks availability before logging
+# Usage: safe_log <level> <component> <message> [details]
+#
+# Example:
+#   safe_log error "ai" "request failed" "timeout=20s"
+#   safe_log debug "work" "session started" "goal=$goal"
+#
+# Benefits:
+# - DRY: Single place for logging availability check
+# - Consistency: Same pattern everywhere
+# - Safety: Never fails if logging not available
+# - Cleaner: 1 line instead of 3
+#
+# Before:
+#   if declare -F log_error >/dev/null 2>&1; then
+#     log_error "component" "message" "context"
+#   fi
+#
+# After:
+#   safe_log error "component" "message" "context"
+#
+safe_log() {
+  local level="${1:?safe_log requires level (debug|info|warn|error)}"
+  shift
+
+  local log_func="log_${level}"
+
+  # Check if logging function is available
+  if declare -F "$log_func" >/dev/null 2>&1; then
+    "$log_func" "$@"
+  fi
+
+  # Always return success (logging failures shouldn't break operations)
+  return 0
+}
+
 # ═══════════════════════════════════════════════════════════════
 # File I/O Contracts
 # ═══════════════════════════════════════════════════════════════
@@ -228,7 +267,7 @@ json_escape() {
 # ═══════════════════════════════════════════════════════════════
 
 export -f die warn require_command
-export -f log_debug log_info log_warn log_error log
+export -f log_debug log_info log_warn log_error log safe_log
 export -f ensure_dir ensure_writable_dir atomic_write file_exists dir_exists
 export -f require_arg validate_int validate_format
 export -f run_with_timeout json_escape

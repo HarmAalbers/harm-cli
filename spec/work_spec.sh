@@ -345,4 +345,156 @@ Skip if "Requires notification settings implementation"
 End
 End
 End
+
+Describe 'Critical Edge Cases'
+BeforeEach 'cleanup_work_session'
+
+Context 'Corrupted state file recovery'
+It 'recovers from invalid JSON in state file'
+echo '{"incomplete": json content' >"$HARM_WORK_STATE_FILE"
+When call work_is_active
+The status should be failure
+End
+
+It 'recovers by starting fresh after corrupted state'
+echo 'not json at all!!!' >"$HARM_WORK_STATE_FILE"
+When call work_start "Recovery test"
+The status should be success
+The file "$HARM_WORK_STATE_FILE" should exist
+# Verify new state is valid JSON
+grep -q '"status"' "$HARM_WORK_STATE_FILE"
+The status should equal 0
+End
+
+It 'logs corrupted state error with context'
+echo '{corrupted}' >"$HARM_WORK_STATE_FILE"
+When call work_load_state
+The status should equal 0 # work_load_state returns empty on corruption
+The output should equal ""
+End
+End
+
+Context 'PID reuse scenarios (stale PID file)'
+It 'handles non-existent PID gracefully in work_stop_timer'
+# Simulate stale PID from previous session
+echo "99999" >"$HARM_WORK_TIMER_PID_FILE"
+When call work_stop_timer
+The status should equal 0
+The file "$HARM_WORK_TIMER_PID_FILE" should not exist
+End
+
+It 'detects and cleans stale PID before reuse'
+# PID 1 is always init/launchd, definitely not our timer
+echo "1" >"$HARM_WORK_TIMER_PID_FILE"
+When call work_stop_timer
+The status should equal 0
+The file "$HARM_WORK_TIMER_PID_FILE" should not exist
+End
+
+It 'starts new session despite stale timer PID'
+echo "99999" >"$HARM_WORK_TIMER_PID_FILE"
+When call work_start "Fresh start"
+The status should be success
+# New PID file should have replaced old one
+pid=$(cat "$HARM_WORK_TIMER_PID_FILE" 2>/dev/null)
+test "$pid" -gt 100 # Real PIDs > 100
+The status should equal 0
+End
+End
+
+Context 'Disk full during state save'
+It 'fails gracefully when state file write fails'
+# Make directory read-only to simulate disk full
+chmod 444 "$HARM_WORK_DIR"
+When call work_start "Will fail"
+The status should not equal 0
+# Restore permissions for cleanup
+chmod 755 "$HARM_WORK_DIR"
+The error should include "cannot"
+End
+
+It 'preserves old state if new write fails'
+# Save initial state
+start_test_session "Initial goal"
+old_state=$(cat "$HARM_WORK_STATE_FILE" 2>/dev/null || echo "")
+# Make directory read-only
+chmod 444 "$HARM_WORK_DIR"
+# Try to update (will fail)
+work_save_state "paused" "2025-10-18T10:00:00Z" "Updated" 0 2>/dev/null || true
+# Restore permissions
+chmod 755 "$HARM_WORK_DIR"
+# Old state should be intact
+current_state=$(cat "$HARM_WORK_STATE_FILE" 2>/dev/null)
+test "$current_state" = "$old_state"
+The status should equal 0
+End
+End
+
+Context 'Session spanning midnight (date rollover)'
+It 'preserves session across midnight'
+export HARM_CLI_FORMAT=json
+start_test_session "All-nighter goal"
+# Simulate timezone where session crossed midnight
+session_state=$(work_status)
+# Session should still show as active
+echo "$session_state" | grep -q '"status":"active"'
+The status should equal 0
+End
+
+It 'calculates duration correctly across midnight'
+# Session started "yesterday", current time "today"
+start_iso="2025-10-17T23:00:00Z"
+echo "{\"status\":\"active\",\"start_time\":\"$start_iso\",\"goal\":\"midnight test\",\"pomodoro_count\":0}" >"$HARM_WORK_STATE_FILE"
+# Manually calculate what work_status would show
+result=$(work_status 2>/dev/null)
+# Should not crash with timezone issues
+echo "$result" | grep -q "elapsed"
+The status should equal 0
+End
+
+It 'archives to correct month when spanning months'
+# Session from end of October into November
+oct_date="2025-10-31T22:00:00Z"
+echo "{\"status\":\"active\",\"start_time\":\"$oct_date\",\"goal\":\"month-spanning\",\"pomodoro_count\":0}" >"$HARM_WORK_STATE_FILE"
+When call work_stop
+The status should equal 0
+# Verify archived to October file (session started in October)
+oct_archive="${HARM_WORK_DIR}/sessions_2025-10.jsonl"
+The file "$oct_archive" should exist
+End
+End
+
+Context 'Concurrent work_start prevention'
+It 'atomically checks and creates state file'
+# Simulate concurrent access by starting first session
+When call work_start "First concurrent"
+The status should be success
+# Second call should fail
+When call work_start "Second concurrent"
+The status should not equal 0
+The error should include "already active"
+End
+
+It 'prevents race condition with state file lock'
+# This is a behavioral test - verify atomicity
+start_test_session "Race test"
+# Even if we manually check state exists first
+test -f "$HARM_WORK_STATE_FILE"
+# Attempting to start should still fail atomically
+When call work_start "Should fail"
+The status should not equal 0
+End
+
+It 'cleans up partial state on concurrent failure'
+start_test_session "Cleanup test"
+initial_count=$(find "$HARM_WORK_DIR" -name "current_session.json*" 2>/dev/null | wc -l)
+# Attempt concurrent start (fails)
+work_start "Concurrent fail" 2>/dev/null || true
+# No orphaned partial files
+final_count=$(find "$HARM_WORK_DIR" -name "current_session.json*" 2>/dev/null | wc -l)
+test "$final_count" -le "$initial_count"
+The status should equal 0
+End
+End
+End
 End

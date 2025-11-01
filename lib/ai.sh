@@ -445,6 +445,35 @@ _ai_build_context() {
   # Current directory
   context+="Current directory: $(pwd)\n"
 
+  # INTEGRATION: Work Session & Goals Context (if auto-context enabled)
+  local auto_context="${HARM_AI_AUTO_CONTEXT:-1}"
+  if [[ $auto_context -eq 1 ]]; then
+    # Add active work session context
+    local work_state_file="${HARM_WORK_DIR:-$HOME/.harm-cli/work}/current_session.json"
+    if [[ -f "$work_state_file" ]]; then
+      local work_goal
+      work_goal=$(jq -r '.goal // empty' "$work_state_file" 2>/dev/null)
+      if [[ -n "$work_goal" ]]; then
+        context+="Active work session: $work_goal\n"
+        log_debug "ai" "Work session context added" "Goal: $work_goal"
+      fi
+    fi
+
+    # Add today's incomplete goals
+    local goals_file="${HARM_GOALS_DIR:-$HOME/.harm-cli/goals}/$(date '+%Y-%m-%d').jsonl"
+    if [[ -f "$goals_file" ]]; then
+      local incomplete_goals
+      incomplete_goals=$(jq -r 'select(.completed==false) | .goal' "$goals_file" 2>/dev/null | head -3)
+      if [[ -n "$incomplete_goals" ]]; then
+        context+="Today's goals:\n"
+        while IFS= read -r goal; do
+          [[ -n "$goal" ]] && context+="  - $goal\n"
+        done <<<"$incomplete_goals"
+        log_debug "ai" "Goals context added"
+      fi
+    fi
+  fi
+
   # Git information (if in a git repository)
   if git rev-parse --git-dir >/dev/null 2>&1; then
     local branch
@@ -493,6 +522,20 @@ _ai_build_context() {
 # API Communication
 # ═══════════════════════════════════════════════════════════════════
 
+# SECURITY FIX (CRITICAL-3): Sanitize API keys and secrets from output
+# Multi-pattern sanitization to prevent key leakage in various contexts:
+# - x-goog-api-key headers
+# - AIza... formatted keys (Google's format)
+# - JSON "api_key" fields
+# - URL query parameters with keys
+_ai_sanitize_secrets() {
+  sed -E \
+    -e 's/x-goog-api-key:[^[:space:]]*/x-goog-api-key:***REDACTED***/g' \
+    -e 's/AIza[A-Za-z0-9_-]{35}/***REDACTED_API_KEY***/g' \
+    -e 's/"api_key"\s*:\s*"[^"]*"/"api_key":"***REDACTED***"/g' \
+    -e 's/[?&]key=[A-Za-z0-9_-]{32,}/\&key=***REDACTED***/g'
+}
+
 # Make API request to Gemini
 # Args: api_key, query, context
 # Returns: 0 with JSON response on stdout, or error code
@@ -537,8 +580,6 @@ _ai_make_request() {
 
   log_debug "ai" "Sending request" "Timeout: ${AI_TIMEOUT}s"
 
-  # SECURITY FIX (MEDIUM-3): Sanitize curl stderr to prevent API key leakage
-  # The sed filter masks x-goog-api-key values in error messages
   # Show progress feedback
   if command -v gum >/dev/null 2>&1 && [[ -t 1 ]]; then
     # Use gum spinner for beautiful progress
@@ -548,7 +589,7 @@ _ai_make_request() {
       -H "Content-Type: application/json" \
       -H "x-goog-api-key: $api_key" \
       -d "$request_body" \
-      "$api_url" 2>&1 | sed 's/x-goog-api-key:[^[:space:]]*/x-goog-api-key:***REDACTED***/g')
+      "$api_url" 2>&1 | _ai_sanitize_secrets)
   else
     # Fallback: simple text spinner
     if [[ -t 1 ]]; then
@@ -560,7 +601,7 @@ _ai_make_request() {
       -H "Content-Type: application/json" \
       -H "x-goog-api-key: $api_key" \
       -d "$request_body" \
-      "$api_url" 2>&1)
+      "$api_url" 2>&1 | _ai_sanitize_secrets)
 
     if [[ -t 1 ]]; then
       printf "\r✓ Response received\n"
@@ -821,7 +862,7 @@ ai_query() {
 
         # Use markdown rendering if available
         if [[ "${HARM_CLI_FORMAT:-text}" == "text" ]] && type render_markdown_pipe >/dev/null 2>&1; then
-          echo "$text" | render_markdown_pipe "" 2>/dev/null || echo "$text"
+          echo "$text" | render_markdown_pipe 2>/dev/null || echo "$text"
         else
           echo "$text"
         fi
@@ -881,7 +922,7 @@ ai_query() {
 
     # If markdown rendering available, use it
     if type render_markdown_pipe >/dev/null 2>&1; then
-      echo "$text" | render_markdown_pipe "" 2>/dev/null || echo "$text"
+      echo "$text" | render_markdown_pipe 2>/dev/null || echo "$text"
     else
       echo "$text"
     fi
