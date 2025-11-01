@@ -338,3 +338,6 @@ When call work_start "Task 2"
 The status should be success
 End
 End
+
+# Close the top-level Describe block from line 4
+End
