@@ -328,7 +328,7 @@ goal_update_progress() {
           if [[ "$completed" == "false" ]]; then
             goal_options+=("${line_num}. ${goal_text} (${current_progress}%)")
           fi
-        done < "$goal_file"
+        done <"$goal_file"
 
         if [[ ${#goal_options[@]} -eq 0 ]]; then
           echo "No incomplete goals to update"
@@ -399,7 +399,6 @@ goal_update_progress() {
     success_msg "Goal progress updated to ${progress}%"
   fi
 }
-
 
 # goal_complete: Mark a goal as completed
 #

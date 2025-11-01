@@ -7,7 +7,7 @@
 ## Shell to use (bash 5+ required for associative arrays)
 ## Note: Shell path can be overridden via SHELLSPEC_SHELL env var or -s flag
 ## Default: use system bash (ensure 5+ is installed)
-# --shell /usr/bin/bash
+--shell /usr/bin/bash
 
 ## Coverage (uncomment to enable)
 # --kcov
