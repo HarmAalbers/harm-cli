@@ -16,12 +16,10 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Install dependencies
+      - name: Install ShellSpec
         run: |
-          sudo apt-get update
-          sudo apt-get install -y bash jq curl
           curl -fsSL https://git.io/shellspec | sh -s -- --yes
-          echo "$HOME/.local/bin" >> $GITHUB_PATH
+          sudo ln -s "$HOME/.local/bin/shellspec" /usr/local/bin/shellspec
 
       - name: Run tests
         run: |
@@ -42,6 +40,10 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.11"
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
 
       - name: Run pre-commit
         run: |
