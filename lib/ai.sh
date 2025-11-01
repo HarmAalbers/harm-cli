@@ -445,6 +445,35 @@ _ai_build_context() {
   # Current directory
   context+="Current directory: $(pwd)\n"
 
+  # INTEGRATION: Work Session & Goals Context (if auto-context enabled)
+  local auto_context="${HARM_AI_AUTO_CONTEXT:-1}"
+  if [[ $auto_context -eq 1 ]]; then
+    # Add active work session context
+    local work_state_file="${HARM_WORK_DIR:-$HOME/.harm-cli/work}/current_session.json"
+    if [[ -f "$work_state_file" ]]; then
+      local work_goal
+      work_goal=$(jq -r '.goal // empty' "$work_state_file" 2>/dev/null)
+      if [[ -n "$work_goal" ]]; then
+        context+="Active work session: $work_goal\n"
+        log_debug "ai" "Work session context added" "Goal: $work_goal"
+      fi
+    fi
+
+    # Add today's incomplete goals
+    local goals_file="${HARM_GOALS_DIR:-$HOME/.harm-cli/goals}/$(date '+%Y-%m-%d').jsonl"
+    if [[ -f "$goals_file" ]]; then
+      local incomplete_goals
+      incomplete_goals=$(jq -r 'select(.completed==false) | .goal' "$goals_file" 2>/dev/null | head -3)
+      if [[ -n "$incomplete_goals" ]]; then
+        context+="Today's goals:\n"
+        while IFS= read -r goal; do
+          [[ -n "$goal" ]] && context+="  - $goal\n"
+        done <<<"$incomplete_goals"
+        log_debug "ai" "Goals context added"
+      fi
+    fi
+  fi
+
   # Git information (if in a git repository)
   if git rev-parse --git-dir >/dev/null 2>&1; then
     local branch
