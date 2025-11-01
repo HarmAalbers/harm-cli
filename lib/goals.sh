@@ -43,6 +43,35 @@ ensure_dir "$HARM_GOALS_DIR"
 readonly _HARM_GOALS_LOADED=1
 
 # ═══════════════════════════════════════════════════════════════
+# Input Validation
+# ═══════════════════════════════════════════════════════════════
+
+# validate_goal_text: Validate and sanitize goal description
+# SECURITY FIX (MEDIUM-1): Prevents control character injection and enforces limits
+# Usage: goal=$(validate_goal_text "$user_input")
+validate_goal_text() {
+  local goal="${1:-}"
+
+  [[ -z "$goal" ]] && die "Goal description cannot be empty" "$EXIT_INVALID_ARGS"
+
+  # Length check (max 500 chars)
+  if [[ ${#goal} -gt 500 ]]; then
+    die "Goal too long (max 500 characters, got ${#goal})" "$EXIT_INVALID_ARGS"
+  fi
+
+  # Remove control characters (prevents injection, corruption)
+  goal=$(echo "$goal" | tr -d '\000-\037\177')
+
+  # Trim whitespace
+  goal=$(echo "$goal" | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//')
+
+  # Final empty check
+  [[ -z "$goal" ]] && die "Goal invalid (only whitespace/control chars)" "$EXIT_INVALID_ARGS"
+
+  echo "$goal"
+}
+
+# ═══════════════════════════════════════════════════════════════
 # Goal File Management
 # ═══════════════════════════════════════════════════════════════
 
@@ -136,6 +165,9 @@ goal_exists_today() {
 goal_set() {
   local goal="${1:?goal_set requires goal description}"
   local estimated_minutes="${2:-null}"
+
+  # SECURITY: Validate and sanitize goal text
+  goal=$(validate_goal_text "$goal")
 
   # Parse and validate minutes if provided
   if [[ "$estimated_minutes" != "null" ]]; then
@@ -241,16 +273,16 @@ goal_show() {
     # Instead of 3 jq processes per goal (30 processes for 10 goals = 450ms),
     # use a single jq call with TSV output (1 process = 50ms = 90% faster)
     local line_num=0
-    jq -r '.goal + "\t" + (.progress | tostring) + "\t" + (.completed | tostring)' "$goal_file" | \
-    while IFS=$'\t' read -r goal progress completed; do
-      ((++line_num)) # Pre-increment to avoid exit code 1 with set -e when line_num=0
+    jq -r '.goal + "\t" + (.progress | tostring) + "\t" + (.completed | tostring)' "$goal_file" \
+      | while IFS=$'\t' read -r goal progress completed; do
+        ((++line_num)) # Pre-increment to avoid exit code 1 with set -e when line_num=0
 
-      if [[ "$completed" == "true" ]]; then
-        echo "  ${SUCCESS_GREEN}✓${RESET} $goal (completed)"
-      else
-        echo "  ${line_num}. $goal (${progress}% complete)"
-      fi
-    done
+        if [[ "$completed" == "true" ]]; then
+          echo "  ${SUCCESS_GREEN}✓${RESET} $goal (completed)"
+        else
+          echo "  ${line_num}. $goal (${progress}% complete)"
+        fi
+      done
   fi
 }
 
@@ -318,17 +350,17 @@ goal_update_progress() {
         goal_file=$(goal_file_for_today)
         local line_num=0
 
-        while IFS= read -r line; do
-          ((++line_num))
-          local goal_text current_progress completed
-          goal_text=$(echo "$line" | jq -r '.goal' 2>/dev/null)
-          current_progress=$(echo "$line" | jq -r '.progress' 2>/dev/null)
-          completed=$(echo "$line" | jq -r '.completed' 2>/dev/null)
-
-          if [[ "$completed" == "false" ]]; then
+        # PERFORMANCE OPTIMIZATION (PERF-2): Use single jq call with TSV output
+        # Before: 3 jq processes per goal × N goals = 30 processes for 10 goals (~300ms)
+        # After: 1 jq process total (~50ms) = 83% faster
+        #
+        # Single jq invocation extracts all fields at once as tab-separated values
+        # This is the same pattern successfully used in work.sh (line 244)
+        jq -r 'select(.completed == false) | [.goal, .progress] | @tsv' "$goal_file" \
+          | while IFS=$'\t' read -r goal_text current_progress; do
+            ((++line_num))
             goal_options+=("${line_num}. ${goal_text} (${current_progress}%)")
-          fi
-        done <"$goal_file"
+          done
 
         if [[ ${#goal_options[@]} -eq 0 ]]; then
           echo "No incomplete goals to update"
@@ -826,6 +858,6 @@ fi
 
 export -f goal_file_for_today goal_exists_today
 export -f goal_set goal_show goal_update_progress goal_complete goal_reopen goal_clear
-export -f goal_validate
+export -f goal_validate validate_goal_text
 export -f goal_is_significant_command goal_get_active
 export -f goal_validate_command_async goal_preexec_hook

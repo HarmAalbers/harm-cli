@@ -105,6 +105,20 @@ log_should_write() {
   ((message_priority >= current_priority))
 }
 
+# log_sanitize: Sanitize secrets from log messages
+# SECURITY FIX (HIGH-3): Prevents secret leakage in logs
+# Usage: sanitized=$(log_sanitize "$message")
+log_sanitize() {
+  local message="$1"
+  echo "$message" | sed -E \
+    -e 's/AIza[A-Za-z0-9_-]{35}/***REDACTED_API_KEY***/g' \
+    -e 's/sk-[A-Za-z0-9]{32,}/***REDACTED_SECRET_KEY***/g' \
+    -e 's/ghp_[A-Za-z0-9]{36}/***REDACTED_GITHUB_TOKEN***/g' \
+    -e 's/AKIA[A-Z0-9]{16}/***REDACTED_AWS_KEY***/g' \
+    -e 's/Bearer [A-Za-z0-9_\.\-]+/Bearer ***REDACTED***/g' \
+    -e 's/x-goog-api-key:[^[:space:]]*/x-goog-api-key:***REDACTED***/g'
+}
+
 # log_write: Core logging function (all others call this)
 # Usage: log_write "LEVEL" "component" "message" ["details"]
 log_write() {
@@ -118,6 +132,10 @@ log_write() {
 
   local timestamp
   timestamp="$(log_timestamp)"
+
+  # Sanitize message and details to prevent secret leakage
+  message=$(log_sanitize "$message")
+  [[ -n "$details" ]] && details=$(log_sanitize "$details")
 
   # Format message
   local log_message="[$timestamp] [$level] [$component] $message"
@@ -636,7 +654,7 @@ log_stream() {
 # Exports
 # ═══════════════════════════════════════════════════════════════
 
-export -f log_init log_timestamp log_should_write log_write
+export -f log_init log_timestamp log_should_write log_write log_sanitize
 export -f log_debug log_info log_warn log_error
 export -f log_rotate_check log_rotate
 export -f log_tail log_search log_clear log_stats

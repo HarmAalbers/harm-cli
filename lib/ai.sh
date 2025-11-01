@@ -493,6 +493,20 @@ _ai_build_context() {
 # API Communication
 # ═══════════════════════════════════════════════════════════════════
 
+# SECURITY FIX (CRITICAL-3): Sanitize API keys and secrets from output
+# Multi-pattern sanitization to prevent key leakage in various contexts:
+# - x-goog-api-key headers
+# - AIza... formatted keys (Google's format)
+# - JSON "api_key" fields
+# - URL query parameters with keys
+_ai_sanitize_secrets() {
+  sed -E \
+    -e 's/x-goog-api-key:[^[:space:]]*/x-goog-api-key:***REDACTED***/g' \
+    -e 's/AIza[A-Za-z0-9_-]{35}/***REDACTED_API_KEY***/g' \
+    -e 's/"api_key"\s*:\s*"[^"]*"/"api_key":"***REDACTED***"/g' \
+    -e 's/[?&]key=[A-Za-z0-9_-]{32,}/\&key=***REDACTED***/g'
+}
+
 # Make API request to Gemini
 # Args: api_key, query, context
 # Returns: 0 with JSON response on stdout, or error code
@@ -537,8 +551,6 @@ _ai_make_request() {
 
   log_debug "ai" "Sending request" "Timeout: ${AI_TIMEOUT}s"
 
-  # SECURITY FIX (MEDIUM-3): Sanitize curl stderr to prevent API key leakage
-  # The sed filter masks x-goog-api-key values in error messages
   # Show progress feedback
   if command -v gum >/dev/null 2>&1 && [[ -t 1 ]]; then
     # Use gum spinner for beautiful progress
@@ -548,7 +560,7 @@ _ai_make_request() {
       -H "Content-Type: application/json" \
       -H "x-goog-api-key: $api_key" \
       -d "$request_body" \
-      "$api_url" 2>&1 | sed 's/x-goog-api-key:[^[:space:]]*/x-goog-api-key:***REDACTED***/g')
+      "$api_url" 2>&1 | _ai_sanitize_secrets)
   else
     # Fallback: simple text spinner
     if [[ -t 1 ]]; then
@@ -560,7 +572,7 @@ _ai_make_request() {
       -H "Content-Type: application/json" \
       -H "x-goog-api-key: $api_key" \
       -d "$request_body" \
-      "$api_url" 2>&1)
+      "$api_url" 2>&1 | _ai_sanitize_secrets)
 
     if [[ -t 1 ]]; then
       printf "\r✓ Response received\n"

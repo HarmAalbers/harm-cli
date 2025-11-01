@@ -228,24 +228,85 @@ _cleanup_build_excludes() {
   echo "${exclude_args[@]}"
 }
 
-# _cleanup_validate_path: Validate search path exists and is accessible
+# _cleanup_validate_path: Validate search path exists, is accessible, and is safe
+#
+# SECURITY FIX (HIGH-1): Prevents path traversal attacks by validating paths
+# against an allowlist of permitted directories. This prevents users from
+# scanning sensitive system directories like /etc, /var, or ~/.ssh
 #
 # Arguments:
 #   $1 - path (string): Path to validate
 #
 # Returns:
-#   0 - Path is valid
+#   0 - Path is valid and within allowed directories
 #   EXIT_NOT_FOUND - Path doesn't exist
-#   EXIT_PERMISSION - Path is not accessible
+#   EXIT_PERMISSION - Path is not accessible or outside allowed directories
 _cleanup_validate_path() {
   local path="${1:?_cleanup_validate_path requires path}"
 
-  if [[ ! -e "$path" ]]; then
-    error_msg "Search path does not exist: $path" "$EXIT_NOT_FOUND"
-    return "$EXIT_NOT_FOUND"
+  # Resolve symlinks and get absolute canonical path
+  local resolved_path
+  if command -v realpath >/dev/null 2>&1; then
+    resolved_path=$(realpath -e "$path" 2>/dev/null) || {
+      error_msg "Invalid or non-existent path: $path" "$EXIT_NOT_FOUND"
+      return "$EXIT_NOT_FOUND"
+    }
+  else
+    # Fallback for systems without realpath
+    if [[ ! -e "$path" ]]; then
+      error_msg "Search path does not exist: $path" "$EXIT_NOT_FOUND"
+      return "$EXIT_NOT_FOUND"
+    fi
+    resolved_path=$(cd "$path" && pwd -P) || {
+      error_msg "Cannot resolve path: $path" "$EXIT_NOT_FOUND"
+      return "$EXIT_NOT_FOUND"
+    }
   fi
 
-  if [[ ! -r "$path" ]]; then
+  # Define allowed base directories (security allowlist)
+  local allowed_paths=(
+    "$HOME"
+    "/tmp"
+    "/var/tmp"
+    "$PWD"
+  )
+
+  # If CLEANUP_ALLOW_SYSTEM_PATHS is set, allow system directories (opt-in only)
+  if [[ "${CLEANUP_ALLOW_SYSTEM_PATHS:-0}" == "1" ]]; then
+    allowed_paths+=(
+      "/var/log"
+      "/var/cache"
+    )
+  fi
+
+  # Verify resolved path is under an allowed directory
+  local allowed=0
+  for base in "${allowed_paths[@]}"; do
+    # Get canonical path for base directory
+    local base_resolved
+    if command -v realpath >/dev/null 2>&1; then
+      base_resolved=$(realpath -e "$base" 2>/dev/null) || continue
+    else
+      base_resolved=$(cd "$base" 2>/dev/null && pwd -P) || continue
+    fi
+
+    # Check if resolved path is under this base
+    if [[ "$resolved_path" == "$base_resolved"* ]]; then
+      allowed=1
+      break
+    fi
+  done
+
+  if [[ $allowed -eq 0 ]]; then
+    error_msg "Path outside allowed directories: $path" "$EXIT_PERMISSION"
+    if declare -F log_warn >/dev/null 2>&1; then
+      log_warn "cleanup" "Blocked path traversal attempt" "requested=$path resolved=$resolved_path"
+    fi
+    return "$EXIT_PERMISSION"
+  fi
+
+  # Check read permission
+  if [[ ! -r "$resolved_path" ]]; then
     error_msg "Search path is not readable: $path" "$EXIT_PERMISSION"
     return "$EXIT_PERMISSION"
   fi
@@ -300,11 +361,14 @@ _cleanup_find_files() {
   local tmp_file
   tmp_file=$(mktemp)
 
+  log_info "cleanup" "find started" "timeout=${CLEANUP_FIND_TIMEOUT}s, path=$search_path"
+
   local find_exit_code=0
   timeout "$CLEANUP_FIND_TIMEOUT" "${find_cmd[@]}" 2>/dev/null >"$tmp_file" || find_exit_code=$?
 
   if ((find_exit_code == 124)); then
     rm -f "$tmp_file"
+    log_error "cleanup" "find timeout" "duration=${CLEANUP_FIND_TIMEOUT}s, path=$search_path"
     error_msg "Find operation timed out after ${CLEANUP_FIND_TIMEOUT}s" "$EXIT_TIMEOUT"
     return "$EXIT_TIMEOUT"
   fi
@@ -448,6 +512,9 @@ EOF
   # Validate path
   _cleanup_validate_path "$search_path" || return $?
 
+  # Log scan operation entry
+  log_info "cleanup" "scan started" "path=$search_path, min_size=$(_cleanup_format_size "$min_size"), max=$max_results"
+
   # Log scan operation
   _cleanup_audit_log "scan" "path=$search_path, min_size=$min_size, max=$max_results"
 
@@ -456,6 +523,7 @@ EOF
   results=$(_cleanup_find_files "$search_path" "$min_size" "$max_results" "$(_cleanup_get_excludes)")
 
   if [[ -z "$results" ]]; then
+    log_info "cleanup" "scan complete" "files_found=0, criteria_matched=false"
     if [[ "$format" == "json" ]]; then
       jq -n '{files: [], message: "No large files found"}'
     else
@@ -466,9 +534,16 @@ EOF
     return 0
   fi
 
-  # Count results
-  local file_count
-  file_count=$(echo "$results" | wc -l | tr -d ' ')
+  # Count results and calculate total size
+  local file_count=0
+  local total_size=0
+  while IFS=$'\t' read -r size_bytes human_size filepath; do
+    file_count=$((file_count + 1))
+    total_size=$((total_size + size_bytes))
+  done <<<"$results"
+
+  # Log scan completion with results
+  log_info "cleanup" "scan complete" "files_found=$file_count, total_size=$total_size"
 
   # Output results
   if [[ "$format" == "json" ]]; then
@@ -537,6 +612,8 @@ cleanup_preview() {
   if [[ $# -eq 0 ]]; then
     die "cleanup_preview requires at least one file" "$EXIT_INVALID_ARGS"
   fi
+
+  log_debug "cleanup" "preview requested" "file_count=$#"
 
   local total_bytes=0
   local file_count=0
@@ -635,6 +712,9 @@ _cleanup_select_files_fzf() {
 
   # Use fzf with multi-select
   local selected
+  # SECURITY FIX (CRITICAL-2): Prevent command injection in fzf preview
+  # Use xargs -I @ to safely substitute filepath, preventing shell metacharacter injection
+  # The @ placeholder ensures filepath is treated as single argument, not interpreted
   selected=$(printf '%s\n' "${file_options[@]}" | fzf \
     --multi \
     --cycle \
@@ -642,7 +722,7 @@ _cleanup_select_files_fzf() {
     --border=rounded \
     --prompt="Select files to delete > " \
     --header="Tab: select | Enter: confirm | Esc: cancel" \
-    --preview='echo {} | cut -d"|" -f2 | xargs -I {} sh -c "ls -lh {} 2>/dev/null || echo File not found"' \
+    --preview='echo {} | cut -d"|" -f2 | xargs -I @ sh -c "[ -f \"@\" ] && ls -lh \"@\" 2>/dev/null || echo \"File not found\""' \
     --preview-window=right:40%:wrap \
     --bind='ctrl-a:select-all,ctrl-d:deselect-all' \
     --color='fg:#d0d0d0,bg:#121212,hl:#5f87af' \
@@ -902,6 +982,8 @@ cleanup_delete() {
     die "cleanup_delete requires at least one file" "$EXIT_INVALID_ARGS"
   fi
 
+  log_info "cleanup" "delete initiated" "file_count=$#, interactive=no"
+
   # Show preview
   if [[ "$format" != "json" ]]; then
     cleanup_preview "$@"
@@ -913,10 +995,13 @@ cleanup_delete() {
     echo ""
     echo "Type 'delete' to confirm: "
 
+    log_warn "cleanup" "delete confirmation requested" "file_count=$#"
+
     local response
     if ! read -r -t 30 response; then
       echo ""
       echo "Timeout - operation cancelled for safety"
+      log_error "cleanup" "delete confirmation timeout" "safety_abort=true"
       return "$EXIT_CANCELLED"
     fi
 
@@ -948,9 +1033,13 @@ cleanup_delete() {
       log_info "cleanup" "Deleted file" "$filepath ($(_cleanup_format_size "$size_bytes"))"
     else
       failed_files+=("$filepath")
+      log_error "cleanup" "delete failed" "file=$filepath"
       warn_msg "Failed to delete: $filepath"
     fi
   done
+
+  # Log completion summary
+  log_info "cleanup" "delete complete" "deleted=${#deleted_files[@]}, failed=${#failed_files[@]}, freed=$total_freed"
 
   # Output results
   if [[ "$format" == "json" ]]; then
