@@ -78,6 +78,7 @@ BeforeEach 'cleanup_work_state'
 AfterEach 'cleanup_work_state'
 
 cleanup_work_state() {
+  # shellcheck disable=SC2317  # Called by ShellSpec AfterEach
   rm -f "$HARM_WORK_STATE_FILE"
 }
 
@@ -134,7 +135,9 @@ BeforeEach 'cleanup_work_state'
 AfterEach 'cleanup_work_state'
 
 cleanup_work_state() {
+  # shellcheck disable=SC2317  # Called by ShellSpec AfterEach
   work_stop 2>/dev/null || true
+  # shellcheck disable=SC2317
   rm -f "$HARM_WORK_STATE_FILE"
 }
 
@@ -208,7 +211,9 @@ BeforeEach 'cleanup_pomodoro'
 AfterEach 'cleanup_pomodoro'
 
 cleanup_pomodoro() {
+  # shellcheck disable=SC2317  # Called by ShellSpec AfterEach
   rm -f "$HARM_POMODORO_STATE"
+  # shellcheck disable=SC2317
   pkill -f "sleep.*pomodoro" 2>/dev/null || true
 }
 
@@ -231,6 +236,7 @@ The output should include "15 minutes"
 End
 
 It 'saves start timestamp'
+# shellcheck disable=SC2119  # Intentionally calling without args to use default duration
 pomodoro_start >/dev/null 2>&1
 timestamp=$(cat "$HARM_POMODORO_STATE")
 # Should be a valid unix timestamp (10 digits)
@@ -245,6 +251,7 @@ End
 
 Context 'when timer already running'
 It 'fails if pomodoro already active'
+# shellcheck disable=SC2119  # Intentionally calling without args to use default duration
 pomodoro_start >/dev/null 2>&1
 When call pomodoro_start
 The status should equal 1
@@ -252,6 +259,7 @@ The output should include "already running"
 End
 
 It 'suggests how to stop'
+# shellcheck disable=SC2119  # Intentionally calling without args to use default duration
 pomodoro_start >/dev/null 2>&1
 When call pomodoro_start
 The output should include "pomodoro-stop"
@@ -264,18 +272,22 @@ BeforeEach 'cleanup_pomodoro'
 AfterEach 'cleanup_pomodoro'
 
 cleanup_pomodoro() {
+  # shellcheck disable=SC2317  # Called by ShellSpec AfterEach
   rm -f "$HARM_POMODORO_STATE"
+  # shellcheck disable=SC2317
   pkill -f "sleep.*pomodoro" 2>/dev/null || true
 }
 
 Context 'stopping timer'
 It 'removes state file'
+# shellcheck disable=SC2119  # Intentionally calling without args to use default duration
 pomodoro_start >/dev/null 2>&1
 pomodoro_stop >/dev/null 2>&1
 The file "$HARM_POMODORO_STATE" should not exist
 End
 
 It 'shows elapsed time'
+# shellcheck disable=SC2119  # Intentionally calling without args to use default duration
 pomodoro_start >/dev/null 2>&1
 sleep 0.3
 When call pomodoro_stop
@@ -284,6 +296,7 @@ The output should include "minutes"
 End
 
 It 'calculates elapsed minutes correctly'
+# shellcheck disable=SC2119  # Intentionally calling without args to use default duration
 pomodoro_start >/dev/null 2>&1
 sleep 0.5
 result=$(pomodoro_stop)
@@ -324,12 +337,14 @@ End
 
 Context 'when timer active'
 It 'shows active status'
+# shellcheck disable=SC2119  # Intentionally calling without args to use default duration
 pomodoro_start >/dev/null 2>&1
 When call pomodoro_status
 The output should include "🍅 Pomodoro Active"
 End
 
 It 'shows elapsed time'
+# shellcheck disable=SC2119  # Intentionally calling without args to use default duration
 pomodoro_start >/dev/null 2>&1
 sleep 0.3
 When call pomodoro_status
@@ -338,12 +353,14 @@ The output should include "ago"
 End
 
 It 'shows remaining time'
+# shellcheck disable=SC2119  # Intentionally calling without args to use default duration
 pomodoro_start >/dev/null 2>&1
 When call pomodoro_status
 The output should include "Remaining:"
 End
 
 It 'calculates remaining time correctly'
+# shellcheck disable=SC2119  # Intentionally calling without args to use default duration
 pomodoro_start >/dev/null 2>&1
 sleep 0.3
 result=$(pomodoro_status)
@@ -487,6 +504,7 @@ End
 
 It 'can check both work status and pomodoro status'
 work_start "Test" >/dev/null 2>&1
+# shellcheck disable=SC2119  # Intentionally calling without args to use default duration
 pomodoro_start >/dev/null 2>&1
 work_active=$(work_is_active && echo "yes" || echo "no")
 test -f "$HARM_POMODORO_STATE"
