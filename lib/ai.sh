@@ -862,7 +862,7 @@ ai_query() {
 
         # Use markdown rendering if available
         if [[ "${HARM_CLI_FORMAT:-text}" == "text" ]] && type render_markdown_pipe >/dev/null 2>&1; then
-          echo "$text" | render_markdown_pipe "" 2>/dev/null || echo "$text"
+          echo "$text" | render_markdown_pipe 2>/dev/null || echo "$text"
         else
           echo "$text"
         fi
@@ -922,7 +922,7 @@ ai_query() {
 
     # If markdown rendering available, use it
     if type render_markdown_pipe >/dev/null 2>&1; then
-      echo "$text" | render_markdown_pipe "" 2>/dev/null || echo "$text"
+      echo "$text" | render_markdown_pipe 2>/dev/null || echo "$text"
     else
       echo "$text"
     fi

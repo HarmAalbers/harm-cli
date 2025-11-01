@@ -70,7 +70,7 @@ error_msg() {
 
   # Log error event
   if declare -F log_error >/dev/null 2>&1; then
-    log_error "Error reported: $msg (code=$code)"
+    log_error "error" "Error reported: $msg" "Code: $code"
   fi
 
   if [[ "${HARM_CLI_FORMAT:-text}" == "json" ]]; then

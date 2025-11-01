@@ -109,7 +109,10 @@ log_should_write() {
 # SECURITY FIX (HIGH-3): Prevents secret leakage in logs
 # Usage: sanitized=$(log_sanitize "$message")
 log_sanitize() {
-  local message="$1"
+  local message="${1:-}"
+  # Return empty string if input is empty
+  [[ -z "$message" ]] && return 0
+
   echo "$message" | sed -E \
     -e 's/AIza[A-Za-z0-9_-]{35}/***REDACTED_API_KEY***/g' \
     -e 's/sk-[A-Za-z0-9]{32,}/***REDACTED_SECRET_KEY***/g' \
