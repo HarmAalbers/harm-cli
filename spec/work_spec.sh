@@ -369,7 +369,7 @@ End
 It 'logs corrupted state error with context'
 echo '{corrupted}' >"$HARM_WORK_STATE_FILE"
 When call work_load_state
-The status should equal 0  # work_load_state returns empty on corruption
+The status should equal 0 # work_load_state returns empty on corruption
 The output should equal ""
 End
 End
@@ -397,7 +397,7 @@ When call work_start "Fresh start"
 The status should be success
 # New PID file should have replaced old one
 pid=$(cat "$HARM_WORK_TIMER_PID_FILE" 2>/dev/null)
-test "$pid" -gt 100  # Real PIDs > 100
+test "$pid" -gt 100 # Real PIDs > 100
 The status should equal 0
 End
 End
