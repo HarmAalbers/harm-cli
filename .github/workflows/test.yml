@@ -1,4 +1,4 @@
-name: Tests
+name: CI
 
 on:
   push:
@@ -6,65 +6,138 @@ on:
   pull_request:
     branches: [main, develop]
 
+permissions:
+  contents: read
+
 jobs:
-  test-bash:
-    name: Test with Bash
-    runs-on: macos-latest
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Install dependencies
-        run: |
-          brew install bash shellspec jq
-
-      - name: Verify bash version
-        run: |
-          BASH_PATH="$(brew --prefix)/bin/bash"
-          echo "Bash path: $BASH_PATH"
-          "$BASH_PATH" --version
-
-      - name: Run tests with bash 5+
-        # Use homebrew bash (5.x) instead of system bash (3.2) to support modern features
-        # Note: ShellSpec exits with code 101 for warnings (not failures)
-        # We treat warnings as acceptable (0 failures = success)
-        shell: bash
-        run: |
-          set +e  # Don't exit on error, we'll handle it
-          BASH_PATH="$(brew --prefix)/bin/bash"
-          shellspec -s "$BASH_PATH"
-          EXIT_CODE=$?
-          set -e  # Re-enable exit on error
-
-          echo "ShellSpec exit code: $EXIT_CODE"
-
-          # Exit codes:
-          # 0   = All tests passed, no warnings
-          # 101 = Tests passed, but has warnings (acceptable)
-          # Other = Actual failures
-
-          if [[ $EXIT_CODE -eq 0 ]] || [[ $EXIT_CODE -eq 101 ]]; then
-            echo "✅ Tests passed (warnings are acceptable)"
-            exit 0
-          else
-            echo "❌ Tests failed with exit code: $EXIT_CODE"
-            exit 1
-          fi
-
-  pre-commit:
-    name: Pre-commit Hooks
+  test:
+    name: Tests
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
-      - name: Set up Python
-        uses: actions/setup-python@v5
+      - name: Install ShellSpec
+        run: |
+          curl -fsSL https://git.io/shellspec | sh -s -- --yes
+          sudo ln -s "$HOME/.local/bin/shellspec" /usr/local/bin/shellspec
+
+      - name: Run tests
+        run: |
+          shellspec
+          EXIT_CODE=$?
+          if [[ $EXIT_CODE -eq 0 ]] || [[ $EXIT_CODE -eq 101 ]]; then
+            exit 0
+          else
+            exit $EXIT_CODE
+          fi
+
+  shellcheck:
+    name: ShellCheck (Linting)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Run shellcheck
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y shellcheck
+          # Find all .sh files excluding spec/golden
+          find . -name "*.sh" -not -path "./spec/golden/*" -type f | while read -r file; do
+            echo "Checking: $file"
+            shellcheck -x --exclude=2016,2034,2094,2148,2155 "$file" || exit 1
+          done
+
+  shfmt:
+    name: shfmt (Formatting)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install shfmt
+        run: |
+          SHFMT_VERSION="3.8.0"
+          wget -q "https://github.com/mvdan/sh/releases/download/v${SHFMT_VERSION}/shfmt_v${SHFMT_VERSION}_linux_amd64" -O shfmt
+          chmod +x shfmt
+          sudo mv shfmt /usr/local/bin/
+
+      - name: Run shfmt
+        run: |
+          find . -name "*.sh" -type f -print0 | xargs -0 shfmt -d -i 2 -ci -bn
+
+  prettier:
+    name: Prettier (Markdown/YAML)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Run prettier
+        run: |
+          npx prettier --check "**/*.{md,yml,yaml}" \
+            --ignore-pattern "spec/golden/**" \
+            --ignore-pattern "CHANGELOG.md"
+
+  codespell:
+    name: Spell Check
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
         with:
           python-version: "3.11"
 
-      - name: Install pre-commit
-        run: pip install pre-commit
+      - name: Run codespell
+        run: |
+          pip install -q codespell
+          codespell \
+            --ignore-words-list "crate,ect,hist,nd,te,thru,afterall,iterm" \
+            --skip ".git,spec/golden" \
+            .
 
-      - name: Run pre-commit
-        run: pre-commit run --all-files --show-diff-on-failure
+  bash-safety:
+    name: Bash Safety Checks
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Run custom bash checks
+        run: |
+          chmod +x .pre-commit-hooks/*.sh
+          # Check bash arithmetic patterns
+          find . -name "*.sh" -type f | while read -r file; do
+            .pre-commit-hooks/check-bash-arithmetic.sh "$file" || exit 1
+          done
+          # Check function parameters (only for install/uninstall scripts)
+          if [ -f install.sh ]; then
+            .pre-commit-hooks/check-function-parameters.sh install.sh || exit 1
+          fi
+          if [ -f uninstall.sh ]; then
+            .pre-commit-hooks/check-function-parameters.sh uninstall.sh || exit 1
+          fi
+
+  file-checks:
+    name: File Validation
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Run file checks
+        run: |
+          pip install -q pre-commit
+          # Install hooks first
+          pre-commit install-hooks
+          # Run individual checks
+          pre-commit run trailing-whitespace --all-files
+          pre-commit run end-of-file-fixer --all-files
+          pre-commit run check-yaml --all-files
+          pre-commit run check-json --all-files
+          pre-commit run check-merge-conflict --all-files
+          pre-commit run mixed-line-ending --all-files
