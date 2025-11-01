@@ -39,9 +39,13 @@ jobs:
 
       - name: Run shellcheck
         run: |
-          sudo apt-get update && sudo apt-get install -y shellcheck
-          find . -name "*.sh" -not -path "./spec/golden/*" \
-            -exec shellcheck -x --exclude=2016,2034,2094,2148,2155 {} +
+          sudo apt-get update -qq
+          sudo apt-get install -y shellcheck
+          # Find all .sh files excluding spec/golden
+          find . -name "*.sh" -not -path "./spec/golden/*" -type f | while read -r file; do
+            echo "Checking: $file"
+            shellcheck -x --exclude=2016,2034,2094,2148,2155 "$file" || exit 1
+          done
 
   shfmt:
     name: shfmt (Formatting)
