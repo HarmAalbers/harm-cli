@@ -7,6 +7,12 @@ on:
     branches: [main, develop]
   workflow_dispatch: # Allow manual triggering
 
+permissions:
+  contents: read
+  pull-requests: write
+  issues: write
+  actions: read
+
 jobs:
   e2e-tests:
     name: E2E Integration Tests
@@ -253,7 +259,8 @@ jobs:
           # Determine overall status
           if [[ "${{ needs.e2e-tests.result }}" == "success" ]] && \
              [[ "${{ needs.coverage-validation.result }}" == "success" ]] && \
-             [[ "${{ needs.qa-checklist-validation.result }}" == "success" ]]; then
+             [[ "${{ needs.qa-checklist-validation.result }}" == "success" ]] && \
+             [[ "${{ needs.qa-report.result }}" == "success" ]]; then
             echo "✅ Overall QA Status: PASSED"
             exit 0
           else
