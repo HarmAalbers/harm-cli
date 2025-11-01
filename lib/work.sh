@@ -33,28 +33,29 @@ source "$WORK_SCRIPT_DIR/options.sh"
 source "$WORK_SCRIPT_DIR/terminal_launcher.sh"
 
 # ═══════════════════════════════════════════════════════════════
-# Work Module Components (SOLID Refactoring)
+# Work Module Components (SOLID Refactoring - Steps 1-3)
 # ═══════════════════════════════════════════════════════════════
 
+# 1. Timers (no work dependencies)
 # shellcheck source=lib/work_timers.sh
 source "$WORK_SCRIPT_DIR/work_timers.sh"
 
+# 2. Enforcement (depends on timers)
+# shellcheck source=lib/work_enforcement.sh
+source "$WORK_SCRIPT_DIR/work_enforcement.sh"
+
+# 3. Session (depends on timers, enforcement)
+# shellcheck source=lib/work_session.sh
+source "$WORK_SCRIPT_DIR/work_session.sh"
+
 # ═══════════════════════════════════════════════════════════════
-# Configuration
+# Configuration (Now in Modules)
 # ═══════════════════════════════════════════════════════════════
 
-HARM_WORK_DIR="${HARM_WORK_DIR:-${HOME}/.harm-cli/work}"
-readonly HARM_WORK_DIR
-export HARM_WORK_DIR
-
-HARM_WORK_STATE_FILE="${HARM_WORK_STATE_FILE:-${HARM_WORK_DIR}/current_session.json}"
-readonly HARM_WORK_STATE_FILE
-export HARM_WORK_STATE_FILE
-
-# NOTE: Timer-related constants now defined in work_timers.sh:
-# - HARM_WORK_TIMER_PID_FILE
-# - HARM_WORK_REMINDER_PID_FILE
-# - HARM_WORK_POMODORO_COUNT_FILE
+# NOTE: Configuration constants now defined in respective modules:
+# - work_timers.sh: HARM_WORK_TIMER_PID_FILE, HARM_WORK_REMINDER_PID_FILE, HARM_WORK_POMODORO_COUNT_FILE
+# - work_enforcement.sh: HARM_WORK_ENFORCEMENT_FILE, HARM_WORK_ENFORCEMENT, HARM_WORK_DISTRACTION_THRESHOLD
+# - work_session.sh: HARM_WORK_DIR, HARM_WORK_STATE_FILE
 
 HARM_BREAK_STATE_FILE="${HARM_BREAK_STATE_FILE:-${HARM_WORK_DIR}/current_break.json}"
 readonly HARM_BREAK_STATE_FILE
@@ -96,18 +97,17 @@ parse_iso8601_to_epoch() {
 #   - Uses osascript on macOS, notify-send on Linux
 #   - Only sends if work_notifications option is enabled
 #   - Plays sound if work_sound_notifications option is enabled
-# NOTE: Timer and notification functions now in work_timers.sh module:
-# - work_send_notification()
-# - work_stop_timer()
-# - work_get_pomodoro_count()
-# - work_increment_pomodoro_count()
-# - work_reset_pomodoro_count()
+# NOTE: Functions now in refactored modules:
+# - work_timers.sh: work_send_notification, work_stop_timer, pomodoro_count functions
+# - work_enforcement.sh: work_enforcement_*, work_strict_*, work_*_violations
+# - work_session.sh: work_is_active, work_*_state, work_start, work_stop, work_status, work_require_active, work_remind, work_focus_score
 
 # ═══════════════════════════════════════════════════════════════
-# Work Session State Management
+# Break Session Commands (Step 4 - to be extracted)
 # ═══════════════════════════════════════════════════════════════
 
-# work_is_active: Check if work session is currently active
+# PLACEHOLDER - Session functions moved to work_session.sh
+# The following section will be replaced with break-related functions only
 #
 # Description:
 #   Checks if a work session is currently active by verifying
