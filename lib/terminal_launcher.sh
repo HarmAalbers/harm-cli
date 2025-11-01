@@ -146,7 +146,7 @@ terminal_open_macos() {
   temp_script=$(mktemp /tmp/harm-cli-launch.XXXXXX.sh)
 
   # Write the command to temp script with proper shebang
-  cat > "$temp_script" <<'SCRIPT_HEADER'
+  cat >"$temp_script" <<'SCRIPT_HEADER'
 #!/usr/bin/env bash
 set -Eeuo pipefail
 exec
@@ -154,7 +154,7 @@ SCRIPT_HEADER
 
   # Add each argument properly quoted
   for arg in "$@"; do
-    printf ' %q' "$arg" >> "$temp_script"
+    printf ' %q' "$arg" >>"$temp_script"
   done
 
   # Make executable
