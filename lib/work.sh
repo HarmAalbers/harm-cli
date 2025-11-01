@@ -33,6 +33,13 @@ source "$WORK_SCRIPT_DIR/options.sh"
 source "$WORK_SCRIPT_DIR/terminal_launcher.sh"
 
 # ═══════════════════════════════════════════════════════════════
+# Work Module Components (SOLID Refactoring)
+# ═══════════════════════════════════════════════════════════════
+
+# shellcheck source=lib/work_timers.sh
+source "$WORK_SCRIPT_DIR/work_timers.sh"
+
+# ═══════════════════════════════════════════════════════════════
 # Configuration
 # ═══════════════════════════════════════════════════════════════
 
@@ -44,17 +51,10 @@ HARM_WORK_STATE_FILE="${HARM_WORK_STATE_FILE:-${HARM_WORK_DIR}/current_session.j
 readonly HARM_WORK_STATE_FILE
 export HARM_WORK_STATE_FILE
 
-HARM_WORK_TIMER_PID_FILE="${HARM_WORK_TIMER_PID_FILE:-${HARM_WORK_DIR}/timer.pid}"
-readonly HARM_WORK_TIMER_PID_FILE
-export HARM_WORK_TIMER_PID_FILE
-
-HARM_WORK_REMINDER_PID_FILE="${HARM_WORK_REMINDER_PID_FILE:-${HARM_WORK_DIR}/reminder.pid}"
-readonly HARM_WORK_REMINDER_PID_FILE
-export HARM_WORK_REMINDER_PID_FILE
-
-HARM_WORK_POMODORO_COUNT_FILE="${HARM_WORK_POMODORO_COUNT_FILE:-${HARM_WORK_DIR}/pomodoro_count}"
-readonly HARM_WORK_POMODORO_COUNT_FILE
-export HARM_WORK_POMODORO_COUNT_FILE
+# NOTE: Timer-related constants now defined in work_timers.sh:
+# - HARM_WORK_TIMER_PID_FILE
+# - HARM_WORK_REMINDER_PID_FILE
+# - HARM_WORK_POMODORO_COUNT_FILE
 
 HARM_BREAK_STATE_FILE="${HARM_BREAK_STATE_FILE:-${HARM_WORK_DIR}/current_break.json}"
 readonly HARM_BREAK_STATE_FILE
@@ -96,110 +96,12 @@ parse_iso8601_to_epoch() {
 #   - Uses osascript on macOS, notify-send on Linux
 #   - Only sends if work_notifications option is enabled
 #   - Plays sound if work_sound_notifications option is enabled
-work_send_notification() {
-  local title="${1:?work_send_notification requires title}"
-  local message="${2:?work_send_notification requires message}"
-
-  # Check if notifications are enabled
-  local notifications_enabled
-  notifications_enabled=$(options_get work_notifications)
-  [[ "$notifications_enabled" == "1" ]] || return 0
-
-  # Check if sound is enabled
-  local sound_enabled
-  sound_enabled=$(options_get work_sound_notifications)
-
-  if [[ "$(uname)" == "Darwin" ]]; then
-    # macOS - use osascript with heredoc (SECURITY FIX: MEDIUM-1)
-    # Prevents command injection by avoiding shell interpretation of user input
-    # Using stdin heredoc instead of -e flag eliminates quote escaping vulnerabilities
-    if [[ "$sound_enabled" == "1" ]]; then
-      # With sound
-      osascript 2>/dev/null <<EOF || true
-display notification "$message" with title "$title" sound name "Glass"
-EOF
-    else
-      # Silent
-      osascript 2>/dev/null <<EOF || true
-display notification "$message" with title "$title"
-EOF
-    fi
-  elif command -v notify-send &>/dev/null; then
-    # Linux - use notify-send
-    notify-send "$title" "$message" 2>/dev/null || true
-
-    # Play sound on Linux if enabled and paplay is available
-    if [[ "$sound_enabled" == "1" ]] && command -v paplay &>/dev/null; then
-      paplay /usr/share/sounds/freedesktop/stereo/complete.oga 2>/dev/null || true
-    fi
-  fi
-
-  log_info "work" "Notification sent" "Title: $title, Message: $message, Sound: $sound_enabled"
-}
-
-# work_stop_timer: Stop and clean up background timer and reminders
-#
-# Returns:
-#   0 on success
-work_stop_timer() {
-  # Stop main timer
-  if [[ -f "$HARM_WORK_TIMER_PID_FILE" ]]; then
-    local timer_pid
-    timer_pid=$(cat "$HARM_WORK_TIMER_PID_FILE")
-
-    # Kill the timer process if it's still running
-    if kill -0 "$timer_pid" 2>/dev/null; then
-      kill "$timer_pid" 2>/dev/null || true
-      log_debug "work" "Stopped timer process" "PID: $timer_pid"
-    fi
-
-    rm -f "$HARM_WORK_TIMER_PID_FILE"
-  fi
-
-  # Stop reminder process
-  if [[ -f "$HARM_WORK_REMINDER_PID_FILE" ]]; then
-    local reminder_pid
-    reminder_pid=$(cat "$HARM_WORK_REMINDER_PID_FILE")
-
-    if kill -0 "$reminder_pid" 2>/dev/null; then
-      kill "$reminder_pid" 2>/dev/null || true
-      log_debug "work" "Stopped reminder process" "PID: $reminder_pid"
-    fi
-
-    rm -f "$HARM_WORK_REMINDER_PID_FILE"
-  fi
-
-  return 0
-}
-
-# work_get_pomodoro_count: Get current pomodoro count
-#
-# Returns:
-#   Current pomodoro count (0 if file doesn't exist)
-work_get_pomodoro_count() {
-  if [[ -f "$HARM_WORK_POMODORO_COUNT_FILE" ]]; then
-    cat "$HARM_WORK_POMODORO_COUNT_FILE"
-  else
-    echo "0"
-  fi
-}
-
-# work_increment_pomodoro_count: Increment pomodoro count
-#
-# Returns:
-#   New count
-work_increment_pomodoro_count() {
-  local count
-  count=$(work_get_pomodoro_count)
-  count=$((count + 1))
-  echo "$count" >"$HARM_WORK_POMODORO_COUNT_FILE"
-  echo "$count"
-}
-
-# work_reset_pomodoro_count: Reset pomodoro count to 0
-work_reset_pomodoro_count() {
-  echo "0" >"$HARM_WORK_POMODORO_COUNT_FILE"
-}
+# NOTE: Timer and notification functions now in work_timers.sh module:
+# - work_send_notification()
+# - work_stop_timer()
+# - work_get_pomodoro_count()
+# - work_increment_pomodoro_count()
+# - work_reset_pomodoro_count()
 
 # ═══════════════════════════════════════════════════════════════
 # Work Session State Management
