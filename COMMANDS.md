@@ -1077,11 +1077,13 @@ harm-cli discover
 ```
 
 **How it works:**
+
 - Analyzes your command patterns from activity tracking
 - AI suggests harm-cli features that match your workflow
 - Shows specific examples for your use cases
 
 Example output:
+
 ```
 🔍 Discovering harm-cli Features...
 
@@ -1106,6 +1108,7 @@ harm-cli unused
 ```
 
 Shows:
+
 - All harm-cli commands you've never used
 - Suggestions to explore new features
 - Helps maximize your productivity

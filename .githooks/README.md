@@ -21,6 +21,7 @@ Validates commit messages follow the Conventional Commits specification.
 **Format**: `type(scope): description`
 
 **Valid types**:
+
 - `feat` - New feature
 - `fix` - Bug fix
 - `docs` - Documentation
@@ -34,6 +35,7 @@ Validates commit messages follow the Conventional Commits specification.
 - `revert` - Revert commit
 
 **Examples**:
+
 ```
 feat(goals): add reopen command to restore completed goals
 fix(work): resolve timer cleanup on stop
@@ -46,6 +48,7 @@ test(ai): add edge case tests for model selection
 ### pre-commit
 
 Runs quality checks before each commit:
+
 1. Code formatting (shfmt)
 2. Linting (shellcheck)
 3. Test suite (shellspec)
@@ -59,11 +62,13 @@ Runs quality checks before each commit:
 ### Hook not running
 
 Ensure hooks are executable:
+
 ```bash
 chmod +x .githooks/*
 ```
 
 Verify git configuration:
+
 ```bash
 git config core.hooksPath
 # Should output: .githooks
@@ -72,6 +77,7 @@ git config core.hooksPath
 ### Commit rejected
 
 Read the error message carefully. Common issues:
+
 - Commit message too short (min 10 chars)
 - Missing type prefix (feat:, fix:, etc.)
 - Code formatting issues (run `just fmt`)
@@ -81,6 +87,7 @@ Read the error message carefully. Common issues:
 ### Skip hooks temporarily
 
 For emergency commits only:
+
 ```bash
 git commit --no-verify -m "emergency fix"
 ```
@@ -90,6 +97,7 @@ git commit --no-verify -m "emergency fix"
 ### Testing hooks locally
 
 Test commit-msg hook:
+
 ```bash
 echo "feat(test): sample commit message" | .githooks/commit-msg /dev/stdin
 echo $?  # Should be 0 (success)
@@ -99,6 +107,7 @@ echo $?  # Should be 1 (failure)
 ```
 
 Test pre-commit hook:
+
 ```bash
 ./.githooks/pre-commit
 ```

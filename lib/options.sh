@@ -15,7 +15,7 @@ set -Eeuo pipefail
 IFS=$'\n\t'
 
 # Prevent multiple loading ONLY if schema is already declared
-# (Associative arrays don't export to subshells, so we may need to re-declare)
+# (Associative arrays don't export to subshells, so we may need to redeclare)
 if [[ -n "${_HARM_OPTIONS_LOADED:-}" ]] && declare -p OPTIONS_SCHEMA &>/dev/null && [[ ${#OPTIONS_SCHEMA[@]} -gt 0 ]]; then
   return 0
 fi

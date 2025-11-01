@@ -36,6 +36,7 @@ main (production-ready, protected)
 - `perf/<description>` - Performance improvements
 
 **Examples**:
+
 ```bash
 git checkout -b feature/goal-reopen
 git checkout -b fix/timer-cleanup
@@ -85,6 +86,7 @@ Component being changed: `goals`, `work`, `ai`, `git`, `config`, etc.
 ### Examples
 
 **Good commits**:
+
 ```
 feat(goals): add reopen command to restore completed goals
 fix(work): resolve timer cleanup on stop
@@ -94,6 +96,7 @@ chore(deps): update shellcheck to v0.10.0
 ```
 
 **Bad commits**:
+
 ```
 ❌ update stuff
 ❌ Fixed bug
@@ -311,11 +314,13 @@ This configures git to use hooks from `.githooks/` directory.
 Validates commit message format before commit is created.
 
 **Enforces**:
+
 - Conventional Commits format
 - Minimum description length (10 chars)
 - Valid commit types
 
 **Bypass** (not recommended):
+
 ```bash
 git commit --no-verify
 ```
@@ -323,11 +328,13 @@ git commit --no-verify
 #### pre-commit
 
 Runs quality checks before commit:
+
 1. Code formatting check
 2. Linting (shellcheck)
 3. Test suite
 
 **Skip tests only**:
+
 ```bash
 SKIP_TESTS=1 git commit
 ```
@@ -415,6 +422,7 @@ This runs the full CI pipeline and ensures your code will pass GitHub Actions.
 **Error**: "Invalid commit message format"
 
 **Solution**: Follow conventional commits format
+
 ```bash
 feat(component): description at least 10 chars
 ```
@@ -424,6 +432,7 @@ feat(component): description at least 10 chars
 **Error**: Conflicts during `git rebase origin/main`
 
 **Solution**:
+
 ```bash
 # 1. View conflicted files
 git status

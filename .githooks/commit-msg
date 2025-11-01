@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # .githooks/commit-msg - Validate conventional commit format
-# 
+#
 # This hook ensures all commits follow the Conventional Commits specification.
 # To install: git config core.hooksPath .githooks
 #

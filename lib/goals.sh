@@ -295,7 +295,7 @@ goal_show() {
 goal_update_progress() {
   local goal_num="${1:-}"
   local progress="${2:-}"
-  
+
   # Interactive mode if arguments missing and TTY available
   if [[ (-z "$goal_num" || -z "$progress") ]] && [[ -t 0 ]] && [[ -t 1 ]] && [[ "${HARM_CLI_FORMAT:-text}" == "text" ]]; then
     # Load interactive module if available
@@ -303,38 +303,38 @@ goal_update_progress() {
       # shellcheck source=lib/interactive.sh
       source "$GOALS_SCRIPT_DIR/interactive.sh"
     fi
-    
+
     # Check if interactive functions available
     if type interactive_choose >/dev/null 2>&1 && goal_exists_today; then
       log_debug "goals" "Starting interactive goal progress update"
-      
+
       echo "📊 Update Goal Progress"
       echo ""
-      
+
       # Build goal options (if goal_num not provided)
       if [[ -z "$goal_num" ]]; then
         local -a goal_options=()
         local goal_file
         goal_file=$(goal_file_for_today)
         local line_num=0
-        
+
         while IFS= read -r line; do
           ((++line_num))
           local goal_text current_progress completed
           goal_text=$(echo "$line" | jq -r '.goal' 2>/dev/null)
           current_progress=$(echo "$line" | jq -r '.progress' 2>/dev/null)
           completed=$(echo "$line" | jq -r '.completed' 2>/dev/null)
-          
+
           if [[ "$completed" == "false" ]]; then
             goal_options+=("${line_num}. ${goal_text} (${current_progress}%)")
           fi
         done < "$goal_file"
-        
+
         if [[ ${#goal_options[@]} -eq 0 ]]; then
           echo "No incomplete goals to update"
           return 0
         fi
-        
+
         # Interactive selection
         if selection=$(interactive_choose "Select goal to update" "${goal_options[@]}" 2>/dev/null); then
           # Extract number from selection
@@ -345,7 +345,7 @@ goal_update_progress() {
           return "$EXIT_ERROR"
         fi
       fi
-      
+
       # Prompt for progress (if not provided)
       if [[ -z "$progress" ]]; then
         if ! progress=$(interactive_input "New progress (0-100)" 2>/dev/null); then
@@ -359,7 +359,7 @@ goal_update_progress() {
   # Validate inputs
   [[ -z "$goal_num" ]] && die "Goal number required" "$EXIT_INVALID_ARGS"
   [[ -z "$progress" ]] && die "Progress value required" "$EXIT_INVALID_ARGS"
-  
+
   validate_int "$goal_num" || die "Goal number must be an integer (got: '$goal_num')" "$EXIT_INVALID_ARGS"
   validate_int "$progress" || die "Progress must be an integer (got: '$progress')" "$EXIT_INVALID_ARGS"
 

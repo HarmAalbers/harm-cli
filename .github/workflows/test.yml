@@ -76,9 +76,7 @@ jobs:
 
       - name: Run prettier
         run: |
-          npx prettier --check "**/*.{md,yml,yaml}" \
-            --ignore-pattern "spec/golden/**" \
-            --ignore-pattern "CHANGELOG.md"
+          npx prettier --check "**/*.{md,yml,yaml}"
 
   codespell:
     name: Spell Check
