@@ -107,8 +107,17 @@ jobs:
       - name: Run custom bash checks
         run: |
           chmod +x .pre-commit-hooks/*.sh
-          find . -name "*.sh" -type f -exec .pre-commit-hooks/check-bash-arithmetic.sh {} +
-          .pre-commit-hooks/check-function-parameters.sh install.sh uninstall.sh || true
+          # Check bash arithmetic patterns
+          find . -name "*.sh" -type f | while read -r file; do
+            .pre-commit-hooks/check-bash-arithmetic.sh "$file" || exit 1
+          done
+          # Check function parameters (only for install/uninstall scripts)
+          if [ -f install.sh ]; then
+            .pre-commit-hooks/check-function-parameters.sh install.sh || exit 1
+          fi
+          if [ -f uninstall.sh ]; then
+            .pre-commit-hooks/check-function-parameters.sh uninstall.sh || exit 1
+          fi
 
   file-checks:
     name: File Validation
