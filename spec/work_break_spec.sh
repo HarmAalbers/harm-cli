@@ -22,7 +22,7 @@ cleanup_break_session() {
   if [[ -f "$HARM_BREAK_TIMER_PID_FILE" ]]; then
     local pid
     pid=$(cat "$HARM_BREAK_TIMER_PID_FILE" 2>/dev/null || echo "")
-    [[ -n "$pid" ]] && kill "$pid" 2>/dev/null || true
+    [[ -n "$pid" ]] && { kill "$pid" 2>/dev/null || true; }
     rm -f "$HARM_BREAK_TIMER_PID_FILE"
   fi
 
