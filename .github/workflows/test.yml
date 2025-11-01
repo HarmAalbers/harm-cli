@@ -129,11 +129,12 @@ jobs:
         with:
           python-version: "3.11"
 
-      - name: Install pre-commit
-        run: pip install pre-commit
-
       - name: Run file checks
         run: |
+          pip install -q pre-commit
+          # Install hooks first
+          pre-commit install-hooks
+          # Run individual checks
           pre-commit run trailing-whitespace --all-files
           pre-commit run end-of-file-fixer --all-files
           pre-commit run check-yaml --all-files
