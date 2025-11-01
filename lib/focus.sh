@@ -88,12 +88,15 @@ readonly HARM_POMODORO_STATE
 # Outputs:
 #   stdout: Focus score (1-10)
 focus_calculate_score() {
+  log_debug "focus" "Calculating focus score"
+
   local score=5 # Start neutral
 
   # Check if work session active
   if work_is_active; then
     score=$((score + 2)) # Active session = +2
   else
+    log_debug "focus" "No active work session, returning neutral score" "Score: $score"
     echo "$score"
     return 0
   fi
@@ -123,6 +126,7 @@ focus_calculate_score() {
   [[ $score -lt 1 ]] && score=1
   [[ $score -gt 10 ]] && score=10
 
+  log_debug "focus" "Focus score calculated" "Score: $score, Violations: $violations"
   echo "$score"
 }
 
@@ -143,6 +147,8 @@ focus_calculate_score() {
 # Returns:
 #   0 - Always succeeds
 focus_check() {
+  log_info "focus" "Running focus check"
+
   echo ""
   echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
   echo "🎯 Focus Check"
@@ -151,6 +157,7 @@ focus_check() {
 
   # Check if work session active
   if ! work_is_active; then
+    log_warn "focus" "Focus check requested but no active work session"
     echo "⚠️  No active work session"
     echo "   Start one with: harm-cli work start"
     echo ""
@@ -243,6 +250,7 @@ focus_periodic_check() {
   if [[ $elapsed -ge $HARM_FOCUS_CHECK_INTERVAL ]]; then
     _FOCUS_LAST_CHECK=$now
 
+    log_info "focus" "Periodic focus check triggered" "Elapsed: ${elapsed}s"
     # Show focus check (async to avoid blocking prompt)
     (focus_check &)
   fi
@@ -267,8 +275,10 @@ focus_periodic_check() {
 #   1 - Already running
 pomodoro_start() {
   local duration="${1:-$HARM_POMODORO_DURATION}"
+  log_info "focus" "Pomodoro start requested" "Duration: ${duration}m"
 
   if [[ -f "$HARM_POMODORO_STATE" ]]; then
+    log_warn "focus" "Pomodoro already running, cannot start new session"
     echo "⏱️  Pomodoro already running"
     echo "   Stop with: harm-cli focus pomodoro-stop"
     return 1
@@ -280,6 +290,7 @@ pomodoro_start() {
   # Save state to file
   echo "$start_time" >"$HARM_POMODORO_STATE"
 
+  log_info "focus" "Pomodoro session started" "Duration: ${duration}m, Start: $start_time"
   echo "🍅 Pomodoro started: ${duration} minutes"
   echo "   Focus time! Will alert you when done."
   echo ""
@@ -288,6 +299,7 @@ pomodoro_start() {
   (
     sleep $((duration * 60))
     if [[ -f "$HARM_POMODORO_STATE" ]]; then
+      log_info "focus" "Pomodoro completed" "Duration: ${duration}m"
       echo "" >&2
       echo "🔔 Pomodoro Complete!" >&2
       echo "   Time for a ${HARM_BREAK_DURATION}-minute break" >&2
@@ -307,7 +319,10 @@ pomodoro_start() {
 # Returns:
 #   0 - Timer stopped
 pomodoro_stop() {
+  log_debug "focus" "Pomodoro stop requested"
+
   if [[ ! -f "$HARM_POMODORO_STATE" ]]; then
+    log_debug "focus" "No active pomodoro to stop"
     echo "No active pomodoro"
     return 0
   fi
@@ -318,6 +333,7 @@ pomodoro_stop() {
 
   rm -f "$HARM_POMODORO_STATE"
 
+  log_info "focus" "Pomodoro stopped" "Elapsed: ${elapsed}m"
   echo "🍅 Pomodoro stopped after ${elapsed} minutes"
   return 0
 }

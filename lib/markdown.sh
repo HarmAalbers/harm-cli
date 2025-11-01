@@ -121,15 +121,19 @@ has_rich() {
 # Outputs:
 #   stdout: glow|bat|rich|cat
 detect_markdown_tool() {
+  local tool
   if has_glow; then
-    echo "glow"
+    tool="glow"
   elif has_bat; then
-    echo "bat"
+    tool="bat"
   elif has_rich; then
-    echo "rich"
+    tool="rich"
   else
-    echo "cat"
+    tool="cat"
   fi
+
+  log_debug "markdown" "Detected markdown tool" "Tool: $tool"
+  echo "$tool"
 }
 
 # ═══════════════════════════════════════════════════════════════
@@ -161,6 +165,8 @@ detect_markdown_tool() {
 #   render_markdown docs/guide.md --width 100 --pager
 #   render_markdown file.md --tool glow --style dark
 render_markdown() {
+  log_debug "markdown" "render_markdown called" "Args: $*"
+
   local file=""
   local width=""
   local style="auto"
@@ -203,17 +209,20 @@ render_markdown() {
 
   # Validate file
   if [[ -z "$file" ]]; then
+    log_error "markdown" "No file path provided to render_markdown"
     echo "Error: render_markdown requires a file path" >&2
     return 1
   fi
 
   if [[ ! -f "$file" ]]; then
+    log_error "markdown" "File not found" "Path: $file"
     echo "Error: File not found: $file" >&2
     return 1
   fi
 
   # Determine tool to use
   local tool="${force_tool:-$(detect_markdown_tool)}"
+  log_info "markdown" "Rendering markdown" "File: $file, Tool: $tool"
 
   # Set default width if not specified
   if [[ -z "$width" ]]; then
@@ -225,18 +234,23 @@ render_markdown() {
   # Render based on tool
   case "$tool" in
     glow)
+      log_debug "markdown" "Using glow renderer" "Width: $width, Style: $style"
       _render_with_glow "$file" "$width" "$style" "$use_pager" "$no_color"
       ;;
     bat)
+      log_debug "markdown" "Using bat renderer"
       _render_with_bat "$file" "$use_pager" "$no_color"
       ;;
     rich)
+      log_debug "markdown" "Using rich-cli renderer" "Width: $width"
       _render_with_rich "$file" "$width" "$use_pager" "$no_color"
       ;;
     cat)
+      log_debug "markdown" "Using cat fallback (no markdown tools available)"
       cat "$file"
       ;;
     *)
+      log_error "markdown" "Unknown rendering tool" "Tool: $tool"
       die "Unknown rendering tool: $tool" "$EXIT_INVALID_ARGS"
       ;;
   esac

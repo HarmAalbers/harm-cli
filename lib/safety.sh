@@ -138,7 +138,10 @@ _safety_log() {
 #   - Confirmation required
 #   - Logged to dangerous_ops.log
 safe_rm() {
+  log_debug "safety" "safe_rm called" "Args: $*"
+
   if [[ $# -eq 0 ]]; then
+    log_error "safety" "safe_rm called with no arguments"
     error_msg "No files specified"
     echo "Usage: safe_rm [OPTIONS] <files>"
     return "$EXIT_INVALID_ARGS"
@@ -151,6 +154,7 @@ safe_rm() {
   for arg in "$@"; do
     if [[ "$arg" =~ ^-.*[rRf] ]] || [[ "$arg" == "--force" ]] || [[ "$arg" == "--recursive" ]]; then
       is_dangerous=1
+      log_warn "safety" "Dangerous deletion flags detected" "Arg: $arg"
       break
     fi
   done
@@ -228,11 +232,13 @@ safe_docker_prune() {
 
   # Check if docker available and running
   if ! command -v docker >/dev/null 2>&1; then
+    log_error "safety" "Docker command not found"
     error_msg "Docker not installed"
     return "$EXIT_DEPENDENCY_MISSING"
   fi
 
   if ! docker info >/dev/null 2>&1; then
+    log_error "safety" "Docker daemon not running"
     error_msg "Docker daemon not running"
     return "$EXIT_INVALID_STATE"
   fi
@@ -315,6 +321,7 @@ safe_git_reset() {
 
   # Check if in git repo
   if ! git rev-parse --git-dir >/dev/null 2>&1; then
+    log_error "safety" "Not in a git repository"
     error_msg "Not in a git repository"
     return "$EXIT_INVALID_STATE"
   fi
@@ -344,7 +351,9 @@ safe_git_reset() {
   local lost_commits
   lost_commits=$(git log "$ref..HEAD" --oneline 2>/dev/null)
   if [[ -n "$lost_commits" ]]; then
-    echo "$lost_commits" | sed 's/^/     /'
+    while IFS= read -r line; do
+      echo "     $line"
+    done <<<"$lost_commits"
     echo ""
     local commit_count
     commit_count=$(echo "$lost_commits" | wc -l | tr -d ' ')
@@ -360,7 +369,9 @@ safe_git_reset() {
   staged_files=$(git diff --cached --name-only 2>/dev/null)
   if [[ -n "$staged_files" ]]; then
     echo "     ⚠️  WARNING: You have staged changes!"
-    echo "$staged_files" | sed 's/^/       - /'
+    while IFS= read -r file; do
+      echo "       - $file"
+    done <<<"$staged_files"
   else
     echo "     (none)"
   fi
@@ -372,7 +383,9 @@ safe_git_reset() {
   working_files=$(git diff --name-only 2>/dev/null)
   if [[ -n "$working_files" ]]; then
     echo "     ⚠️  WARNING: You have uncommitted changes!"
-    echo "$working_files" | sed 's/^/       - /'
+    while IFS= read -r file; do
+      echo "       - $file"
+    done <<<"$working_files"
   else
     echo "     (none)"
   fi
@@ -398,7 +411,9 @@ safe_git_reset() {
   # Create backup
   if git branch "$backup_branch"; then
     echo "✓ Backup created: $backup_branch"
+    log_info "safety" "Backup branch created" "Branch: $backup_branch"
   else
+    log_error "safety" "Failed to create backup branch" "Branch: $backup_branch"
     error_msg "Failed to create backup branch"
     return "$EXIT_COMMAND_FAILED"
   fi

@@ -95,6 +95,8 @@ _health_get_disk_free_pct() {
 #
 # Returns: 0 (healthy), 1 (warning), 2 (critical)
 _health_check_system() {
+  log_debug "health" "Running system health check"
+
   echo "💻 System Health"
   echo "──────────────────────────"
 
@@ -157,6 +159,7 @@ _health_check_system() {
     echo "  ℹ  Disk space: unavailable"
   fi
 
+  log_debug "health" "System health check complete" "Issues: $issues"
   echo ""
   return "$issues"
 }
@@ -165,6 +168,7 @@ _health_check_system() {
 #
 # Returns: 0 (healthy), 1 (warning), 2 (critical)
 _health_check_git() {
+  log_debug "health" "Running git health check"
   echo "🔧 Git Health"
   echo "──────────────────────────"
 
@@ -219,6 +223,7 @@ _health_check_git() {
     fi
   fi
 
+  log_debug "health" "Git health check complete" "Issues: $issues"
   echo ""
   return "$issues"
 }
@@ -227,6 +232,7 @@ _health_check_git() {
 #
 # Returns: 0 (healthy), 1 (warning), 2 (critical)
 _health_check_docker() {
+  log_debug "health" "Running docker health check"
   echo "🐳 Docker Health"
   echo "──────────────────────────"
 
@@ -272,6 +278,7 @@ _health_check_docker() {
     fi
   fi
 
+  log_debug "health" "Docker health check complete"
   echo ""
   return 0
 }
@@ -280,6 +287,7 @@ _health_check_docker() {
 #
 # Returns: 0 (healthy), 1 (warning), 2 (critical)
 _health_check_python() {
+  log_debug "health" "Running python health check"
   echo "🐍 Python Health"
   echo "──────────────────────────"
 
@@ -328,6 +336,7 @@ _health_check_python() {
     fi
   fi
 
+  log_debug "health" "Python health check complete" "Issues: $issues"
   echo ""
   return "$issues"
 }
@@ -336,6 +345,7 @@ _health_check_python() {
 #
 # Returns: 0 (healthy), 1 (warning), 2 (critical)
 _health_check_ai() {
+  log_debug "health" "Running AI health check"
   echo "🤖 AI Health"
   echo "──────────────────────────"
 
@@ -378,6 +388,7 @@ _health_check_ai() {
     echo "  ℹ  Cache size: $cache_size"
   fi
 
+  log_debug "health" "AI health check complete" "Issues: $issues"
   echo ""
   return "$issues"
 }

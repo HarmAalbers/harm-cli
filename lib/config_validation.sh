@@ -9,6 +9,12 @@ set -Eeuo pipefail
 # Prevent multiple loading
 [[ -n "${_HARM_CONFIG_VALIDATION_LOADED:-}" ]] && return 0
 
+# Source logging if available
+if [[ -n "${HARM_LIB_DIR:-}" ]] && [[ -f "${HARM_LIB_DIR}/logging.sh" ]]; then
+  # shellcheck source=lib/logging.sh
+  source "${HARM_LIB_DIR}/logging.sh"
+fi
+
 # ═══════════════════════════════════════════════════════════════
 # Validation Functions
 # ═══════════════════════════════════════════════════════════════
@@ -24,7 +30,12 @@ validate_log_level() {
   local level="$1"
   case "$level" in
     DEBUG | INFO | WARN | ERROR) return 0 ;;
-    *) return 1 ;;
+    *)
+      if declare -F log_warn >/dev/null 2>&1; then
+        log_warn "Invalid log level: $level (expected DEBUG|INFO|WARN|ERROR)"
+      fi
+      return 1
+      ;;
   esac
 }
 
@@ -40,7 +51,12 @@ validate_yes_no() {
   case "$value" in
     [Yy] | [Yy][Ee][Ss] | "") return 0 ;; # Empty = yes (default)
     [Nn] | [Nn][Oo]) return 0 ;;
-    *) return 1 ;;
+    *)
+      if declare -F log_warn >/dev/null 2>&1; then
+        log_warn "Invalid yes/no value: '$value' (expected Y/N/yes/no)"
+      fi
+      return 1
+      ;;
   esac
 }
 
@@ -55,7 +71,12 @@ validate_bool() {
   local value="$1"
   case "$value" in
     0 | 1) return 0 ;;
-    *) return 1 ;;
+    *)
+      if declare -F log_warn >/dev/null 2>&1; then
+        log_warn "Invalid boolean value: '$value' (expected 0 or 1)"
+      fi
+      return 1
+      ;;
   esac
 }
 
@@ -81,9 +102,18 @@ validate_number() {
 validate_positive_int() {
   local value="$1"
   if ! validate_number "$value"; then
+    if declare -F log_warn >/dev/null 2>&1; then
+      log_warn "Invalid positive integer: '$value' (not a number)"
+    fi
     return 1
   fi
-  ((value > 0))
+  if ! ((value > 0)); then
+    if declare -F log_warn >/dev/null 2>&1; then
+      log_warn "Invalid positive integer: '$value' (must be > 0)"
+    fi
+    return 1
+  fi
+  return 0
 }
 
 # Validate output format
@@ -97,7 +127,12 @@ validate_format() {
   local format="$1"
   case "$format" in
     text | json) return 0 ;;
-    *) return 1 ;;
+    *)
+      if declare -F log_warn >/dev/null 2>&1; then
+        log_warn "Invalid format: '$format' (expected text|json)"
+      fi
+      return 1
+      ;;
   esac
 }
 
@@ -112,7 +147,12 @@ validate_ai_model() {
   local model="$1"
   case "$model" in
     gemini-2.0-flash-exp | gemini-1.5-pro | gemini-1.5-flash | gemini-1.5-flash-8b) return 0 ;;
-    *) return 1 ;;
+    *)
+      if declare -F log_warn >/dev/null 2>&1; then
+        log_warn "Invalid AI model: '$model' (expected gemini-2.0-flash-exp|gemini-1.5-pro|gemini-1.5-flash|gemini-1.5-flash-8b)"
+      fi
+      return 1
+      ;;
   esac
 }
 
