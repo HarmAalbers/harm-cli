@@ -334,7 +334,7 @@ _cleanup_find_files() {
 
     echo -e "${size_bytes}\t${human_size}\t${filepath}"
 
-    ((count++))
+    ((++count))
     if ((count >= max_results * 2)); then
       # Get more than needed so we can sort and take top N
       break
@@ -717,7 +717,7 @@ _cleanup_select_files_fallback() {
   local i=1
   for option in "${file_options[@]}"; do
     printf "%2d) %s\n" "$i" "$option"
-    ((i++))
+    ((++i))
   done
 
   echo ""
