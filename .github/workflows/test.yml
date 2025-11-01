@@ -1,4 +1,4 @@
-name: Tests
+name: CI
 
 on:
   push:
@@ -8,68 +8,42 @@ on:
 
 permissions:
   contents: read
-  pull-requests: read
-  actions: read
 
 jobs:
-  test-bash:
-    name: Test with Bash
-    runs-on: macos-latest
+  test:
+    name: Tests
+    runs-on: ubuntu-latest
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
       - name: Install dependencies
         run: |
-          brew install bash shellspec jq
+          sudo apt-get update
+          sudo apt-get install -y bash jq curl
+          curl -fsSL https://git.io/shellspec | sh -s -- --yes
+          echo "$HOME/.local/bin" >> $GITHUB_PATH
 
-      - name: Verify bash version
+      - name: Run tests
         run: |
-          BASH_PATH="$(brew --prefix)/bin/bash"
-          echo "Bash path: $BASH_PATH"
-          "$BASH_PATH" --version
-
-      - name: Run tests with bash 5+
-        # Use homebrew bash (5.x) instead of system bash (3.2) to support modern features
-        # Note: ShellSpec exits with code 101 for warnings (not failures)
-        # We treat warnings as acceptable (0 failures = success)
-        shell: bash
-        run: |
-          set +e  # Don't exit on error, we'll handle it
-          BASH_PATH="$(brew --prefix)/bin/bash"
-          shellspec -s "$BASH_PATH"
+          shellspec
           EXIT_CODE=$?
-          set -e  # Re-enable exit on error
-
-          echo "ShellSpec exit code: $EXIT_CODE"
-
-          # Exit codes:
-          # 0   = All tests passed, no warnings
-          # 101 = Tests passed, but has warnings (acceptable)
-          # Other = Actual failures
-
           if [[ $EXIT_CODE -eq 0 ]] || [[ $EXIT_CODE -eq 101 ]]; then
-            echo "✅ Tests passed (warnings are acceptable)"
             exit 0
           else
-            echo "❌ Tests failed with exit code: $EXIT_CODE"
-            exit 1
+            exit $EXIT_CODE
           fi
 
-  pre-commit:
-    name: Pre-commit Hooks
+  quality:
+    name: Code Quality
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
-      - name: Set up Python
-        uses: actions/setup-python@v5
+      - uses: actions/setup-python@v5
         with:
           python-version: "3.11"
 
-      - name: Install pre-commit
-        run: pip install pre-commit
-
       - name: Run pre-commit
-        run: pre-commit run --all-files --show-diff-on-failure
+        run: |
+          pip install pre-commit
+          pre-commit run --all-files --show-diff-on-failure
