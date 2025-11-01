@@ -134,6 +134,7 @@ my_command() {
 ```
 
 **Key Principles:**
+
 - ✅ **Non-invasive**: Interactive code at top, original logic unchanged
 - ✅ **Safe fallback**: Multiple checks before interactive mode
 - ✅ **Script-safe**: Skipped in non-TTY or JSON mode
@@ -141,11 +142,13 @@ my_command() {
 - ✅ **Progressive enhancement**: Uses gum/fzf if available, falls back to bash `select`
 
 **Three-Tier Enhancement:**
+
 1. **Tier 1 (Always)**: Pure bash, CLI arguments required
 2. **Tier 2 (Enhanced)**: Bash `select` menus for TTY
 3. **Tier 3 (Delightful)**: `gum`/`fzf` for beautiful UX
 
 **When to Use Interactive Mode:**
+
 - ✅ Commands with multiple options to choose from
 - ✅ Frequently used commands that benefit from convenience
 - ✅ Commands where remembering IDs/names is tedious

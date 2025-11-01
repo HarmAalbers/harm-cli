@@ -1,4 +1,5 @@
 # harm-cli Mega Improvement Plan
+
 **Generated**: 2025-10-25
 **Analysis**: 8 specialized agents (code quality, SOLID, performance, security, testing, architecture, UX, git workflow)
 
@@ -19,12 +20,14 @@ harm-cli is a **production-ready CLI toolkit** with excellent foundations (287 p
 ## Critical Issues (Fix Immediately)
 
 ### 🔴 CRITICAL-1: Pattern Override Bug in CLI Dispatcher
+
 **Severity**: CRITICAL
 **Impact**: Commands are unreachable (break violations, reset-violations, set-mode)
 **File**: `/Users/harm/harm-cli/bin/harm-cli` lines 377-381
 **Effort**: 5 minutes
 
 **Current Code**:
+
 ```bash
 case "$subcmd" in
   *)
@@ -37,6 +40,7 @@ esac
 ```
 
 **Fix**:
+
 ```bash
 case "$subcmd" in
   --help | help)
@@ -55,6 +59,7 @@ esac
 ```
 
 **Verification**:
+
 ```bash
 just lint
 just test
@@ -65,11 +70,13 @@ just test
 ## High-Priority Security Fixes
 
 ### 🟠 MEDIUM-1: Notification Command Injection
+
 **Severity**: MEDIUM
 **File**: `/Users/harm/harm-cli/lib/work.sh` lines 109-114
 **Effort**: 30 minutes
 
 **Vulnerability**:
+
 ```bash
 # Current - escapes only double quotes
 local safe_title="${title//\"/\\\"}"
@@ -77,6 +84,7 @@ osascript -e "display notification \"$safe_message\" with title \"$safe_title\""
 ```
 
 **Fix**:
+
 ```bash
 # Use osascript stdin to avoid shell interpretation
 osascript <<EOF
@@ -85,6 +93,7 @@ EOF
 ```
 
 **Test**:
+
 ```bash
 harm-cli work start "Test \$(whoami)"  # Should NOT execute whoami
 ```
@@ -92,16 +101,19 @@ harm-cli work start "Test \$(whoami)"  # Should NOT execute whoami
 ---
 
 ### 🟠 MEDIUM-2: Remove eval from Logging
+
 **Severity**: MEDIUM
 **File**: `/Users/harm/harm-cli/lib/logging.sh` lines 577, 582, 589, 593
 **Effort**: 1 hour
 
 **Current**:
+
 ```bash
 eval "stdbuf -o0 $tail_cmd '$log_file' | stdbuf -o0 $filter_cmd"
 ```
 
 **Fix**:
+
 ```bash
 # Use command arrays instead of eval
 stdbuf -o0 "$tail_cmd" "$log_file" | stdbuf -o0 $filter_cmd
@@ -110,11 +122,13 @@ stdbuf -o0 "$tail_cmd" "$log_file" | stdbuf -o0 $filter_cmd
 ---
 
 ### 🟠 MEDIUM-3: Sanitize curl Error Output
+
 **Severity**: MEDIUM
 **File**: `/Users/harm/harm-cli/lib/ai.sh` line 544
 **Effort**: 15 minutes
 
 **Fix**:
+
 ```bash
 response=$(curl -s -w "\n%{http_code}" \
   -m "$AI_TIMEOUT" \
@@ -129,11 +143,13 @@ response=$(curl -s -w "\n%{http_code}" \
 ## High-Priority Performance Optimizations
 
 ### ⚡ PERF-1: Consolidate JSON Parsing
+
 **Impact**: 60-90% faster for goal/work operations
 **Files**: `lib/goals.sh` lines 241-253, `lib/work.sh` lines 428-433
 **Effort**: 2 hours
 
 **Current (3 jq processes per goal)**:
+
 ```bash
 while IFS= read -r line; do
   goal="$(jq -r '.goal' <<<"$line")"
@@ -143,6 +159,7 @@ done <"$goal_file"
 ```
 
 **Optimized (1 jq process total)**:
+
 ```bash
 jq -r '.[] | [.goal, .progress, .completed] | @tsv' "$goal_file" | \
 while IFS=$'\t' read -r goal progress completed; do
@@ -155,6 +172,7 @@ done
 ---
 
 ### ⚡ PERF-2: Optimize goal_show Loop
+
 **Impact**: 90% faster
 **File**: `/Users/harm/harm-cli/lib/goals.sh` lines 241-253
 **Effort**: 1 hour
@@ -166,11 +184,13 @@ Apply same pattern as PERF-1 to `goal_show` function.
 ## Critical Test Coverage Gaps
 
 ### 🧪 TEST-1: Add Safety Operation Tests
+
 **Priority**: P0 (prevents data loss)
 **File**: Create `spec/safety_spec.sh` with 47+ tests
 **Effort**: 1 day
 
 **Missing Tests**:
+
 - Confirmation timeout behavior
 - Preview accuracy (files vs directories)
 - Permission errors
@@ -183,11 +203,13 @@ Apply same pattern as PERF-1 to `goal_show` function.
 ---
 
 ### 🧪 TEST-2: Add Background Process Tests
+
 **Priority**: P0 (prevents zombie processes)
 **File**: Update `spec/work_spec.sh` with timer tests
 **Effort**: 4 hours
 
 **Missing Tests**:
+
 - Timer PID file creation/cleanup
 - Background process lifecycle
 - Orphaned process prevention
@@ -196,6 +218,7 @@ Apply same pattern as PERF-1 to `goal_show` function.
 ---
 
 ### 🧪 TEST-3: Test Untested Modules
+
 **Priority**: P1
 **Modules**: focus.sh, interactive.sh, github.sh, insights.sh, goal_ai.sh (10 total)
 **Effort**: 2 weeks
@@ -207,10 +230,12 @@ Create test files for 3,977 untested lines across 10 modules.
 ## Architecture Improvements
 
 ### 🏗️ ARCH-1: Work ↔ Goals Integration
+
 **Impact**: HIGH - Direct productivity boost
 **Effort**: 1-2 days
 
 **Implementation**:
+
 ```bash
 # Add goal_id to work session state
 work_start() {
@@ -241,10 +266,12 @@ work_stop() {
 ---
 
 ### 🏗️ ARCH-2: AI Context Injection
+
 **Impact**: HIGH - Better AI suggestions
 **Effort**: 1 day
 
 **Implementation**:
+
 ```bash
 # Create lib/context.sh
 declare -gA HARM_CONTEXT=(
@@ -275,6 +302,7 @@ ai_query() {
 ---
 
 ### 🏗️ ARCH-3: Refactor lib/common.sh (God Module)
+
 **Impact**: MEDIUM - Removes technical debt
 **Effort**: 1 day
 
@@ -298,17 +326,20 @@ lib/
 ## UX Improvements
 
 ### 🎨 UX-1: Work Session Wizard
+
 **Impact**: HIGH - Reduces friction
 **File**: `lib/work.sh` line 301
 **Effort**: 4 hours
 
 **Current**:
+
 ```bash
 $ harm-cli work start "Phase 3"
 ✓ Work session started
 ```
 
 **Enhanced**:
+
 ```bash
 $ harm-cli work start
 🍅 Start Pomodoro Session
@@ -331,11 +362,13 @@ Duration: 25m (standard) ◆ 15m (mini) ◆ 45m (deep)
 ---
 
 ### 🎨 UX-2: Goal Selection Menu
+
 **Impact**: HIGH - Faster than remembering IDs
 **File**: `lib/goals.sh` line 295
 **Effort**: 2 hours
 
 **Implementation**:
+
 ```bash
 goal_update_progress() {
   if [[ $# -eq 0 ]]; then
@@ -355,11 +388,13 @@ goal_update_progress() {
 ---
 
 ### 🎨 UX-3: AI Progress Feedback
+
 **Impact**: HIGH - Reduces anxiety
 **File**: `lib/ai.sh` line 719
 **Effort**: 1 hour
 
 **Implementation**:
+
 ```bash
 if has_gum; then
   gum spin --spinner dot --title "Thinking..." -- \
@@ -377,6 +412,7 @@ fi
 ## Git Workflow Improvements
 
 ### 📝 GIT-1: Add Commit Message Validation Hook
+
 **Impact**: HIGH - 100% conventional commits
 **Effort**: 1 hour
 
@@ -393,6 +429,7 @@ fi
 ```
 
 **Install**:
+
 ```bash
 chmod +x .git/hooks/commit-msg
 pre-commit install --hook-type commit-msg
@@ -401,12 +438,14 @@ pre-commit install --hook-type commit-msg
 ---
 
 ### 📝 GIT-2: Create Release Automation
+
 **Impact**: HIGH - 30min → 5min releases
 **Effort**: 2 hours
 
 **Create**: `scripts/release.sh`
 
 Features:
+
 - Auto-update VERSION file
 - Generate CHANGELOG with git-cliff
 - Create annotated tag
@@ -414,6 +453,7 @@ Features:
 - Create GitHub release
 
 **Usage**:
+
 ```bash
 ./scripts/release.sh 1.2.0
 ```
@@ -423,10 +463,12 @@ Features:
 ## SOLID Compliance Fixes
 
 ### 🔧 SOLID-1: Fix Inconsistent Error Contracts
+
 **File**: `lib/util.sh` lines 113-144
 **Effort**: 2 hours
 
 **Issue**: Mixed error handling patterns
+
 ```bash
 file_sha256() { require_file "$file"; ... }  # Dies on error
 file_exists() { [[ -f "$file" ]]; }          # Returns 0/1
@@ -439,6 +481,7 @@ file_exists() { [[ -f "$file" ]]; }          # Returns 0/1
 ## Implementation Roadmap
 
 ### Week 1: Critical Fixes & Security
+
 - [ ] Day 1: Fix pattern override bug (CRITICAL-1)
 - [ ] Day 2: Fix notification injection (MEDIUM-1)
 - [ ] Day 2: Remove eval from logging (MEDIUM-2)
@@ -446,18 +489,21 @@ file_exists() { [[ -f "$file" ]]; }          # Returns 0/1
 - [ ] Day 4-5: Add safety operation tests (TEST-1)
 
 ### Week 2: Performance & Architecture
+
 - [ ] Day 1-2: Consolidate JSON parsing (PERF-1, PERF-2)
 - [ ] Day 3: Work ↔ Goals integration (ARCH-1)
 - [ ] Day 4: AI context injection (ARCH-2)
 - [ ] Day 5: Refactor lib/common.sh (ARCH-3)
 
 ### Week 3: UX & Testing
+
 - [ ] Day 1-2: Work session wizard (UX-1)
 - [ ] Day 2: Goal selection menu (UX-2)
 - [ ] Day 3: AI progress feedback (UX-3)
 - [ ] Day 4-5: Background process tests (TEST-2)
 
 ### Week 4: Git Workflow & Polish
+
 - [ ] Day 1: Commit message validation (GIT-1)
 - [ ] Day 2: Release automation (GIT-2)
 - [ ] Day 3: SOLID fixes (SOLID-1)
@@ -468,31 +514,37 @@ file_exists() { [[ -f "$file" ]]; }          # Returns 0/1
 ## Success Metrics
 
 ### Code Quality
+
 - [ ] Shellcheck violations: 2 → 0
 - [ ] Code coverage: ~60% → 80%+
 - [ ] SOLID compliance: B+ → A
 
 ### Performance
+
 - [ ] Goal operations: 480ms → 50ms (90% faster)
 - [ ] Work status: 45ms → 15ms (67% faster)
 - [ ] AI queries: Add progress feedback
 
 ### Security
+
 - [ ] Command injection vulnerabilities: 1 → 0
 - [ ] Eval usage: Removed from logging
 - [ ] Secret leakage: Sanitized in errors
 
 ### User Experience
+
 - [ ] Interactive features: 2 → 8+
 - [ ] Error message quality: Add examples
 - [ ] Setup friction: Reduced by 30%
 
 ### Testing
+
 - [ ] Test files: 18 → 28
 - [ ] Test count: 287 → 500+
 - [ ] Module coverage: 44% → 100%
 
 ### Git Workflow
+
 - [ ] Conventional commits: 40% → 100%
 - [ ] Release time: 30min → 5min
 - [ ] Branch count: 60+ → 10-15 active
@@ -502,6 +554,7 @@ file_exists() { [[ -f "$file" ]]; }          # Returns 0/1
 ## Risk Assessment
 
 ### Low Risk (Safe to Implement)
+
 - Pattern override bug fix
 - JSON parsing consolidation
 - UX enhancements (use existing interactive.sh)
@@ -509,11 +562,13 @@ file_exists() { [[ -f "$file" ]]; }          # Returns 0/1
 - Git workflow improvements
 
 ### Medium Risk (Requires Testing)
+
 - lib/common.sh refactoring (backward compatibility needed)
 - Eval removal from logging (behavior verification)
 - SOLID error contract changes (API changes)
 
 ### High Risk (Careful Planning)
+
 - Work ↔ Goals integration (state schema changes)
 - AI context injection (prompt engineering)
 

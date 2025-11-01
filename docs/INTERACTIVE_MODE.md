@@ -9,18 +9,21 @@ This guide documents the interactive mode pattern used in `harm-cli` and provide
 Interactive mode follows a three-tier architecture that ensures graceful degradation:
 
 ### Tier 1: CLI Arguments (Always Works)
+
 - **No dependencies**: Pure bash, works everywhere
 - **Explicit**: All parameters provided via command-line
 - **Script-friendly**: Ideal for automation and CI/CD
 - **Example**: `harm-cli work start "Complete documentation"`
 
 ### Tier 2: Interactive Bash (Enhanced)
+
 - **Built-in**: Uses bash `select` for menus
 - **TTY-aware**: Only activates in interactive terminals
 - **No external deps**: Works with standard bash 5+
 - **Example**: Numbered menu with `select`
 
 ### Tier 3: Beautiful UX (Delightful)
+
 - **Optional deps**: Requires `gum` and/or `fzf`
 - **Polished**: Animated spinners, fuzzy search, colors
 - **Progressive**: Falls back to Tier 2 if not available
@@ -131,6 +134,7 @@ my_feature() {
 From `lib/interactive.sh`:
 
 ### `interactive_choose`
+
 Single-selection menu with fuzzy search
 
 ```bash
@@ -140,11 +144,13 @@ fi
 ```
 
 **Behavior:**
+
 - **gum available**: Beautiful fuzzy-searchable menu
 - **fzf available**: Terminal fuzzy finder
 - **fallback**: bash `select` menu
 
 ### `interactive_choose_multi`
+
 Multi-selection menu (space to toggle, enter to confirm)
 
 ```bash
@@ -155,6 +161,7 @@ fi
 ```
 
 ### `interactive_input`
+
 Text input with optional default
 
 ```bash
@@ -164,10 +171,12 @@ fi
 ```
 
 **Behavior:**
+
 - **gum available**: Beautiful input with placeholder
 - **fallback**: bash `read` with prompt
 
 ### `interactive_password`
+
 Secure password input (hidden)
 
 ```bash
@@ -177,6 +186,7 @@ fi
 ```
 
 ### `interactive_confirm`
+
 Yes/No confirmation
 
 ```bash
@@ -188,10 +198,12 @@ fi
 ```
 
 **Behavior:**
+
 - **gum available**: Beautiful yes/no selector
 - **fallback**: bash read with y/n prompt
 
 ### `interactive_filter`
+
 Live-filtered list with preview
 
 ```bash
@@ -466,6 +478,7 @@ $ PATH=/usr/bin:/bin harm-cli my-feature  # Should use bash select
 ### Interactive mode not triggering
 
 **Check:**
+
 - Running in a TTY? `[[ -t 1 ]] && echo "yes" || echo "no"`
 - Not in JSON mode? `echo $HARM_CLI_FORMAT`
 - interactive.sh exists? `ls lib/interactive.sh`
@@ -473,11 +486,13 @@ $ PATH=/usr/bin:/bin harm-cli my-feature  # Should use bash select
 ### Fallback to bash select
 
 **This is expected when:**
+
 - `gum` not installed
 - `fzf` not installed
 - Running in restricted environment
 
 **To test with gum:**
+
 ```bash
 brew install gum
 harm-cli my-feature  # Should use beautiful gum menu
@@ -486,6 +501,7 @@ harm-cli my-feature  # Should use beautiful gum menu
 ### Input validation failing
 
 **Remember:**
+
 - Interactive inputs need same validation as CLI
 - Empty inputs should be caught
 - Range checks (e.g., 0-100) must apply to both modes
@@ -500,6 +516,7 @@ harm-cli my-feature  # Should use beautiful gum menu
 ## Summary
 
 Interactive mode in `harm-cli`:
+
 - ✅ Enhances UX without breaking CLI compatibility
 - ✅ Three-tier progressive enhancement
 - ✅ Script-safe and automation-friendly

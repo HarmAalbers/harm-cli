@@ -19,4 +19,3 @@ echo "Active hooks:"
 find "$GITHOOKS_DIR" -type f -perm +111 ! -name "setup.sh" -exec basename {} \;
 echo ""
 echo "💡 To bypass hooks temporarily: git commit --no-verify"
-

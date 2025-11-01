@@ -45,7 +45,7 @@
 
 - [gum](https://github.com/charmbracelet/gum) - Beautiful interactive menus and spinners
 - [fzf](https://github.com/junegunn/fzf) - Fuzzy finding for selections
-- *Note: Without these, interactive features gracefully degrade to bash `select` menus*
+- _Note: Without these, interactive features gracefully degrade to bash `select` menus_
 
 ### Quick Install
 
@@ -145,6 +145,7 @@ harm-cli ai --help
 ### How It Works
 
 Commands automatically switch to interactive mode when:
+
 - ✅ No arguments provided
 - ✅ Running in a TTY (terminal)
 - ✅ Not in JSON format mode

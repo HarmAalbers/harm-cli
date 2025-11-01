@@ -7,6 +7,7 @@ We've fixed the project switching issue where `proj switch` would output a `cd` 
 ## What Changed
 
 ### Before (Broken Behavior)
+
 ```bash
 $ proj switch solarmonkey
 Alias tip: proj switch solarmonkey
@@ -16,6 +17,7 @@ $ pwd
 ```
 
 ### After (Fixed Behavior)
+
 ```bash
 $ proj switch solarmonkey
 
@@ -26,6 +28,7 @@ $ pwd
 ## Technical Details
 
 The installer now:
+
 1. **Loads init script automatically** - `~/.harm-cli/harm-cli.sh` now sources `etc/harm-cli-init.sh`
 2. **Removes proj alias** - The `proj` alias has been removed from `aliases.sh` since the shell function provides better functionality
 3. **Shell function priority** - The `proj()` shell function is loaded before aliases, ensuring correct behavior
@@ -42,11 +45,13 @@ cd ~/harm-cli
 ```
 
 The installer will:
+
 - Regenerate `~/.harm-cli/harm-cli.sh` with init script loading
 - Regenerate `~/.harm-cli/aliases.sh` without the `proj` alias
 - Preserve all your existing configuration
 
 Then restart your shell:
+
 ```bash
 source ~/.zshrc  # or ~/.bashrc
 ```
@@ -82,6 +87,7 @@ fi
 #### Step 2: Update `~/.harm-cli/aliases.sh`
 
 Remove the `proj` alias line:
+
 ```bash
 # Remove this line:
 alias proj='harm-cli proj'
@@ -101,11 +107,13 @@ source ~/.zshrc  # or ~/.bashrc
 After migrating, verify the fix works:
 
 ### Test 1: Check that proj is a function
+
 ```bash
 type proj
 ```
 
 Expected output:
+
 ```
 proj is a shell function from /path/to/harm-cli/etc/harm-cli-init.sh
 ```
@@ -132,6 +140,7 @@ The directory should change without needing to `eval` or manually run `cd`.
 **Cause:** Your current shell session still has the old alias loaded.
 
 **Solution:**
+
 ```bash
 unalias proj
 source ~/.zshrc
@@ -152,15 +161,18 @@ source ~/.zshrc
 ### Issue: Shell exits immediately after sourcing or running commands
 
 **Cause:** (Fixed in v1.1.0+) Multiple issues caused shell exits:
+
 1. Unprotected `$ZSH_VERSION` variable check
 2. **Critical**: Shell options (`set -u`) from library files leaked into interactive shell
 
 **Symptoms:**
+
 - Shell exits when opening new terminal
 - Shell exits when running `cd` command
 - Shell exits when accessing unset variables
 
 **Solution:** Re-run the installer to get the fully fixed version:
+
 ```bash
 cd ~/harm-cli
 ./install.sh
@@ -168,6 +180,7 @@ source ~/.zshrc
 ```
 
 **What the fix does:**
+
 1. Protects variable checks: `$ZSH_VERSION` → `${ZSH_VERSION:-}`
 2. Saves and restores shell options around init script sourcing
 3. Prevents `set -u` (nounset) from leaking into your interactive shell
@@ -179,12 +192,14 @@ source ~/.zshrc
 When you run a command in your shell, it executes in a **subprocess**. Subprocesses can't modify the parent shell's environment, including the current working directory. This is a fundamental Unix limitation.
 
 **The Problem:**
+
 ```bash
 harm-cli proj switch myproject   # Runs in subprocess
   ↳ cd /path/to/myproject        # Changes subprocess dir, not parent shell
 ```
 
 **The Solution:**
+
 ```bash
 proj() {                         # Shell function runs in current shell
   eval "$(harm-cli proj switch)" # Evaluates the cd command in current shell
@@ -219,6 +234,7 @@ Though we don't recommend this, as the old behavior was broken.
 ## Questions?
 
 If you encounter any issues not covered in this guide:
+
 1. Check the [COMMANDS.md](../COMMANDS.md) documentation
 2. Run `harm-cli proj --help`
 3. Report issues at https://github.com/harm/harm-cli/issues

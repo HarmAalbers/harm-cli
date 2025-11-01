@@ -5,6 +5,7 @@ This document summarizes the git workflow automation implemented for harm-cli.
 ## Overview
 
 Professional git workflow automation has been implemented with:
+
 - Commit message validation (Conventional Commits)
 - Automated release management
 - Changelog generation
@@ -16,9 +17,11 @@ Professional git workflow automation has been implemented with:
 ### 1. Git Hooks (.githooks/)
 
 #### .githooks/commit-msg
+
 **Purpose**: Validate commit messages follow Conventional Commits format
 
 **Features**:
+
 - Enforces type(scope): description format
 - Validates description length (min 10, max 72 chars)
 - Skips merge/revert commits
@@ -29,18 +32,22 @@ Professional git workflow automation has been implemented with:
 **Executable**: Yes (chmod +x)
 
 **Test Results**:
+
 - ✅ Valid commit: "test: this is a valid commit message for testing" - PASSED
 - ✅ Invalid commit: "bad commit" - CORRECTLY REJECTED
 
 #### .githooks/pre-commit
+
 **Purpose**: Run quality checks before commit
 
 **Checks**:
+
 1. Code formatting (shfmt)
 2. Linting (shellcheck)
 3. Test suite (shellspec)
 
 **Features**:
+
 - Skippable tests with SKIP_TESTS=1
 - Graceful degradation if tools missing
 - Clear error messages
@@ -49,14 +56,17 @@ Professional git workflow automation has been implemented with:
 **Executable**: Yes
 
 #### .githooks/setup.sh
+
 **Purpose**: Configure git to use custom hooks
 
 **Usage**:
+
 ```bash
 ./.githooks/setup.sh
 ```
 
 **What it does**:
+
 - Runs: `git config core.hooksPath .githooks`
 - Lists active hooks
 - Shows bypass instructions
@@ -65,9 +75,11 @@ Professional git workflow automation has been implemented with:
 **Executable**: Yes
 
 #### .githooks/README.md
+
 **Purpose**: Documentation for git hooks
 
 **Contents**:
+
 - Installation instructions
 - Hook descriptions
 - Troubleshooting guide
@@ -79,9 +91,11 @@ Professional git workflow automation has been implemented with:
 ### 2. Release Automation
 
 #### scripts/release.sh
+
 **Purpose**: Automated release management
 
 **Features**:
+
 - Version bumping (major/minor/patch)
 - Changelog generation with git-cliff
 - Git tagging with annotations
@@ -92,6 +106,7 @@ Professional git workflow automation has been implemented with:
 - Error handling with traps
 
 **Usage**:
+
 ```bash
 # Standard releases
 ./scripts/release.sh patch   # 1.0.0 -> 1.0.1
@@ -109,6 +124,7 @@ SKIP_TESTS=1 ./scripts/release.sh patch
 ```
 
 **Release Process**:
+
 1. Check prerequisites (git, jq, git-cliff, gh)
 2. Validate git state (clean, on main, up-to-date)
 3. Run test suite (unless SKIP_TESTS=1)
@@ -127,9 +143,11 @@ SKIP_TESTS=1 ./scripts/release.sh patch
 ### 3. Changelog Configuration
 
 #### cliff.toml
+
 **Purpose**: git-cliff configuration for changelog generation
 
 **Features**:
+
 - Conventional Commits parsing
 - Grouped by commit type (Features, Bug Fixes, etc.)
 - GitHub PR/issue linking
@@ -138,6 +156,7 @@ SKIP_TESTS=1 ./scripts/release.sh patch
 - Customizable templates
 
 **Commit Groups**:
+
 - Features (feat)
 - Bug Fixes (fix)
 - Documentation (docs)
@@ -150,6 +169,7 @@ SKIP_TESTS=1 ./scripts/release.sh patch
 - Security (body contains "security")
 
 **Usage**:
+
 ```bash
 # Generate changelog for new version
 git-cliff --tag v1.2.0 --output CHANGELOG.md
@@ -167,9 +187,11 @@ git-cliff --latest
 ### 4. Git Configuration
 
 #### .gitmessage
+
 **Purpose**: Commit message template
 
 **Features**:
+
 - Conventional Commits format guide
 - Type descriptions
 - Scope examples
@@ -178,6 +200,7 @@ git-cliff --latest
 - Character limit indicators
 
 **Setup**:
+
 ```bash
 git config commit.template .gitmessage
 ```
@@ -191,9 +214,11 @@ After setup, `git commit` opens editor with helpful template.
 ### 5. Documentation
 
 #### docs/git-workflow.md
+
 **Purpose**: Comprehensive git workflow guide
 
 **Contents**:
+
 - Branch strategy
 - Commit message format
 - Development workflow
@@ -204,6 +229,7 @@ After setup, `git commit` opens editor with helpful template.
 - Best practices
 
 **Topics Covered**:
+
 - Branch naming conventions
 - Conventional Commits specification
 - Step-by-step development workflow
@@ -266,6 +292,7 @@ echo "bad message" | ./.githooks/commit-msg /dev/stdin
 ```
 
 **Test Results**:
+
 - ✅ Valid messages: PASS
 - ✅ Invalid messages: CORRECTLY REJECTED
 - ✅ Error messages: CLEAR AND HELPFUL
@@ -435,6 +462,7 @@ ls -la .githooks/
 ### Commit Rejected
 
 Read error message carefully. Common issues:
+
 - Message too short (<10 chars)
 - Missing type prefix (feat:, fix:, etc.)
 - Code formatting issues (run `just fmt`)
@@ -443,11 +471,13 @@ Read error message carefully. Common issues:
 ### Release Script Fails
 
 Check prerequisites:
+
 ```bash
 just doctor
 ```
 
 Verify git state:
+
 ```bash
 git status              # Should be clean
 git branch --show-current  # Should be main
@@ -460,22 +490,26 @@ git status              # Should be up-to-date
 ### Recommended Actions
 
 1. **Install hooks**:
+
    ```bash
    ./.githooks/setup.sh
    ```
 
 2. **Install dependencies**:
+
    ```bash
    brew install git-cliff gh jq
    ```
 
 3. **Test workflow**:
+
    ```bash
    # Try dry-run release
    DRY_RUN=1 ./scripts/release.sh patch
    ```
 
 4. **Read documentation**:
+
    ```bash
    cat docs/git-workflow.md
    ```
@@ -488,6 +522,7 @@ git status              # Should be up-to-date
 ### Future Enhancements
 
 Potential improvements:
+
 - [ ] Pre-push hook (run CI before push)
 - [ ] Commit message AI generation integration
 - [ ] Automated PR description generation
@@ -498,16 +533,16 @@ Potential improvements:
 
 ## File Summary
 
-| File | Purpose | Size | Executable |
-|------|---------|------|------------|
-| `.githooks/commit-msg` | Validate commit format | 2.2KB | ✅ |
-| `.githooks/pre-commit` | Run quality checks | 1.4KB | ✅ |
-| `.githooks/setup.sh` | Install hooks | 572B | ✅ |
-| `.githooks/README.md` | Hook documentation | 2.3KB | ❌ |
-| `scripts/release.sh` | Release automation | 13KB | ✅ |
-| `cliff.toml` | Changelog config | 2.8KB | ❌ |
-| `.gitmessage` | Commit template | 1.2KB | ❌ |
-| `docs/git-workflow.md` | Workflow guide | Large | ❌ |
+| File                   | Purpose                | Size  | Executable |
+| ---------------------- | ---------------------- | ----- | ---------- |
+| `.githooks/commit-msg` | Validate commit format | 2.2KB | ✅         |
+| `.githooks/pre-commit` | Run quality checks     | 1.4KB | ✅         |
+| `.githooks/setup.sh`   | Install hooks          | 572B  | ✅         |
+| `.githooks/README.md`  | Hook documentation     | 2.3KB | ❌         |
+| `scripts/release.sh`   | Release automation     | 13KB  | ✅         |
+| `cliff.toml`           | Changelog config       | 2.8KB | ❌         |
+| `.gitmessage`          | Commit template        | 1.2KB | ❌         |
+| `docs/git-workflow.md` | Workflow guide         | Large | ❌         |
 
 ## Verification
 
@@ -523,6 +558,7 @@ All files have been created and tested:
 ## Support
 
 For questions or issues:
+
 1. Read `docs/git-workflow.md`
 2. Read `.githooks/README.md`
 3. Check troubleshooting sections

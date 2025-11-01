@@ -1,0 +1,7 @@
+# Prettier ignore patterns for harm-cli
+
+# Test golden files (should not be modified)
+spec/golden/**
+
+# Changelog is auto-generated
+CHANGELOG.md
