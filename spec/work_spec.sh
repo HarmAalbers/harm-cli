@@ -42,6 +42,37 @@ cleanup_work_test_env() {
 
 AfterAll 'cleanup_work_test_env'
 
+Describe 'Module Loading'
+Describe 'work.sh can be sourced without errors'
+# This test reproduces bug: work.sh sources non-existent module files
+# Expected: work.sh sources successfully
+# Actual (before fix): "No such file or directory" errors for work_timers.sh, etc.
+It 'sources work.sh without errors'
+# The setup_work_test_env already sources work.sh (line 14)
+# If sourcing failed, we wouldn't get here
+The variable _HARM_WORK_LOADED should be defined
+End
+
+It 'exports work_start function after sourcing'
+When call type work_start
+The output should include "work_start is a function"
+The status should be success
+End
+
+It 'exports work_stop function after sourcing'
+When call type work_stop
+The output should include "work_stop is a function"
+The status should be success
+End
+
+It 'exports work_status function after sourcing'
+When call type work_status
+The output should include "work_status is a function"
+The status should be success
+End
+End
+End
+
 Describe 'Configuration'
 It 'creates work directory'
 The directory "$HARM_WORK_DIR" should be exist
