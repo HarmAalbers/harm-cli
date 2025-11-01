@@ -183,7 +183,7 @@ When call work_stop
 The status should be success
 
 # Check archived session has early_stop flag
-local archive_file="${HARM_WORK_DIR}/sessions_$(date '+%Y-%m').jsonl"
+archive_file="${HARM_WORK_DIR}/sessions_$(date '+%Y-%m').jsonl"
 The file "$archive_file" should be exist
 The contents of file "$archive_file" should include '"early_stop": true'
 End
@@ -206,7 +206,7 @@ sleep 2
 When call break_stop
 The status should be success
 
-local breaks_file="${HARM_WORK_DIR}/breaks_$(date '+%Y-%m').jsonl"
+breaks_file="${HARM_WORK_DIR}/breaks_$(date '+%Y-%m').jsonl"
 The file "$breaks_file" should not be exist
 End
 End
@@ -221,7 +221,7 @@ sleep 2 # Short break, not fully completed
 When call break_stop
 The status should be success
 
-local breaks_file="${HARM_WORK_DIR}/breaks_$(date '+%Y-%m').jsonl"
+breaks_file="${HARM_WORK_DIR}/breaks_$(date '+%Y-%m').jsonl"
 The file "$breaks_file" should be exist
 The contents of file "$breaks_file" should include '"type": "short"'
 The contents of file "$breaks_file" should include '"completed_fully"'
@@ -236,7 +236,7 @@ sleep 2 # >= 80% of 1 second
 When call break_stop
 The status should be success
 
-local breaks_file="${HARM_WORK_DIR}/breaks_$(date '+%Y-%m').jsonl"
+breaks_file="${HARM_WORK_DIR}/breaks_$(date '+%Y-%m').jsonl"
 The contents of file "$breaks_file" should include '"completed_fully": true'
 End
 
@@ -249,7 +249,7 @@ sleep 1 # < 80% of 10 seconds
 When call break_stop
 The status should be success
 
-local breaks_file="${HARM_WORK_DIR}/breaks_$(date '+%Y-%m').jsonl"
+breaks_file="${HARM_WORK_DIR}/breaks_$(date '+%Y-%m').jsonl"
 The contents of file "$breaks_file" should include '"completed_fully": false'
 End
 End
@@ -268,12 +268,12 @@ It 'calculates compliance metrics'
 export HARM_STRICT_TRACK_BREAKS=1
 
 # Create sample break history
-local breaks_file="${HARM_WORK_DIR}/breaks_$(date '+%Y-%m').jsonl"
+breaks_file="${HARM_WORK_DIR}/breaks_$(date '+%Y-%m').jsonl"
 echo '{"start_time":"2025-10-31T10:00:00Z","end_time":"2025-10-31T10:05:00Z","duration_seconds":300,"planned_duration_seconds":300,"type":"short","completed_fully":true}' >"$breaks_file"
 echo '{"start_time":"2025-10-31T11:00:00Z","end_time":"2025-10-31T11:03:00Z","duration_seconds":180,"planned_duration_seconds":300,"type":"short","completed_fully":false}' >>"$breaks_file"
 
 # Create sample work sessions
-local sessions_file="${HARM_WORK_DIR}/sessions_$(date '+%Y-%m').jsonl"
+sessions_file="${HARM_WORK_DIR}/sessions_$(date '+%Y-%m').jsonl"
 echo '{"start_time":"2025-10-31T09:30:00Z","end_time":"2025-10-31T10:00:00Z","duration_seconds":1800,"goal":"Task 1","pomodoro_count":1}' >"$sessions_file"
 echo '{"start_time":"2025-10-31T10:30:00Z","end_time":"2025-10-31T11:00:00Z","duration_seconds":1800,"goal":"Task 2","pomodoro_count":2}' >>"$sessions_file"
 
@@ -290,10 +290,10 @@ It 'provides feedback based on compliance'
 export HARM_STRICT_TRACK_BREAKS=1
 
 # Create sample with low compliance
-local breaks_file="${HARM_WORK_DIR}/breaks_$(date '+%Y-%m').jsonl"
+breaks_file="${HARM_WORK_DIR}/breaks_$(date '+%Y-%m').jsonl"
 echo '{"start_time":"2025-10-31T10:00:00Z","end_time":"2025-10-31T10:05:00Z","duration_seconds":300,"planned_duration_seconds":300,"type":"short","completed_fully":true}' >"$breaks_file"
 
-local sessions_file="${HARM_WORK_DIR}/sessions_$(date '+%Y-%m').jsonl"
+sessions_file="${HARM_WORK_DIR}/sessions_$(date '+%Y-%m').jsonl"
 echo '{"start_time":"2025-10-31T09:30:00Z","end_time":"2025-10-31T10:00:00Z","duration_seconds":1800,"goal":"Task 1","pomodoro_count":1}' >"$sessions_file"
 echo '{"start_time":"2025-10-31T10:30:00Z","end_time":"2025-10-31T11:00:00Z","duration_seconds":1800,"goal":"Task 2","pomodoro_count":2}' >>"$sessions_file"
 echo '{"start_time":"2025-10-31T11:30:00Z","end_time":"2025-10-31T12:00:00Z","duration_seconds":1800,"goal":"Task 3","pomodoro_count":3}' >>"$sessions_file"
