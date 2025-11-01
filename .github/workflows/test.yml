@@ -55,13 +55,14 @@ jobs:
 
       - name: Install shfmt
         run: |
-          wget -qO- "https://github.com/mvdan/sh/releases/latest/download/shfmt_v3.8.0_linux_amd64" > shfmt
+          SHFMT_VERSION="3.8.0"
+          wget -q "https://github.com/mvdan/sh/releases/download/v${SHFMT_VERSION}/shfmt_v${SHFMT_VERSION}_linux_amd64" -O shfmt
           chmod +x shfmt
           sudo mv shfmt /usr/local/bin/
 
       - name: Run shfmt
         run: |
-          shfmt -d -i 2 -ci -bn $(find . -name "*.sh")
+          find . -name "*.sh" -type f -print0 | xargs -0 shfmt -d -i 2 -ci -bn
 
   prettier:
     name: Prettier (Markdown/YAML)
