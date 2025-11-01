@@ -48,6 +48,7 @@ readonly _HARM_LEARN_LOADED=1
 #   1 - Invalid topic or AI unavailable
 learn_topic() {
   local topic="${1:?Topic required}"
+  log_info "learn" "Starting learning session" "Topic: $topic"
 
   echo "📚 Learning: $topic"
   echo "═══════════════════════════════════════════════════════════"
@@ -67,8 +68,10 @@ learn_topic() {
 
   # Query AI
   if type ai_query >/dev/null 2>&1; then
+    log_debug "learn" "Querying AI for learning content" "Topic: $topic"
     ai_query "$prompt" --no-cache
   else
+    log_error "learn" "AI assistant not available for learning session"
     echo "❌ AI assistant not available"
     echo "   Set up with: harm-cli ai --setup"
     return 1
@@ -88,6 +91,8 @@ learn_topic() {
 # Returns:
 #   0 - Always succeeds
 learn_list() {
+  log_debug "learn" "Listing available learning topics"
+
   echo "📚 Available Learning Topics:"
   echo ""
   echo "  git          Advanced git workflows and commands"
@@ -113,6 +118,8 @@ learn_list() {
 #   0 - Discovery completed
 #   1 - AI unavailable
 discover_features() {
+  log_info "learn" "Starting feature discovery"
+
   echo "🔍 Discovering harm-cli Features..."
   echo "═══════════════════════════════════════════════════════════"
   echo ""
@@ -121,6 +128,7 @@ discover_features() {
   local recent_commands=""
   if type activity_query >/dev/null 2>&1; then
     recent_commands=$(activity_query week 2>/dev/null | jq -r 'select(.type == "command") | .command' | head -20 | paste -sd ',' -)
+    log_debug "learn" "Analyzed user command patterns" "Commands: ${#recent_commands}"
   fi
 
   local prompt
@@ -142,8 +150,10 @@ discover_features() {
   prompt+="Suggest 3-5 features I should try, with specific examples."
 
   if type ai_query >/dev/null 2>&1; then
+    log_debug "learn" "Querying AI for feature suggestions"
     ai_query "$prompt" --no-cache
   else
+    log_error "learn" "AI assistant not available for feature discovery"
     echo "❌ AI assistant not available"
     return 1
   fi
@@ -162,6 +172,8 @@ discover_features() {
 # Returns:
 #   0 - Always succeeds
 find_unused_commands() {
+  log_info "learn" "Finding unused commands"
+
   echo "🔎 Finding Unused Commands..."
   echo "═══════════════════════════════════════════════════════════"
   echo ""
@@ -197,10 +209,12 @@ find_unused_commands() {
   done
 
   if [[ ${#unused[@]} -eq 0 ]]; then
+    log_info "learn" "All commands tried" "User is a power user"
     echo "🎉 Amazing! You've tried all harm-cli commands!"
     echo ""
     echo "You're a power user! 💪"
   else
+    log_info "learn" "Found unused commands" "Count: ${#unused[@]}"
     echo "📋 You haven't tried these yet:"
     echo ""
     for cmd in "${unused[@]}"; do

@@ -12,6 +12,12 @@
 set -Eeuo pipefail
 IFS=$'\n\t'
 
+# Source logging if available
+if [[ -n "${HARM_LIB_DIR:-}" ]] && [[ -f "${HARM_LIB_DIR}/logging.sh" ]]; then
+  # shellcheck source=lib/logging.sh
+  source "${HARM_LIB_DIR}/logging.sh"
+fi
+
 # ═══════════════════════════════════════════════════════════════
 # Exit Code Standards
 # ═══════════════════════════════════════════════════════════════
@@ -61,6 +67,11 @@ fi
 error_msg() {
   local msg="${1:?error_msg requires a message}"
   local code="${2:-1}"
+
+  # Log error event
+  if declare -F log_error >/dev/null 2>&1; then
+    log_error "Error reported: $msg (code=$code)"
+  fi
 
   if [[ "${HARM_CLI_FORMAT:-text}" == "json" ]]; then
     jq -n \
@@ -128,6 +139,11 @@ error_with_code() {
   shift
   local msg="$*"
 
+  # Log fatal error
+  if declare -F log_error >/dev/null 2>&1; then
+    log_error "Fatal error, exiting with code $code: $msg"
+  fi
+
   error_msg "$msg" "$code"
 
   # Show stack trace in debug mode
@@ -149,6 +165,11 @@ require_command() {
   local hint="${2:-}"
 
   if ! command -v "$cmd" >/dev/null 2>&1; then
+    # Log missing command
+    if declare -F log_error >/dev/null 2>&1; then
+      log_error "Required command not found: $cmd"
+    fi
+
     local msg="Required command not found: $cmd"
     [[ -n "$hint" ]] && msg="$msg"$'\n'"  Install: $hint"
     error_with_code "$EXIT_MISSING_DEPS" "$msg"
@@ -162,6 +183,11 @@ require_file() {
   local desc="${2:-file}"
 
   if [[ ! -f "$file" ]]; then
+    # Log missing file
+    if declare -F log_error >/dev/null 2>&1; then
+      log_error "Required $desc not found: $file"
+    fi
+
     error_with_code "$EXIT_NOT_FOUND" "Required $desc not found: $file"
   fi
 }
@@ -173,6 +199,11 @@ require_dir() {
   local desc="${2:-directory}"
 
   if [[ ! -d "$dir" ]]; then
+    # Log missing directory
+    if declare -F log_error >/dev/null 2>&1; then
+      log_error "Required $desc not found: $dir"
+    fi
+
     error_with_code "$EXIT_NOT_FOUND" "Required $desc not found: $dir"
   fi
 }
@@ -184,6 +215,11 @@ require_permission() {
   local desc="${2:-path}"
 
   if [[ ! -w "$path" ]]; then
+    # Log permission error
+    if declare -F log_error >/dev/null 2>&1; then
+      log_error "No write permission for $desc: $path"
+    fi
+
     error_with_code "$EXIT_PERMISSION" "No write permission for $desc: $path"
   fi
 }
@@ -196,6 +232,11 @@ require_permission() {
 # Usage: trap cleanup_handler EXIT
 cleanup_handler() {
   local exit_code=$?
+
+  # Log cleanup execution
+  if declare -F log_debug >/dev/null 2>&1; then
+    log_debug "Running cleanup handler (exit_code=$exit_code)"
+  fi
 
   # Call custom cleanup if defined
   if declare -F cleanup >/dev/null; then
@@ -212,6 +253,11 @@ error_trap_handler() {
   local line_no="${BASH_LINENO[0]}"
   local bash_source="${BASH_SOURCE[1]}"
   local func_name="${FUNCNAME[1]:-main}"
+
+  # Log trap execution
+  if declare -F log_error >/dev/null 2>&1; then
+    log_error "ERR trap triggered: $bash_source:$line_no in $func_name (exit_code=$exit_code)"
+  fi
 
   error_msg "Command failed in $bash_source:$line_no ($func_name)" "$exit_code"
 

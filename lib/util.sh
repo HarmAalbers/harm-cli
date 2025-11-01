@@ -24,6 +24,10 @@ readonly UTIL_SCRIPT_DIR
 source "$UTIL_SCRIPT_DIR/common.sh"
 # shellcheck source=lib/error.sh
 source "$UTIL_SCRIPT_DIR/error.sh"
+# shellcheck source=lib/logging.sh
+if [[ -f "$UTIL_SCRIPT_DIR/logging.sh" ]]; then
+  source "$UTIL_SCRIPT_DIR/logging.sh"
+fi
 
 # Mark as loaded
 readonly _HARM_UTIL_LOADED=1
@@ -114,11 +118,18 @@ file_sha256() {
   local file="${1:?file_sha256 requires file path}"
   require_file "$file"
 
+  if declare -F log_debug >/dev/null 2>&1; then
+    log_debug "util" "Calculating SHA256 hash" "File: $file"
+  fi
+
   if command -v sha256sum >/dev/null 2>&1; then
     sha256sum "$file" | awk '{print $1}'
   elif command -v shasum >/dev/null 2>&1; then
     shasum -a 256 "$file" | awk '{print $1}'
   else
+    if declare -F log_error >/dev/null 2>&1; then
+      log_error "util" "No SHA256 tool available"
+    fi
     die "No SHA256 tool available (need sha256sum or shasum)" "$EXIT_MISSING_DEPS"
   fi
 }
@@ -140,7 +151,12 @@ file_age() {
     mtime="$(stat -c%Y "$file")"
   fi
 
-  echo $((now - mtime))
+  local age=$((now - mtime))
+  if declare -F log_debug >/dev/null 2>&1; then
+    log_debug "util" "Calculated file age" "File: $file, Age: ${age}s"
+  fi
+
+  echo "$age"
 }
 
 # ensure_executable: Make file executable
@@ -148,6 +164,11 @@ file_age() {
 ensure_executable() {
   local file="${1:?ensure_executable requires file path}"
   require_file "$file"
+
+  if declare -F log_debug >/dev/null 2>&1; then
+    log_debug "util" "Making file executable" "File: $file"
+  fi
+
   chmod +x "$file"
 }
 
@@ -190,8 +211,20 @@ basename_no_ext() {
 # Usage: is_running "$pid" && echo "running"
 is_running() {
   local pid="${1:?is_running requires PID}"
-  validate_int "$pid" || die "PID must be an integer" "$EXIT_INVALID_ARGS"
-  kill -0 "$pid" 2>/dev/null
+  if ! validate_int "$pid"; then
+    if declare -F log_error >/dev/null 2>&1; then
+      log_error "util" "Invalid PID" "Input: $pid (must be integer)"
+    fi
+    die "PID must be an integer" "$EXIT_INVALID_ARGS"
+  fi
+
+  if ! kill -0 "$pid" 2>/dev/null; then
+    if declare -F log_debug >/dev/null 2>&1; then
+      log_debug "util" "Process not running" "PID: $pid"
+    fi
+    return 1
+  fi
+  return 0
 }
 
 # ═══════════════════════════════════════════════════════════════
@@ -230,6 +263,16 @@ parse_duration() {
     total="$duration"
   fi
 
+  if ((total == 0)); then
+    if declare -F log_warn >/dev/null 2>&1; then
+      log_warn "util" "Duration parsing returned 0" "Input: $duration"
+    fi
+  fi
+
+  if declare -F log_debug >/dev/null 2>&1; then
+    log_debug "util" "Parsed duration" "Input: $duration, Result: ${total}s"
+  fi
+
   echo "$total"
 }
 
@@ -237,7 +280,12 @@ parse_duration() {
 # Usage: formatted=$(format_duration 3661)  # Returns: 1h1m1s
 format_duration() {
   local seconds="${1:?format_duration requires seconds}"
-  validate_int "$seconds" || die "Seconds must be an integer" "$EXIT_INVALID_ARGS"
+  if ! validate_int "$seconds"; then
+    if declare -F log_error >/dev/null 2>&1; then
+      log_error "util" "Invalid duration format" "Input: $seconds (must be integer)"
+    fi
+    die "Seconds must be an integer" "$EXIT_INVALID_ARGS"
+  fi
 
   local hours=$((seconds / 3600))
   local minutes=$(((seconds % 3600) / 60))
@@ -247,6 +295,10 @@ format_duration() {
   ((hours > 0)) && result="${hours}h"
   ((minutes > 0)) && result="${result}${minutes}m"
   ((secs > 0 || ${#result} == 0)) && result="${result}${secs}s"
+
+  if declare -F log_debug >/dev/null 2>&1; then
+    log_debug "util" "Formatted duration" "Input: ${seconds}s, Result: $result"
+  fi
 
   echo "$result"
 }
@@ -359,6 +411,9 @@ iso8601_to_epoch() {
   fi
 
   # Fallback: use current time
+  if declare -F log_error >/dev/null 2>&1; then
+    log_error "util" "Failed to parse ISO8601 timestamp" "Input: $timestamp, Using current time as fallback"
+  fi
   warn_msg "Could not parse timestamp: $timestamp, using current time"
   get_utc_epoch
 }
@@ -382,7 +437,14 @@ json_get() {
 json_validate() {
   local json="${1:?json_validate requires JSON}"
   require_command jq "brew install jq"
-  jq -e . >/dev/null 2>&1 <<<"$json"
+
+  if ! jq -e . >/dev/null 2>&1 <<<"$json"; then
+    if declare -F log_warn >/dev/null 2>&1; then
+      log_warn "util" "Invalid JSON detected" "Length: ${#json}"
+    fi
+    return 1
+  fi
+  return 0
 }
 
 # ═══════════════════════════════════════════════════════════════
