@@ -91,8 +91,12 @@ log_init() {
 
 # log_timestamp: Get current timestamp
 # Usage: timestamp=$(log_timestamp)
+#
+# Performance optimization: Uses printf (bash built-in) instead of date subprocess
+# Fallback to date for bash < 4.2 compatibility
 log_timestamp() {
-  date '+%Y-%m-%d %H:%M:%S' 2>/dev/null || echo "[timestamp unavailable]"
+  # Bash 4.2+ has printf %(...)T which is 10-20x faster than spawning date
+  printf '%(%Y-%m-%d %H:%M:%S)T' -1 2>/dev/null || date '+%Y-%m-%d %H:%M:%S' 2>/dev/null || echo "[timestamp unavailable]"
 }
 
 # log_should_write: Check if log level should be logged

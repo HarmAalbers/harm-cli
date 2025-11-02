@@ -363,6 +363,7 @@ Work Commands:
   violations           Show violation count (strict mode)
   reset-violations     Reset violation counter
   set-mode <mode>      Set enforcement mode (strict|moderate|coaching|off)
+  strict <on|off>      Enable/disable ALL strict mode features at once
   --help               Show this help
 
 Break Commands:
@@ -410,7 +411,8 @@ EOF
         violations) work_get_violations ;;
         reset-violations) work_reset_violations ;;
         set-mode) work_set_enforcement "$@" ;;
-        *) die "Unknown work command: $subcmd. Try: start, stop, status, stats, reset, violations, reset-violations, set-mode" 2 ;;
+        strict) work_set_strict_mode "$@" ;;
+        *) die "Unknown work command: $subcmd. Try: start, stop, status, stats, reset, violations, reset-violations, set-mode, strict" 2 ;;
       esac
       ;;
     break)

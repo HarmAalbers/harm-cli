@@ -20,7 +20,12 @@ IFS=$'\n\t'
 
 [[ -n "${_HARM_WORK_STATS_LOADED:-}" ]] && return 0
 
-WORK_STATS_SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd -P)"
+# Performance optimization: Reuse already-computed directory from parent module
+if [[ -n "${WORK_SCRIPT_DIR:-}" ]]; then
+  WORK_STATS_SCRIPT_DIR="$WORK_SCRIPT_DIR"
+else
+  WORK_STATS_SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd -P)"
+fi
 readonly WORK_STATS_SCRIPT_DIR
 
 # shellcheck source=lib/common.sh

@@ -339,5 +339,81 @@ The status should be success
 End
 End
 
+Describe 'Strict Mode Toggle (work strict command)'
+setup_strict_toggle_test_env() {
+  export HARM_CLI_HOME="$TEST_TMP/harm-cli-toggle"
+  export HOME="$TEST_TMP/home-toggle"
+  mkdir -p "$HARM_CLI_HOME" "$HOME/.harm-cli"
+  touch "$HOME/.harm-cli/config.sh"
+}
+
+cleanup_strict_toggle_test_env() {
+  rm -rf "$TEST_TMP/harm-cli-toggle" "$TEST_TMP/home-toggle"
+}
+
+BeforeAll 'setup_strict_toggle_test_env'
+AfterAll 'cleanup_strict_toggle_test_env'
+
+It 'enables all strict features with "strict on"'
+When call work_set_strict_mode on
+The status should be success
+The output should include "MAXIMUM STRICT MODE"
+The output should include "Enforcement mode: strict"
+The output should include "Project switch blocking: enabled"
+The output should include "Break requirements: enabled"
+The output should include "Early stop confirmation: enabled"
+The output should include "Break tracking: enabled"
+End
+
+It 'writes HARM_WORK_ENFORCEMENT=strict to config'
+work_set_strict_mode on >/dev/null 2>&1
+When call grep "HARM_WORK_ENFORCEMENT=strict" "$HOME/.harm-cli/config.sh"
+The status should be success
+End
+
+It 'disables all strict features with "strict off"'
+# First enable to have something to disable
+work_set_strict_mode on >/dev/null 2>&1
+
+When call work_set_strict_mode off
+The status should be success
+The output should include "Disabling strict mode"
+The output should include "Enforcement mode: moderate"
+The output should include "Project switch blocking: disabled"
+End
+
+It 'writes HARM_WORK_ENFORCEMENT=moderate when disabled'
+work_set_strict_mode on >/dev/null 2>&1
+work_set_strict_mode off >/dev/null 2>&1
+When call grep "HARM_WORK_ENFORCEMENT=moderate" "$HOME/.harm-cli/config.sh"
+The status should be success
+End
+
+It 'accepts "enable" as alias for "on"'
+When call work_set_strict_mode enable
+The status should be success
+The output should include "MAXIMUM STRICT MODE"
+End
+
+It 'accepts "disable" as alias for "off"'
+When call work_set_strict_mode disable
+The status should be success
+The output should include "Disabling strict mode"
+End
+
+It 'rejects invalid actions'
+When call work_set_strict_mode invalid
+The status should be failure
+The error should include "Invalid action"
+The error should include "on|off"
+End
+
+It 'requires an action argument'
+When call work_set_strict_mode
+The status should be failure
+The error should include "Action required"
+End
+End
+
 # Close the top-level Describe block from line 4
 End

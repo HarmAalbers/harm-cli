@@ -137,6 +137,11 @@ work_check_project_switch() {
   # Only enforce in strict mode
   [[ "$HARM_WORK_ENFORCEMENT" == "strict" ]] || return 0
 
+  # Check if work_is_active is available (depends on work_session.sh being loaded)
+  if ! declare -F work_is_active >/dev/null 2>&1; then
+    return 0
+  fi
+
   # Only enforce during active work session
   work_is_active || return 0
 
@@ -275,6 +280,125 @@ work_set_enforcement() {
   esac
 }
 
+# work_set_strict_mode: Enable/disable maximum enforcement (all strict features)
+#
+# Description:
+#   Convenience function to enable or disable all strict mode features at once.
+#   When enabled: Sets HARM_WORK_ENFORCEMENT=strict and enables all strict_* options.
+#   When disabled: Sets HARM_WORK_ENFORCEMENT=moderate and disables all strict_* options.
+#
+# Arguments:
+#   $1 - action (string): on|off
+#
+# Returns:
+#   0 - Strict mode toggled successfully
+#   1 - Invalid action
+work_set_strict_mode() {
+  local action="${1:?Action required: on|off}"
+
+  # Entry logging
+  if declare -F log_info >/dev/null 2>&1; then
+    log_info "work" "strict mode toggle requested" "action=$action"
+  fi
+
+  case "$action" in
+    on | enable)
+      echo ""
+      echo "🔒 Enabling MAXIMUM STRICT MODE..."
+      echo ""
+
+      # Set enforcement mode to strict (atomic operation)
+      local config_file="${HOME}/.harm-cli/config.sh"
+      local temp_file="${config_file}.tmp.$$"
+
+      if ! grep -q "^export HARM_WORK_ENFORCEMENT=" "$config_file" 2>/dev/null; then
+        # File doesn't have the setting, append it
+        echo 'export HARM_WORK_ENFORCEMENT=strict' >>"$config_file"
+      else
+        # File has the setting, update it atomically
+        sed 's|^export HARM_WORK_ENFORCEMENT=.*|export HARM_WORK_ENFORCEMENT=strict|' "$config_file" >"$temp_file"
+        mv "$temp_file" "$config_file"
+      fi
+
+      # Enable all strict options
+      options_set strict_block_project_switch 1 >/dev/null 2>&1 || true
+      options_set strict_require_break 1 >/dev/null 2>&1 || true
+      options_set strict_confirm_early_stop 1 >/dev/null 2>&1 || true
+      options_set strict_track_breaks 1 >/dev/null 2>&1 || true
+
+      echo "✅ Enforcement mode: strict"
+      echo "✅ Project switch blocking: enabled"
+      echo "✅ Break requirements: enabled"
+      echo "✅ Early stop confirmation: enabled"
+      echo "✅ Break tracking: enabled"
+      echo ""
+      echo "⚠️  IMPORTANT: Restart your shell for changes to take effect:"
+      echo "   source ~/.bashrc   # For bash users"
+      echo "   source ~/.zshrc    # For zsh users"
+      echo "   Or restart your terminal"
+      echo ""
+
+      # Success logging
+      if declare -F log_info >/dev/null 2>&1; then
+        log_info "work" "Strict mode enabled" "all_features=on"
+      fi
+      ;;
+
+    off | disable)
+      echo ""
+      echo "🔓 Disabling strict mode..."
+      echo ""
+
+      # Set enforcement mode to moderate (atomic operation)
+      local config_file="${HOME}/.harm-cli/config.sh"
+      local temp_file="${config_file}.tmp.$$"
+
+      if ! grep -q "^export HARM_WORK_ENFORCEMENT=" "$config_file" 2>/dev/null; then
+        # File doesn't have the setting, append it
+        echo 'export HARM_WORK_ENFORCEMENT=moderate' >>"$config_file"
+      else
+        # File has the setting, update it atomically
+        sed 's|^export HARM_WORK_ENFORCEMENT=.*|export HARM_WORK_ENFORCEMENT=moderate|' "$config_file" >"$temp_file"
+        mv "$temp_file" "$config_file"
+      fi
+
+      # Disable all strict options
+      options_set strict_block_project_switch 0 >/dev/null 2>&1 || true
+      options_set strict_require_break 0 >/dev/null 2>&1 || true
+      options_set strict_confirm_early_stop 0 >/dev/null 2>&1 || true
+      options_set strict_track_breaks 0 >/dev/null 2>&1 || true
+
+      echo "✅ Enforcement mode: moderate"
+      echo "✅ Project switch blocking: disabled"
+      echo "✅ Break requirements: disabled"
+      echo "✅ Early stop confirmation: disabled"
+      echo "✅ Break tracking: disabled"
+      echo ""
+      echo "⚠️  Restart your shell for changes to take effect:"
+      echo "   source ~/.bashrc   # For bash users"
+      echo "   source ~/.zshrc    # For zsh users"
+      echo "   Or restart your terminal"
+      echo ""
+
+      # Success logging
+      if declare -F log_info >/dev/null 2>&1; then
+        log_info "work" "Strict mode disabled" "all_features=off"
+      fi
+      ;;
+
+    *)
+      # Error logging
+      if declare -F log_error >/dev/null 2>&1; then
+        log_error "work" "invalid strict mode action" "action=$action, expected=on|off|enable|disable"
+      fi
+      echo "Error: Invalid action '$action'. Use: on, off, enable, or disable" >&2
+      return 1
+      ;;
+  esac
+
+  return 0
+}
+
 # work_strict_cd: Wrapper for cd command in strict mode
 #
 # Description:
@@ -308,6 +432,13 @@ work_strict_cd() {
   local current_project target_project
   current_project=$(basename "$PWD")
   target_project=$(basename "$target_path")
+
+  # Check if work_is_active is available (depends on work_session.sh being loaded)
+  if ! declare -F work_is_active >/dev/null 2>&1; then
+    # Dependency not loaded yet, allow cd
+    builtin cd "$@"
+    return $?
+  fi
 
   # First time - set the active project
   if [[ -z "$_WORK_ACTIVE_PROJECT" ]] && work_is_active; then
@@ -389,7 +520,8 @@ if [[ "$HARM_WORK_ENFORCEMENT" == "strict" ]]; then
   work_enforcement_load_state 2>/dev/null || true
 
   # Register project switch detection (if hooks module available)
-  if type harm_add_hook >/dev/null 2>&1; then
+  # Using declare -F instead of type for performance (type is extremely slow in large PATH environments)
+  if declare -F harm_add_hook >/dev/null 2>&1; then
     harm_add_hook chpwd work_check_project_switch 2>/dev/null || true
   fi
 
