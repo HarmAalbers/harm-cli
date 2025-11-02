@@ -273,8 +273,24 @@ EOF
     sleep "$duration"
 
     if [[ -f "$HARM_BREAK_STATE_FILE" ]]; then
-      work_send_notification "⏰ Break Complete!" "Time to get back to work!"
-      log_info "break" "Break timer expired" "Duration: ${duration}s"
+      # Send completion notification
+      if declare -F work_send_notification >/dev/null 2>&1; then
+        work_send_notification "⏰ Break Complete!" "Time to get back to work!"
+      fi
+
+      # Log the expiry (lightweight - just logging, no complex operations)
+      if declare -F log_info >/dev/null 2>&1; then
+        log_info "break" "Break timer expired" "Duration: ${duration}s"
+      fi
+
+      # Mark the break as auto-completed by updating the state
+      # This allows break_stop or the next command to detect it expired naturally
+      if [[ -f "$HARM_BREAK_STATE_FILE" ]] && command -v jq >/dev/null 2>&1; then
+        local temp_state
+        temp_state=$(mktemp)
+        jq '.auto_completed = true' "$HARM_BREAK_STATE_FILE" >"$temp_state" 2>/dev/null \
+          && mv "$temp_state" "$HARM_BREAK_STATE_FILE" || rm -f "$temp_state"
+      fi
     fi
   ) &
 

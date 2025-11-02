@@ -62,6 +62,11 @@ work_stats_today() {
     ' "$archive_file" | tr ',' '\t'
   )
 
+  # Ensure valid numeric defaults for jq --argjson
+  sessions="${sessions:-0}"
+  total_duration="${total_duration:-0}"
+  pomodoros="${pomodoros:-0}"
+
   if [[ "${HARM_CLI_FORMAT:-text}" == "json" ]]; then
     jq -n \
       --arg date "$today" \
@@ -71,13 +76,13 @@ work_stats_today() {
       '{date: $date, sessions: $sessions, total_duration_seconds: $duration, pomodoros: $pomodoros}'
   else
     local formatted
-    formatted="$(format_duration "$total_duration")"
+    formatted="$(format_duration "${total_duration:-0}")"
     echo "═══════════════════════════════════════════════════════════════"
     echo "  Today's Work Statistics ($today)"
     echo "═══════════════════════════════════════════════════════════════"
     echo ""
-    echo "  🍅 Pomodoros completed: $pomodoros"
-    echo "  📊 Total sessions: $sessions"
+    echo "  🍅 Pomodoros completed: ${pomodoros:-0}"
+    echo "  📊 Total sessions: ${sessions:-0}"
     echo "  ⏱  Total work time: $formatted"
     echo ""
   fi
@@ -103,7 +108,11 @@ work_stats_week() {
   sessions=$(jq -r --arg start "$week_start" 'select(.start_time >= $start)' "$archive_file" | wc -l | tr -d ' ')
   total_duration=$(jq -r --arg start "$week_start" 'select(.start_time >= $start) | .duration_seconds // 0' "$archive_file" | awk '{sum+=$1} END {print sum+0}')
   pomodoros=$(jq -r --arg start "$week_start" 'select(.start_time >= $start) | .pomodoro_count // 0' "$archive_file" | sort -n | tail -1)
-  pomodoros=${pomodoros:-0}
+
+  # Ensure valid numeric defaults for jq --argjson
+  sessions="${sessions:-0}"
+  total_duration="${total_duration:-0}"
+  pomodoros="${pomodoros:-0}"
 
   if [[ "${HARM_CLI_FORMAT:-text}" == "json" ]]; then
     jq -n \
@@ -114,13 +123,13 @@ work_stats_week() {
       '{week_start: $week_start, sessions: $sessions, total_duration_seconds: $duration, pomodoros: $pomodoros}'
   else
     local formatted
-    formatted="$(format_duration "$total_duration")"
+    formatted="$(format_duration "${total_duration:-0}")"
     echo "═══════════════════════════════════════════════════════════════"
     echo "  This Week's Work Statistics (since $week_start)"
     echo "═══════════════════════════════════════════════════════════════"
     echo ""
-    echo "  🍅 Pomodoros completed: $pomodoros"
-    echo "  📊 Total sessions: $sessions"
+    echo "  🍅 Pomodoros completed: ${pomodoros:-0}"
+    echo "  📊 Total sessions: ${sessions:-0}"
     echo "  ⏱  Total work time: $formatted"
     echo ""
   fi
@@ -144,7 +153,11 @@ work_stats_month() {
   sessions=$(wc -l <"$archive_file" | tr -d ' ')
   total_duration=$(jq -r '.duration_seconds // 0' "$archive_file" | awk '{sum+=$1} END {print sum+0}')
   pomodoros=$(jq -r '.pomodoro_count // 0' "$archive_file" | sort -n | tail -1)
-  pomodoros=${pomodoros:-0}
+
+  # Ensure valid numeric defaults for jq --argjson
+  sessions="${sessions:-0}"
+  total_duration="${total_duration:-0}"
+  pomodoros="${pomodoros:-0}"
 
   if [[ "${HARM_CLI_FORMAT:-text}" == "json" ]]; then
     jq -n \
@@ -155,10 +168,10 @@ work_stats_month() {
       '{month: $month, sessions: $sessions, total_duration_seconds: $duration, pomodoros: $pomodoros}'
   else
     local formatted
-    formatted="$(format_duration "$total_duration")"
-    local avg_per_day=$((total_duration / $(date '+%d')))
+    formatted="$(format_duration "${total_duration:-0}")"
+    local avg_per_day=$((${total_duration:-0} / $(date '+%d')))
     local avg_formatted
-    avg_formatted="$(format_duration "$avg_per_day")"
+    avg_formatted="$(format_duration "${avg_per_day:-0}")"
 
     echo "═══════════════════════════════════════════════════════════════"
     echo "  Monthly Work Statistics ($current_month)"
