@@ -101,7 +101,8 @@ break_countdown_interactive() {
 
     local min=$((remaining / 60))
     local sec=$((remaining % 60))
-    local time_str=$(printf "%02d:%02d" "$min" "$sec")
+    local time_str
+    time_str=$(printf "%02d:%02d" "$min" "$sec")
 
     printf "\033[4A\033[J  %s %d%%\n  Time remaining: ${SUCCESS_GREEN}%s${RESET}\n\n  Press Ctrl+C to stop break early\n" \
       "$bar" "$percent" "$time_str"

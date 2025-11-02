@@ -428,9 +428,8 @@ work_strict_cd() {
     target_path="$target"
   fi
 
-  # Get current and target project names
-  local current_project target_project
-  current_project=$(basename "$PWD")
+  # Get target project name
+  local target_project
   target_project=$(basename "$target_path")
 
   # Check if work_is_active is available (depends on work_session.sh being loaded)

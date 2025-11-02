@@ -122,7 +122,7 @@ work_start() {
       source "$WORK_SESSION_SCRIPT_DIR/interactive.sh"
     fi
 
-    if type interactive_choose >/dev/null 2>&1; then
+    if declare -F interactive_choose >/dev/null 2>&1; then
       log_debug "work" "Starting interactive work session wizard"
 
       echo "🍅 Start Pomodoro Session"
@@ -134,7 +134,7 @@ work_start() {
         source "$WORK_SESSION_SCRIPT_DIR/goals.sh" 2>/dev/null || true
       fi
 
-      if type goal_exists_today >/dev/null 2>&1 && goal_exists_today 2>/dev/null; then
+      if declare -F goal_exists_today >/dev/null 2>&1 && goal_exists_today 2>/dev/null; then
         local goal_file
         goal_file=$(goal_file_for_today 2>/dev/null)
 
@@ -332,7 +332,7 @@ work_stop() {
         source "$WORK_SESSION_SCRIPT_DIR/interactive.sh" 2>/dev/null || true
       fi
 
-      if type interactive_confirm >/dev/null 2>&1; then
+      if declare -F interactive_confirm >/dev/null 2>&1; then
         local minutes_worked=$((total_seconds / 60))
         local minutes_expected=$((work_duration / 60))
 
@@ -347,7 +347,7 @@ work_stop() {
           return 0
         fi
 
-        if type interactive_input >/dev/null 2>&1; then
+        if declare -F interactive_input >/dev/null 2>&1; then
           if termination_reason=$(interactive_input "Reason for early stop (optional)" 2>/dev/null); then
             log_info "work" "Early stop reason" "Reason: ${termination_reason:-none}"
           fi
