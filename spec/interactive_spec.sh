@@ -5,7 +5,7 @@ Describe 'lib/interactive.sh'
 Include spec/helpers/env.sh
 
 # Source the interactive module
-BeforeAll 'source "$ROOT/lib/interactive.sh"'
+BeforeAll 'export HARM_LOG_LEVEL=ERROR && source "$ROOT/lib/interactive.sh"'
 
 Describe 'Module initialization'
 It 'defines global INTERACTIVE_TOOL variable'

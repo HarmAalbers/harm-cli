@@ -10,7 +10,8 @@ AfterAll 'cleanup_git_test_env'
 setup_git_test_env() {
   # Set test configuration
   export HARM_CLI_HOME="$TEST_TMP"
-  export HARM_CLI_LOG_LEVEL="DEBUG"
+  export HARM_LOG_LEVEL=ERROR # Suppress DEBUG/INFO logs during tests
+  export HARM_TEST_MODE=1
   export GEMINI_API_KEY="test_key_1234567890abcdef1234567890abcdef"
 
   # Create mock curl for AI integration

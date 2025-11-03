@@ -8,6 +8,7 @@ Include spec/helpers/matchers.sh
 
 # Set up test environment before sourcing work_stats.sh
 setup_work_stats_test_env() {
+  export HARM_LOG_LEVEL=ERROR # Suppress DEBUG/INFO logs during tests
   export HARM_WORK_DIR="$TEST_TMP/work"
   export HARM_CLI_HOME="$TEST_TMP/harm-cli"
   mkdir -p "$HARM_WORK_DIR" "$HARM_CLI_HOME"

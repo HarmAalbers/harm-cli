@@ -5,7 +5,7 @@ Describe 'lib/insights.sh'
 Include spec/helpers/env.sh
 
 # Source the insights module
-BeforeAll 'source "$ROOT/lib/insights.sh"'
+BeforeAll 'export HARM_LOG_LEVEL=ERROR && source "$ROOT/lib/insights.sh"'
 
 Describe 'Module initialization'
 It 'prevents double-loading'

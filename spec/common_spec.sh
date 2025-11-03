@@ -6,7 +6,7 @@ Describe 'lib/common.sh'
 Include spec/helpers/env.sh
 
 # Source the common module
-BeforeAll 'source "$ROOT/lib/common.sh"'
+BeforeAll 'export HARM_LOG_LEVEL=ERROR && source "$ROOT/lib/common.sh"'
 
 # ═══════════════════════════════════════════════════════════════
 # Module Initialization

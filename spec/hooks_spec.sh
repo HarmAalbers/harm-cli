@@ -10,6 +10,7 @@ BeforeAll 'setup_hooks_env'
 AfterAll 'cleanup_hooks_env'
 
 setup_hooks_env() {
+  export HARM_LOG_LEVEL=ERROR # Suppress DEBUG/INFO logs during tests
   export HARM_CLI_HOME="${SHELLSPEC_TMPBASE}/harm-cli"
   export HARM_HOOKS_ENABLED=1
   export HARM_HOOKS_DEBUG=0

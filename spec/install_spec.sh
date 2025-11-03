@@ -3,6 +3,8 @@
 # ShellSpec test for install.sh
 # Integration tests that verify installer behavior
 
+BeforeAll 'export HARM_LOG_LEVEL=ERROR'
+
 Describe "install.sh"
 Describe "Script structure validation"
 It "has valid bash syntax"

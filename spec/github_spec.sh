@@ -5,7 +5,7 @@ Describe 'lib/github.sh'
 Include spec/helpers/env.sh
 
 # Source the github module
-BeforeAll 'source "$ROOT/lib/github.sh"'
+BeforeAll 'export HARM_LOG_LEVEL=ERROR && source "$ROOT/lib/github.sh"'
 
 Describe 'Module initialization'
 It 'prevents double-loading'

@@ -6,6 +6,7 @@ Include spec/helpers/env.sh
 
 # Set up test environment
 setup_timers_test_env() {
+  export HARM_LOG_LEVEL=ERROR # Suppress DEBUG/INFO logs during tests
   export HARM_WORK_DIR="$TEST_TMP/work"
   export HARM_WORK_TIMER_PID_FILE="$HARM_WORK_DIR/timer.pid"
   export HARM_WORK_REMINDER_PID_FILE="$HARM_WORK_DIR/reminder.pid"

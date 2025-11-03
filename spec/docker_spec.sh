@@ -10,7 +10,7 @@ AfterAll 'cleanup_docker_test_env'
 setup_docker_test_env() {
   # Set test configuration
   export HARM_CLI_HOME="$TEST_TMP"
-  export HARM_CLI_LOG_LEVEL="DEBUG"
+  export HARM_LOG_LEVEL=ERROR # Suppress DEBUG/INFO logs during tests
 
   # Create test compose file
   cat >"$TEST_TMP/compose.yaml" <<'EOF'

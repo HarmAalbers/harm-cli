@@ -6,6 +6,7 @@ Include spec/helpers/env.sh
 
 # Setup test environment
 setup_terminal_test_env() {
+  export HARM_LOG_LEVEL=ERROR # Suppress DEBUG/INFO logs during tests
   export HARM_LOG_DIR="$TEST_TMP/logs"
   mkdir -p "$HARM_LOG_DIR"
   source "$ROOT/lib/terminal_launcher.sh"

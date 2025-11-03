@@ -13,8 +13,10 @@ setup() {
   export PATH="$ROOT/bin:$PATH"
 
   # Test-specific environment
-  export HARM_CLI_LOG_LEVEL="ERROR" # Quiet during tests
-  export HARM_CLI_FORMAT="text"     # Default format
+  export HARM_CLI_LOG_LEVEL="ERROR"          # Quiet during tests
+  export HARM_CLI_FORMAT="text"              # Default format
+  export HARM_TEST_MODE=1                    # Prevent background processes
+  export GIT_CEILING_DIRECTORIES="$TEST_TMP" # Isolate git detection
 
   # Create temp directory for test artifacts
   export TEST_TMP="$ROOT/spec/tmp"

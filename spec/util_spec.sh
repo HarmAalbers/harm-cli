@@ -6,7 +6,7 @@ Include spec/helpers/env.sh
 
 # Source the util module
 # shellcheck disable=SC2016
-BeforeAll 'source "$ROOT/lib/util.sh"'
+BeforeAll 'export HARM_LOG_LEVEL=ERROR && source "$ROOT/lib/util.sh"'
 
 Describe 'String utilities'
 Describe 'trim'

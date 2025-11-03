@@ -9,6 +9,7 @@ Include spec/helpers/env.sh
 # IMPORTANT: Must run BEFORE sourcing modules (HARM_GOALS_DIR is readonly)
 setup_e2e_env() {
   # Set environment variables BEFORE sourcing modules
+  export HARM_LOG_LEVEL=ERROR # Suppress DEBUG/INFO logs during tests
   export HARM_GOALS_DIR="$TEST_TMP/goals"
   export HARM_WORK_DIR="$TEST_TMP/work"
   export HARM_WORK_STATE_FILE="$HARM_WORK_DIR/current_session.json"

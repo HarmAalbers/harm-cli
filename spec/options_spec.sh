@@ -4,6 +4,9 @@
 # Include helper first
 Include spec/helpers/env.sh
 
+# Suppress logs during tests
+export HARM_LOG_LEVEL=ERROR
+
 # Source the module at spec level (not in BeforeAll)
 # This ensures the OPTIONS_SCHEMA associative array is available
 # (arrays cannot be exported to child shells)

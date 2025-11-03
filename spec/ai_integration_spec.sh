@@ -12,11 +12,14 @@ AfterAll 'cleanup_ai_integration_env'
 setup_ai_integration_env() {
   # Set test configuration
   export HARM_CLI_HOME="$TEST_TMP/integration"
-  export HARM_CLI_LOG_LEVEL="DEBUG"
+  export HARM_LOG_LEVEL=ERROR # Suppress DEBUG/INFO logs during tests
   export HARM_CLI_AI_CACHE_TTL=3600
   export HARM_CLI_AI_TIMEOUT=20
   export GEMINI_API_KEY="test_key_1234567890abcdef1234567890abcdef"
   export HARM_CLI_FORMAT="text"
+
+  # Prevent git from looking in parent directories (critical for git tests)
+  export GIT_CEILING_DIRECTORIES="$TEST_TMP"
 
   # Create directory structure
   mkdir -p "$HARM_CLI_HOME/logs"
@@ -59,6 +62,30 @@ exit 0
 EOF
   chmod +x "$TEST_TMP/bin/curl"
 
+  # Create mock security command that fails (for API key tests)
+  cat >"$TEST_TMP/bin/security" <<'EOF'
+#!/opt/homebrew/bin/bash
+# Mock security that always fails (for testing missing API key)
+exit 1
+EOF
+  chmod +x "$TEST_TMP/bin/security"
+
+  # Create mock secret-tool that fails
+  cat >"$TEST_TMP/bin/secret-tool" <<'EOF'
+#!/opt/homebrew/bin/bash
+# Mock secret-tool that always fails
+exit 1
+EOF
+  chmod +x "$TEST_TMP/bin/secret-tool"
+
+  # Create mock pass that fails
+  cat >"$TEST_TMP/bin/pass" <<'EOF'
+#!/opt/homebrew/bin/bash
+# Mock pass that always fails
+exit 1
+EOF
+  chmod +x "$TEST_TMP/bin/pass"
+
   # Put mock binaries first in PATH
   export PATH="$TEST_TMP/bin:$PATH"
 
@@ -72,6 +99,7 @@ cleanup_ai_integration_env() {
   unset GEMINI_API_KEY
   unset HARM_CLI_AI_CACHE_TTL
   unset HARM_CLI_AI_TIMEOUT
+  unset GIT_CEILING_DIRECTORIES
 }
 
 # Helper function to check if log file contains text
@@ -86,7 +114,11 @@ log_contains() {
 Describe 'ai_review integration with git'
 Context 'when not in git repository'
 It 'handles git repository check failure gracefully'
-cd "$TEST_TMP" # Not a git repo
+# Create isolated directory outside git scope
+mkdir -p "$TEST_TMP/isolated-no-git"
+cd "$TEST_TMP/isolated-no-git"
+# Ensure no .git directory exists
+rm -rf .git
 When call ai_review --staged
 The status should equal "$EXIT_INVALID_STATE"
 The stderr should include "Not in a git repository"
@@ -110,6 +142,7 @@ It 'returns early with appropriate message'
 When call ai_review --staged
 The status should equal 0
 The output should include "No changes to review"
+The stderr should be present # Allow logging output
 End
 End
 
@@ -136,6 +169,7 @@ When call ai_review --staged
 The status should equal 0
 The output should include "Mock AI response"
 The output should include "Analysis"
+The stderr should be present # Allow logging output
 End
 
 It 'truncates large diffs with warning'
@@ -148,6 +182,7 @@ git add file.txt
 When call ai_review --staged
 The status should equal 0
 The output should include "Diff truncated to 200 lines"
+The stderr should be present # Allow logging output
 End
 End
 End
@@ -183,12 +218,14 @@ When call ai_explain_error
 The status should equal 0
 The output should include "Mock AI response"
 The output should include "Failed to commit"
+The stderr should be present # Allow logging output
 End
 
 It 'parses error components correctly'
 When call ai_explain_error
 The status should equal 0
 The output should include "Analysis"
+The stderr should be present # Allow logging output
 End
 End
 
@@ -229,11 +266,14 @@ It 'handles missing data gracefully'
 When call ai_daily
 The status should equal 0
 The output should include "No activity data available"
+The stderr should be present # Allow logging output
 End
 
 It 'returns success exit code even with no data'
 When call ai_daily
 The status should equal 0
+The stdout should be present # Allow output messages
+The stderr should be present # Allow logging output
 End
 End
 
@@ -261,13 +301,15 @@ It 'generates insights for today with all data sources'
 When call ai_daily
 The status should equal 0
 The output should include "Mock AI response"
+The stderr should be present # Allow logging output
 End
 
 It 'includes work session data in context'
 When call ai_daily
 The status should equal 0
 # Function completes successfully
-The status should equal 0
+The stdout should be present # Allow output messages
+The stderr should be present # Allow logging output
 End
 End
 
@@ -294,7 +336,8 @@ It 'analyzes yesterday data correctly'
 When call ai_daily --yesterday
 The status should equal 0
 # With or without data, should complete
-The status should equal 0
+The stdout should be present # Allow output messages
+The stderr should be present # Allow logging output
 End
 End
 
@@ -302,6 +345,8 @@ Context 'with --week flag'
 It 'handles weekly request correctly'
 When call ai_daily --week
 The status should equal 0
+The stdout should be present # Allow output messages
+The stderr should be present # Allow logging output
 End
 End
 End
@@ -316,6 +361,7 @@ It 'processes AI response through markdown pipeline'
 When call ai_query "test query"
 The status should equal 0
 The output should include "Mock AI response"
+The stderr should be present # Allow logging output
 End
 End
 
@@ -325,6 +371,7 @@ export HARM_CLI_FORMAT="text"
 When call ai_query "test query"
 The status should equal 0
 The output should include "Mock AI response"
+The stderr should be present # Allow logging output
 End
 
 It 'handles JSON format request'
@@ -332,6 +379,7 @@ export HARM_CLI_FORMAT="json"
 When call ai_query "test query"
 The status should equal 0
 The output should include "Mock AI response"
+The stderr should be present # Allow logging output
 End
 End
 End
@@ -345,12 +393,16 @@ Context 'missing API key'
 It 'handles missing API key gracefully'
 # Clear cache first to avoid cached response
 rm -rf "$HARM_CLI_HOME/ai-cache"/*
+# Block all credential sources - unset API key
+saved_key="$GEMINI_API_KEY"
 unset GEMINI_API_KEY
-When call ai_query "unique-test-query-no-cache"
+# The mock security/secret-tool/pass commands in PATH already fail
+When call ai_query "unique-test-query-no-cache-$(date +%s)"
 The status should equal "$EXIT_AI_NO_KEY"
 The stderr should include "No API key found"
+The stdout should be present # Allow fallback suggestions
 # Restore
-export GEMINI_API_KEY="test_key_1234567890abcdef1234567890abcdef"
+export GEMINI_API_KEY="$saved_key"
 End
 End
 
@@ -362,6 +414,8 @@ rm -rf "$HARM_CLI_HOME/ai-cache"/*
 mv "$TEST_TMP/bin/curl" "$TEST_TMP/bin/curl.bak"
 When call ai_query "unique-network-failure-test"
 The status should not equal 0
+The stdout should be present # Allow fallback suggestions
+The stderr should be present # Allow error output
 # Restore
 mv "$TEST_TMP/bin/curl.bak" "$TEST_TMP/bin/curl"
 End
@@ -369,10 +423,11 @@ End
 
 Context 'invalid git state'
 It 'handles non-git-repo for ai_review'
-# Create a clean directory that's definitely not a git repo
-mkdir -p "$TEST_TMP/not-a-repo"
-cd "$TEST_TMP/not-a-repo"
-rm -rf .git
+# Create a clean directory outside git scope
+mkdir -p "$TEST_TMP/definitely-not-a-repo"
+cd "$TEST_TMP/definitely-not-a-repo"
+# Ensure no .git exists
+rm -rf .git ../.git ../../.git
 When call ai_review
 The status should equal "$EXIT_INVALID_STATE"
 The stderr should include "Not in a git repository"
@@ -392,6 +447,7 @@ result1=$(ai_query "caching test" 2>/dev/null)
 # Second call should hit cache
 When call ai_query "caching test"
 The output should include "(cached response)"
+The stderr should be present # Allow logging output
 End
 
 It 'bypasses cache with --no-cache flag'
@@ -400,6 +456,7 @@ ai_query "no-cache test" >/dev/null 2>&1
 # Second call with --no-cache
 When call ai_query --no-cache "no-cache test"
 The output should not include "(cached response)"
+The stderr should be present # Allow logging output
 End
 End
 End

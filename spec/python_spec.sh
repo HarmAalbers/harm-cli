@@ -10,7 +10,7 @@ AfterAll 'cleanup_python_test_env'
 setup_python_test_env() {
   # Set test configuration
   export HARM_CLI_HOME="$TEST_TMP"
-  export HARM_CLI_LOG_LEVEL="DEBUG"
+  export HARM_LOG_LEVEL=ERROR # Suppress DEBUG/INFO logs during tests
 
   # Create test Python project
   cat >"$TEST_TMP/pyproject.toml" <<'EOF'

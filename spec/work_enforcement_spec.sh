@@ -6,6 +6,7 @@ Include spec/helpers/env.sh
 
 # Set up test environment
 setup_enforcement_test_env() {
+  export HARM_LOG_LEVEL=ERROR # Suppress DEBUG/INFO logs during tests
   export HARM_WORK_DIR="$TEST_TMP/work"
   export HARM_WORK_ENFORCEMENT_FILE="$HARM_WORK_DIR/enforcement.json"
   export HARM_CLI_HOME="$TEST_TMP/harm-cli"

@@ -16,6 +16,7 @@ setup_activity_env() {
   export HARM_ACTIVITY_ENABLED=1
   export HARM_ACTIVITY_MIN_DURATION_MS=0 # Log everything for testing
   export HARM_ACTIVITY_EXCLUDE="ls cd pwd"
+  export HARM_LOG_LEVEL=ERROR # Suppress DEBUG/INFO logs during tests
 
   mkdir -p "$HARM_ACTIVITY_DIR"
 }
@@ -272,6 +273,9 @@ End
 It 'handles missing log file gracefully'
 rm -f "$HARM_ACTIVITY_LOG"
 
+# Temporarily enable WARN level to see the warning message
+HARM_LOG_LEVEL=WARN
+
 When call activity_query today
 The status should not be success
 The stderr should include "No activity log found"
@@ -513,6 +517,7 @@ _activity_precmd_hook 0 "echo test"
 
 When run jq -e '.' "$HARM_ACTIVITY_LOG"
 The status should be success
+The stdout should not be blank
 End
 
 It 'logs project switches'

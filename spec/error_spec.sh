@@ -5,7 +5,7 @@ Describe 'lib/error.sh'
 Include spec/helpers/env.sh
 
 # Source the error module
-BeforeAll 'source "$ROOT/lib/error.sh"'
+BeforeAll 'export HARM_LOG_LEVEL=ERROR && source "$ROOT/lib/error.sh"'
 
 Describe 'Exit codes'
 It 'defines standard exit codes'

@@ -10,7 +10,7 @@ AfterAll 'cleanup_safety_comprehensive_env'
 
 setup_safety_comprehensive_env() {
   export HARM_CLI_HOME="$TEST_TMP/harm-cli"
-  export HARM_CLI_LOG_LEVEL="ERROR"
+  export HARM_LOG_LEVEL=ERROR # Suppress DEBUG/INFO logs during tests
   mkdir -p "$HARM_CLI_HOME/logs"
 
   # Source safety module

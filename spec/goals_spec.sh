@@ -5,7 +5,7 @@ Describe 'lib/goals.sh'
 Include spec/helpers/env.sh
 
 # Set up test goals directory
-BeforeAll 'export HARM_GOALS_DIR="$TEST_TMP/goals" && mkdir -p "$HARM_GOALS_DIR"'
+BeforeAll 'export HARM_LOG_LEVEL=ERROR && export HARM_GOALS_DIR="$TEST_TMP/goals" && mkdir -p "$HARM_GOALS_DIR"'
 
 # Clean up after tests
 AfterAll 'rm -rf "$HARM_GOALS_DIR"'
@@ -256,6 +256,7 @@ The output should include '"progress"'
 The output should include '50'
 The output should include '"completed"'
 The output should include 'false'
+The stderr should be present # Allow logging output
 End
 
 It 'validates progress is 0-100'

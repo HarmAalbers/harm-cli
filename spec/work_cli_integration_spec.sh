@@ -14,6 +14,8 @@
 Describe 'Work CLI Integration Tests'
 Include spec/helpers/env.sh
 
+BeforeAll 'export HARM_LOG_LEVEL=ERROR'
+
 # Setup test environment before all tests
 setup_cli_test_env() {
   export HARM_WORK_DIR="$TEST_TMP/work"
