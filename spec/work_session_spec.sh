@@ -1,28 +1,82 @@
 #!/usr/bin/env bash
 # ShellSpec tests for work_session.sh module
 
+export HARM_LOG_LEVEL=ERROR
+
 Describe 'lib/work_session.sh'
 Include spec/helpers/env.sh
 
+BeforeAll 'setup_session_test_env'
+AfterAll 'cleanup_session_test_env'
+
 # Set up test environment
 setup_session_test_env() {
+  export HARM_CLI_HOME="$TEST_TMP/harm-cli"
+  export HARM_LOG_LEVEL=ERROR
+  export HARM_TEST_MODE=1  # Prevents background processes
   export HARM_WORK_DIR="$TEST_TMP/work"
   export HARM_WORK_STATE_FILE="$HARM_WORK_DIR/current_session.json"
-  export HARM_CLI_HOME="$TEST_TMP/harm-cli"
-  mkdir -p "$HARM_WORK_DIR" "$HARM_CLI_HOME"
+  export HARM_WORK_ENFORCEMENT=off
 
-  # Source the module (will fail until created)
-  source "$ROOT/lib/work_session.sh"
+  mkdir -p "$HARM_CLI_HOME" "$HARM_WORK_DIR"
+
+  # Disable Homebrew command not found handler
+  unset -f homebrew_command_not_found_handle 2>/dev/null || true
+  export HOMEBREW_COMMAND_NOT_FOUND_CI=1
+
+  # Inline mocks (do NOT use Include spec/helpers/mocks.sh - causes hangs)
+  MOCK_TIME=$(command date +%s)
+
+  date() {
+    if [[ "$1" == "+%s" ]]; then
+      echo "$MOCK_TIME"
+    else
+      command date "$@"
+    fi
+  }
+
+  sleep() { :; }
+  activity_query() { return 0; }
+  pkill() { :; }
+  kill() { :; }
+  ps() { echo "bash"; }
+  osascript() { :; }
+  notify-send() { :; }
+  paplay() { :; }
+
+  options_get() {
+    case "$1" in
+      work_duration) echo "1500" ;;
+      work_reminder_interval) echo "0" ;;
+      break_short) echo "300" ;;
+      break_long) echo "900" ;;
+      pomodoros_until_long) echo "4" ;;
+      strict_block_project_switch) echo "0" ;;
+      strict_require_break) echo "0" ;;
+      work_notifications) echo "0" ;;
+      work_sound_notifications) echo "0" ;;
+      *) echo "0" ;;
+    esac
+  }
+
+  export -f date sleep activity_query pkill kill ps osascript notify-send paplay options_get
+
+  # CRITICAL: Add </dev/null stdin redirection to prevent hangs
+  source "$ROOT/lib/work_session.sh" 2>/dev/null </dev/null
 }
-
-BeforeAll 'setup_session_test_env'
 
 # Clean up after tests
 cleanup_session_test_env() {
-  rm -rf "$HARM_WORK_DIR"
-}
+  # Kill any background jobs
+  jobs -p | xargs -r kill 2>/dev/null || true
+  wait 2>/dev/null || true
 
-AfterAll 'cleanup_session_test_env'
+  # Clean up directories
+  rm -rf "$HARM_CLI_HOME" "$HARM_WORK_DIR"
+
+  # Kill any lingering sleep processes
+  pkill -f "sleep.*" 2>/dev/null || true
+}
 
 Describe 'Module Loading'
 It 'sources work_session.sh without errors'

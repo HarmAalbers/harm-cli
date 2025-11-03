@@ -1,6 +1,8 @@
 #!/usr/bin/env bash
 # ShellSpec tests for work strict mode features
 
+export HARM_LOG_LEVEL=ERROR
+
 Describe 'lib/work.sh - Strict Mode'
 Include spec/helpers/env.sh
 
@@ -12,12 +14,71 @@ setup_strict_mode_test_env() {
   export HARM_BREAK_STATE_FILE="$HARM_WORK_DIR/current_break.json"
   export HARM_CLI_HOME="$TEST_TMP/harm-cli"
   export HARM_WORK_ENFORCEMENT="strict"
+  export HARM_TEST_MODE=1
+  export HARM_LOG_LEVEL=ERROR
+
   mkdir -p "$HARM_WORK_DIR" "$HARM_CLI_HOME"
-  source "$ROOT/lib/work.sh"
+
+  # Disable homebrew command not found handler
+  unset -f homebrew_command_not_found_handle 2>/dev/null || true
+  export HOMEBREW_COMMAND_NOT_FOUND_CI=1
+
+  # Mock time for predictable tests
+  MOCK_TIME=$(command date +%s)
+  MOCK_DATE_STR=$(command date '+%Y-%m')
+
+  # Inline mocks
+  date() {
+    if [[ "$1" == "+%s" ]]; then
+      echo "$MOCK_TIME"
+    elif [[ "$1" == "+%Y-%m" ]]; then
+      echo "$MOCK_DATE_STR"
+    else
+      command date "$@"
+    fi
+  }
+
+  sleep() { :; }
+  activity_query() { return 0; }
+  pkill() { :; }
+  kill() { :; }
+  ps() { echo "bash"; }
+  osascript() { :; }
+  notify-send() { :; }
+  paplay() { :; }
+  interactive_choose() { return 1; }
+  interactive_input() { return 1; }
+  gum() { return 1; }
+  fzf() { return 1; }
+
+  options_get() {
+    case "$1" in
+      work_duration) echo "1500" ;;
+      work_reminder_interval) echo "0" ;;
+      break_short) echo "300" ;;
+      break_long) echo "900" ;;
+      pomodoros_until_long) echo "4" ;;
+      strict_block_project_switch) echo "${HARM_STRICT_BLOCK_PROJECT_SWITCH:-0}" ;;
+      strict_require_break) echo "${HARM_STRICT_REQUIRE_BREAK:-0}" ;;
+      strict_confirm_early_stop) echo "${HARM_STRICT_CONFIRM_EARLY_STOP:-0}" ;;
+      strict_track_breaks) echo "${HARM_STRICT_TRACK_BREAKS:-0}" ;;
+      work_notifications) echo "0" ;;
+      work_sound_notifications) echo "0" ;;
+      *) echo "0" ;;
+    esac
+  }
+
+  export -f date sleep activity_query pkill kill ps osascript notify-send paplay interactive_choose interactive_input gum fzf options_get
+
+  source "$ROOT/lib/work.sh" 2>/dev/null </dev/null
 }
 
 # Clean up work session artifacts
 cleanup_strict_mode_session() {
+  # Clean up background jobs
+  jobs -p | xargs -r kill 2>/dev/null || true
+  wait 2>/dev/null || true
+
   work_stop_timer 2>/dev/null || true
   rm -f "$HARM_WORK_STATE_FILE"* 2>/dev/null || true
   rm -f "$HARM_WORK_ENFORCEMENT_FILE"* 2>/dev/null || true
@@ -29,6 +90,10 @@ cleanup_strict_mode_session() {
 BeforeAll 'setup_strict_mode_test_env'
 
 cleanup_strict_mode_test_env() {
+  # Clean up background jobs
+  jobs -p | xargs -r kill 2>/dev/null || true
+  wait 2>/dev/null || true
+
   cleanup_strict_mode_session
   rm -rf "$HARM_WORK_DIR"
 }

@@ -34,7 +34,7 @@ mkdir -p "$MOCK_TIMERS_DIR"
 
 # Timer operations log
 MOCK_TIMERS_LOG="${MOCK_STATE_DIR}/timers.log"
-: > "$MOCK_TIMERS_LOG"
+: >"$MOCK_TIMERS_LOG"
 
 # mock_pomodoro_timer: Create mock pomodoro background timer
 #
@@ -66,7 +66,7 @@ mock_pomodoro_timer() {
   # Create timer state file with jq if available, otherwise plain text
   local timer_file="${MOCK_TIMERS_DIR}/${mock_pid}.timer"
   if command -v jq >/dev/null 2>&1; then
-    cat > "$timer_file" <<EOF
+    cat >"$timer_file" <<EOF
 {
   "pid": $mock_pid,
   "duration_minutes": $duration_minutes,
@@ -78,7 +78,7 @@ mock_pomodoro_timer() {
 EOF
   else
     # Fallback: plain key=value format
-    cat > "$timer_file" <<EOF
+    cat >"$timer_file" <<EOF
 pid=$mock_pid
 duration_minutes=$duration_minutes
 duration_seconds=$duration_seconds
@@ -89,7 +89,7 @@ EOF
   fi
 
   mock_record_call "mock_pomodoro_timer" "$duration_minutes"
-  echo "$(command date +%s)|timer_start|pomodoro|${duration_seconds}|${mock_pid}" >> "$MOCK_TIMERS_LOG"
+  echo "$(command date +%s)|timer_start|pomodoro|${duration_seconds}|${mock_pid}" >>"$MOCK_TIMERS_LOG"
 
   echo "$mock_pid"
 }
@@ -132,7 +132,7 @@ mock_trigger_timer() {
   mock_time_set "$end_time"
 
   # Log completion
-  echo "$(command date +%s)|timer_complete|${mock_pid}" >> "$MOCK_TIMERS_LOG"
+  echo "$(command date +%s)|timer_complete|${mock_pid}" >>"$MOCK_TIMERS_LOG"
 
   # Clean up timer file (timer is done)
   rm -f "$timer_file"
@@ -222,7 +222,7 @@ mock_timer_stop() {
   fi
 
   mock_record_call "mock_timer_stop" "$mock_pid"
-  echo "$(command date +%s)|timer_stop|${mock_pid}" >> "$MOCK_TIMERS_LOG"
+  echo "$(command date +%s)|timer_stop|${mock_pid}" >>"$MOCK_TIMERS_LOG"
 
   rm -f "$timer_file"
   return 0
@@ -237,7 +237,7 @@ mock_timer_stop() {
 #   mock_timer_stop_all
 mock_timer_stop_all() {
   rm -f "${MOCK_TIMERS_DIR}"/*.timer 2>/dev/null || true
-  echo "$(command date +%s)|timer_stop_all|all" >> "$MOCK_TIMERS_LOG"
+  echo "$(command date +%s)|timer_stop_all|all" >>"$MOCK_TIMERS_LOG"
 }
 
 # mock_timer_count: Count active timers

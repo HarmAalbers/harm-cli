@@ -29,7 +29,7 @@ mkdir -p "$MOCK_PIDS_DIR"
 
 # Process operations log
 MOCK_PROCESS_LOG="${MOCK_STATE_DIR}/processes.log"
-: > "$MOCK_PROCESS_LOG"
+: >"$MOCK_PROCESS_LOG"
 
 # mock_kill: Mock version of kill command
 #
@@ -81,7 +81,7 @@ mock_kill() {
     else
       # Kill the mock process
       rm -f "$pid_file"
-      echo "$(command date +%s)|kill|${signal}|${pid}" >> "$MOCK_PROCESS_LOG"
+      echo "$(command date +%s)|kill|${signal}|${pid}" >>"$MOCK_PROCESS_LOG"
       return 0
     fi
   else
@@ -105,10 +105,10 @@ mock_pkill() {
   mock_record_call "pkill" "$@"
 
   # Log the pkill operation
-  echo "$(command date +%s)|pkill|$*" >> "$MOCK_PROCESS_LOG"
+  echo "$(command date +%s)|pkill|$*" >>"$MOCK_PROCESS_LOG"
 
   # Find and kill all matching mock processes
-  local pattern="${*: -1}"  # Last argument is typically the pattern
+  local pattern="${*: -1}" # Last argument is typically the pattern
   for pid_file in "$MOCK_PIDS_DIR"/*.pid; do
     if [[ -f "$pid_file" ]]; then
       local pid_name
@@ -116,7 +116,7 @@ mock_pkill() {
       # Simple pattern match (not a perfect pkill replica, but good enough)
       if [[ "$pid_name" == *"$pattern"* ]] || [[ "$pattern" == *"$pid_name"* ]]; then
         rm -f "$pid_file"
-        echo "$(command date +%s)|pkill|killed|$pid_name" >> "$MOCK_PROCESS_LOG"
+        echo "$(command date +%s)|pkill|killed|$pid_name" >>"$MOCK_PROCESS_LOG"
       fi
     fi
   done
@@ -172,9 +172,9 @@ mock_background_process() {
   local pid="${2:-$((10000 + RANDOM % 10000))}"
 
   local pid_file="${MOCK_PIDS_DIR}/${pid}.pid"
-  echo "$name" > "$pid_file"
+  echo "$name" >"$pid_file"
 
-  echo "$(command date +%s)|spawn|$name|$pid" >> "$MOCK_PROCESS_LOG"
+  echo "$(command date +%s)|spawn|$name|$pid" >>"$MOCK_PROCESS_LOG"
   echo "$pid"
 }
 
@@ -206,7 +206,7 @@ mock_process_exists() {
 #   mock_process_kill_all
 mock_process_kill_all() {
   rm -f "${MOCK_PIDS_DIR}"/*.pid 2>/dev/null || true
-  echo "$(command date +%s)|kill_all|all_processes" >> "$MOCK_PROCESS_LOG"
+  echo "$(command date +%s)|kill_all|all_processes" >>"$MOCK_PROCESS_LOG"
 }
 
 # mock_process_count: Get number of active mock processes

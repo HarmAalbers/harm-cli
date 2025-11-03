@@ -22,7 +22,7 @@ mkdir -p "$MOCK_STATE_DIR"
 
 # Mock call tracking log
 MOCK_CALLS_LOG="${MOCK_STATE_DIR}/calls.log"
-: > "$MOCK_CALLS_LOG"
+: >"$MOCK_CALLS_LOG"
 
 # mock_record_call: Record a mock function call
 #
@@ -38,7 +38,7 @@ mock_record_call() {
   shift
   local timestamp
   timestamp=$(date +%s 2>/dev/null || echo "0")
-  echo "${timestamp}|${func_name}|$*" >> "$MOCK_CALLS_LOG"
+  echo "${timestamp}|${func_name}|$*" >>"$MOCK_CALLS_LOG"
 }
 
 # mock_was_called: Check if a mock function was called
@@ -108,7 +108,7 @@ mock_get_call_args() {
 # Examples:
 #   mock_reset_all
 mock_reset_all() {
-  : > "$MOCK_CALLS_LOG"
+  : >"$MOCK_CALLS_LOG"
   rm -f "${MOCK_STATE_DIR}"/*.state 2>/dev/null || true
   rm -f "${MOCK_STATE_DIR}"/*.log 2>/dev/null || true
 }

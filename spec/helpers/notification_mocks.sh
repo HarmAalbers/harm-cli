@@ -26,7 +26,7 @@ fi
 
 # Notifications log
 MOCK_NOTIFICATIONS_LOG="${MOCK_STATE_DIR}/notifications.log"
-: > "$MOCK_NOTIFICATIONS_LOG"
+: >"$MOCK_NOTIFICATIONS_LOG"
 
 # mock_osascript: Mock version of osascript (macOS AppleScript)
 #
@@ -53,7 +53,7 @@ mock_osascript() {
   fi
 
   # Log the raw script
-  echo "$(command date +%s)|osascript|${script}" >> "$MOCK_NOTIFICATIONS_LOG"
+  echo "$(command date +%s)|osascript|${script}" >>"$MOCK_NOTIFICATIONS_LOG"
 
   # Parse notification if present
   if [[ "$script" == *"display notification"* ]]; then
@@ -73,7 +73,7 @@ mock_osascript() {
     fi
 
     # Log parsed notification
-    echo "NOTIFICATION|${title}|${message}" >> "$MOCK_NOTIFICATIONS_LOG"
+    echo "NOTIFICATION|${title}|${message}" >>"$MOCK_NOTIFICATIONS_LOG"
   fi
 
   # Always succeed
@@ -98,8 +98,8 @@ mock_notify_send() {
   local message="${2:-}"
 
   # Log the notification
-  echo "$(command date +%s)|notify-send|${title}|${message}" >> "$MOCK_NOTIFICATIONS_LOG"
-  echo "NOTIFICATION|${title}|${message}" >> "$MOCK_NOTIFICATIONS_LOG"
+  echo "$(command date +%s)|notify-send|${title}|${message}" >>"$MOCK_NOTIFICATIONS_LOG"
+  echo "NOTIFICATION|${title}|${message}" >>"$MOCK_NOTIFICATIONS_LOG"
 
   return 0
 }
@@ -116,7 +116,7 @@ mock_notify_send() {
 #   mock_paplay /usr/share/sounds/notification.oga
 mock_paplay() {
   mock_record_call "paplay" "$@"
-  echo "$(command date +%s)|paplay|$*" >> "$MOCK_NOTIFICATIONS_LOG"
+  echo "$(command date +%s)|paplay|$*" >>"$MOCK_NOTIFICATIONS_LOG"
   return 0
 }
 
@@ -189,7 +189,7 @@ mock_notification_get_last_message() {
 # Examples:
 #   mock_notification_clear
 mock_notification_clear() {
-  : > "$MOCK_NOTIFICATIONS_LOG"
+  : >"$MOCK_NOTIFICATIONS_LOG"
 }
 
 # mock_notification_dump: Dump all notifications (for debugging)

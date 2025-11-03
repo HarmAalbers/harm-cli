@@ -1,6 +1,8 @@
 #!/usr/bin/env bash
 # ShellSpec tests for work session management
 
+export HARM_LOG_LEVEL=ERROR
+
 Describe 'lib/work.sh'
 Include spec/helpers/env.sh
 
@@ -10,16 +12,69 @@ setup_work_test_env() {
   export HARM_WORK_DIR="$TEST_TMP/work"
   export HARM_WORK_STATE_FILE="$HARM_WORK_DIR/current_session.json"
   export HARM_CLI_HOME="$TEST_TMP/harm-cli"
+  export HARM_TEST_MODE=1  # Prevents background processes
+  export HARM_LOG_LEVEL=ERROR
+
   mkdir -p "$HARM_WORK_DIR" "$HARM_CLI_HOME"
-  source "$ROOT/lib/work.sh"
+
+  # Disable Homebrew command-not-found hook
+  unset -f homebrew_command_not_found_handle 2>/dev/null || true
+  export HOMEBREW_COMMAND_NOT_FOUND_CI=1
+
+  # Mock time for predictable tests
+  MOCK_TIME=$(command date +%s)
+
+  date() {
+    if [[ "$1" == "+%s" ]]; then
+      echo "$MOCK_TIME"
+    else
+      command date "$@"
+    fi
+  }
+
+  # Mock functions to prevent hanging
+  sleep() { :; }
+  activity_query() { return 0; }
+  pkill() { :; }
+  kill() { :; }
+  ps() { echo "bash"; }
+  osascript() { :; }
+  notify-send() { :; }
+  paplay() { :; }
+
+  options_get() {
+    case "$1" in
+      work_duration) echo "1500" ;;
+      work_reminder_interval) echo "0" ;;
+      break_short) echo "300" ;;
+      break_long) echo "900" ;;
+      pomodoros_until_long) echo "4" ;;
+      strict_block_project_switch) echo "0" ;;
+      strict_require_break) echo "0" ;;
+      work_notifications) echo "0" ;;
+      work_sound_notifications) echo "0" ;;
+      *) echo "0" ;;
+    esac
+  }
+
+  export -f date sleep activity_query pkill kill ps osascript notify-send paplay options_get
+
+  # Source work.sh with stdin redirection to prevent hangs
+  source "$ROOT/lib/work.sh" 2>/dev/null </dev/null
 }
 
 # Clean up work session artifacts and background processes
 # Defined at top level so it's accessible to all Describe blocks
 cleanup_work_session() {
+  # Kill background jobs FIRST
+  jobs -p | xargs -r kill 2>/dev/null || true
+  wait 2>/dev/null || true
+
+  # Then cleanup files and processes
   work_stop_timer 2>/dev/null || true
   rm -f "$HARM_WORK_STATE_FILE"* 2>/dev/null || true
   rm -f "$HARM_WORK_DIR"/*.pid 2>/dev/null || true
+  pkill -f "sleep.*work" 2>/dev/null || true
 }
 
 # Helper to start a work session for test setup
@@ -36,8 +91,14 @@ BeforeAll 'setup_work_test_env'
 
 # Clean up after tests
 cleanup_work_test_env() {
+  # Kill background jobs FIRST
+  jobs -p | xargs -r kill 2>/dev/null || true
+  wait 2>/dev/null || true
+
+  # Then cleanup session and files
   cleanup_work_session
-  rm -rf "$HARM_WORK_DIR"
+  rm -rf "$HARM_CLI_HOME" "$HARM_WORK_DIR"
+  pkill -f "sleep.*work" 2>/dev/null || true
 }
 
 AfterAll 'cleanup_work_test_env'
@@ -213,7 +274,7 @@ End
 It 'removes state file after stopping'
 start_test_session "Test"
 work_stop >/dev/null 2>&1
-The file "$HARM_WORK_STATE_FILE" should not be exist
+The file "$HARM_WORK_STATE_FILE" should not exist
 End
 
 It 'archives session to monthly file'
@@ -255,6 +316,11 @@ BeforeEach 'cleanup_timer_test'
 AfterEach 'cleanup_timer_test'
 
 cleanup_timer_test() {
+  # Kill background jobs FIRST
+  jobs -p | xargs -r kill 2>/dev/null || true
+  wait 2>/dev/null || true
+
+  # Then cleanup files
   work_stop_timer 2>/dev/null || true
   rm -f "$HARM_WORK_TIMER_PID_FILE" 2>/dev/null || true
   rm -f "$HARM_WORK_STATE_FILE" 2>/dev/null || true
@@ -334,6 +400,11 @@ BeforeEach 'cleanup_notification_test'
 AfterEach 'cleanup_notification_test'
 
 cleanup_notification_test() {
+  # Kill background jobs FIRST
+  jobs -p | xargs -r kill 2>/dev/null || true
+  wait 2>/dev/null || true
+
+  # Then cleanup session
   work_stop 2>/dev/null || true
   rm -f "$HARM_WORK_STATE_FILE" 2>/dev/null || true
 }

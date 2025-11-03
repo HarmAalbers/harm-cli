@@ -14,16 +14,59 @@ setup_e2e_env() {
   export HARM_WORK_STATE_FILE="$HARM_WORK_DIR/current_session.json"
   export HARM_CLI_HOME="$TEST_TMP/harm-cli"
   export HARM_CLI_LOG_LEVEL="ERROR"
+  export HARM_TEST_MODE=1
+  export HARM_WORK_ENFORCEMENT=off
   mkdir -p "$HARM_GOALS_DIR" "$HARM_WORK_DIR" "$HARM_CLI_HOME"
 
-  # Source all required modules AFTER setting env vars
-  source "$ROOT/lib/common.sh"
-  source "$ROOT/lib/error.sh"
-  source "$ROOT/lib/logging.sh"
-  source "$ROOT/lib/util.sh"
-  source "$ROOT/lib/options.sh"
-  source "$ROOT/lib/work.sh"
-  source "$ROOT/lib/goals.sh"
+  # Disable homebrew command not found handler
+  unset -f homebrew_command_not_found_handle 2>/dev/null || true
+  export HOMEBREW_COMMAND_NOT_FOUND_CI=1
+
+  # Mock system commands to prevent background processes and external dependencies
+  MOCK_TIME=$(command date +%s)
+
+  date() {
+    if [[ "$1" == "+%s" ]]; then
+      echo "$MOCK_TIME"
+    else
+      command date "$@"
+    fi
+  }
+
+  sleep() { :; }
+  activity_query() { return 0; }
+  pkill() { :; }
+  kill() { :; }
+  ps() { echo "bash"; }
+  osascript() { :; }
+  notify-send() { :; }
+  paplay() { :; }
+
+  options_get() {
+    case "$1" in
+      work_duration) echo "1500" ;;
+      work_reminder_interval) echo "0" ;;
+      break_short) echo "300" ;;
+      break_long) echo "900" ;;
+      pomodoros_until_long) echo "4" ;;
+      strict_block_project_switch) echo "0" ;;
+      strict_require_break) echo "0" ;;
+      work_notifications) echo "0" ;;
+      work_sound_notifications) echo "0" ;;
+      *) echo "0" ;;
+    esac
+  }
+
+  export -f date sleep activity_query pkill kill ps osascript notify-send paplay options_get
+
+  # Source all required modules AFTER setting env vars (redirect stdin to prevent hangs)
+  source "$ROOT/lib/common.sh" 2>/dev/null </dev/null
+  source "$ROOT/lib/error.sh" 2>/dev/null </dev/null
+  source "$ROOT/lib/logging.sh" 2>/dev/null </dev/null
+  source "$ROOT/lib/util.sh" 2>/dev/null </dev/null
+  source "$ROOT/lib/options.sh" 2>/dev/null </dev/null
+  source "$ROOT/lib/work.sh" 2>/dev/null </dev/null
+  source "$ROOT/lib/goals.sh" 2>/dev/null </dev/null
 }
 
 # Clean state function - defined at top level so it's accessible
@@ -33,7 +76,15 @@ cleanup_work_state() {
 }
 
 BeforeAll 'setup_e2e_env'
-AfterAll 'rm -rf "$HARM_GOALS_DIR" "$HARM_WORK_DIR" "$HARM_CLI_HOME"'
+AfterAll 'cleanup_e2e_env'
+
+cleanup_e2e_env() {
+  # Kill any background jobs to prevent hanging
+  jobs -p | xargs -r kill 2>/dev/null || true
+  wait 2>/dev/null || true
+  rm -rf "$HARM_GOALS_DIR" "$HARM_WORK_DIR" "$HARM_CLI_HOME"
+  pkill -f "sleep.*pomodoro" 2>/dev/null || true
+}
 
 #═══════════════════════════════════════════════════════════════════
 # E2E Scenario 1: Complete Work Session Workflow

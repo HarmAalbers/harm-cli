@@ -27,7 +27,7 @@ MOCK_TIME_FILE="${MOCK_STATE_DIR}/mock_time.state"
 
 # Initialize with current time if not already set
 if [[ ! -f "$MOCK_TIME_FILE" ]]; then
-  command date +%s > "$MOCK_TIME_FILE"
+  command date +%s >"$MOCK_TIME_FILE"
 fi
 
 # Global mock time variable (for quick access)
@@ -37,7 +37,7 @@ export MOCK_CURRENT_TIME
 # _update_mock_time: Internal helper to update time state
 _update_mock_time() {
   local new_time="$1"
-  echo "$new_time" > "$MOCK_TIME_FILE"
+  echo "$new_time" >"$MOCK_TIME_FILE"
   MOCK_CURRENT_TIME=$new_time
 }
 

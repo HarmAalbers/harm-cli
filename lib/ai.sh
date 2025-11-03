@@ -587,16 +587,16 @@ _ai_make_request() {
 
   if command -v gum >/dev/null 2>&1 && [[ -t 1 ]]; then
     # Use gum spinner for beautiful progress
-    set +e  # Temporarily disable errexit
+    set +e # Temporarily disable errexit
     gum spin --spinner dot --title "Thinking..." -- \
       curl -s -w "\n%{http_code}" \
       -m "$AI_TIMEOUT" \
       -H "Content-Type: application/json" \
       -H "x-goog-api-key: $api_key" \
       -d "$request_body" \
-      "$api_url" > "$response_file" 2>&1
+      "$api_url" >"$response_file" 2>&1
     curl_status=$?
-    set -e  # Re-enable errexit
+    set -e # Re-enable errexit
     response=$(cat "$response_file")
     rm -f "$response_file"
     # Sanitize response after capturing exit code
@@ -608,15 +608,15 @@ _ai_make_request() {
     fi
 
     # Write to file to capture exit code reliably
-    set +e  # Temporarily disable errexit
+    set +e # Temporarily disable errexit
     curl -s -w "\n%{http_code}" \
       -m "$AI_TIMEOUT" \
       -H "Content-Type: application/json" \
       -H "x-goog-api-key: $api_key" \
       -d "$request_body" \
-      "$api_url" > "$response_file" 2>&1
+      "$api_url" >"$response_file" 2>&1
     curl_status=$?
-    set -e  # Re-enable errexit
+    set -e # Re-enable errexit
     response=$(cat "$response_file")
     rm -f "$response_file"
     # Sanitize response after capturing exit code
