@@ -81,6 +81,9 @@ work_send_notification() {
   local title="${1:?work_send_notification requires title}"
   local message="${2:?work_send_notification requires message}"
 
+  # Skip notifications in test mode
+  [[ "${HARM_TEST_MODE:-0}" == "1" ]] && return 0
+
   # Check if notifications are enabled
   local notifications_enabled
   notifications_enabled=$(options_get work_notifications)

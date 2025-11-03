@@ -295,6 +295,11 @@ pomodoro_start() {
   echo "   Focus time! Will alert you when done."
   echo ""
 
+  # Skip background process in test mode
+  if [[ "${HARM_TEST_MODE:-0}" == "1" ]]; then
+    return 0
+  fi
+
   # Schedule notification (background)
   (
     sleep $((duration * 60))

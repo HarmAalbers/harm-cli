@@ -39,11 +39,11 @@ spell:
 # Testing
 # ═══════════════════════════════════════════════════════════════
 
-# Run tests with bash shell (bash 5+ required)
+# Run tests with bash shell (bash 5+ required) - FAST
 test-bash:
     #!/usr/bin/env bash
     set -euo pipefail
-    echo "🧪 Running tests with bash 5+..."
+    echo "🧪 Running tests with bash 5+ (fast mode)..."
     if [ -f /opt/homebrew/bin/bash ]; then
         BASH_PATH=/opt/homebrew/bin/bash
     elif command -v bash >/dev/null 2>&1; then
@@ -52,17 +52,24 @@ test-bash:
         echo "Error: Bash not found"
         exit 1
     fi
-    echo "Using bash: $BASH_PATH"
-    $BASH_PATH --version | head -1
+    echo "Using bash: $BASH_PATH ($($BASH_PATH --version | head -1))"
     shellspec -s "$BASH_PATH"
 
-# Run tests with zsh shell
+# Run tests with zsh shell (compatibility check)
 test-zsh:
     @echo "🧪 Running tests with zsh..."
     shellspec -s /bin/zsh --pattern 'spec/cli_core_spec.sh'
 
-# Run all tests (bash + zsh)
-test: test-bash test-zsh
+# Run fast tests (bash only, progress format, 10 parallel jobs)
+test: test-bash
+
+# Run comprehensive tests (bash + zsh, verbose output)
+test-all:
+    @echo "🧪 Running comprehensive test suite..."
+    shellspec -s /opt/homebrew/bin/bash --format documentation
+    @echo ""
+    @echo "🧪 Running zsh compatibility tests..."
+    shellspec -s /bin/zsh --pattern 'spec/cli_core_spec.sh'
 
 # Run specific test file
 test-file FILE:
@@ -83,8 +90,8 @@ coverage:
 # CI/CD
 # ═══════════════════════════════════════════════════════════════
 
-# Run full CI pipeline (fmt + lint + test)
-ci: fmt lint test
+# Run full CI pipeline (fmt + lint + comprehensive tests)
+ci: fmt lint test-all
     @echo ""
     @echo "═══════════════════════════════════════"
     @echo "✅ CI pipeline passed!"

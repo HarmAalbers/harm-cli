@@ -275,32 +275,35 @@ EOF
     fi
   fi
 
-  (
-    sleep "$duration"
+  # Skip background process in test mode
+  if [[ "${HARM_TEST_MODE:-0}" != "1" ]]; then
+    (
+      sleep "$duration"
 
-    if [[ -f "$HARM_BREAK_STATE_FILE" ]]; then
-      # Send completion notification
-      if declare -F work_send_notification >/dev/null 2>&1; then
-        work_send_notification "⏰ Break Complete!" "Time to get back to work!"
+      if [[ -f "$HARM_BREAK_STATE_FILE" ]]; then
+        # Send completion notification
+        if declare -F work_send_notification >/dev/null 2>&1; then
+          work_send_notification "⏰ Break Complete!" "Time to get back to work!"
+        fi
+
+        # Log the expiry (lightweight - just logging, no complex operations)
+        if declare -F log_info >/dev/null 2>&1; then
+          log_info "break" "Break timer expired" "Duration: ${duration}s"
+        fi
+
+        # Mark the break as auto-completed by updating the state
+        # This allows break_stop or the next command to detect it expired naturally
+        if [[ -f "$HARM_BREAK_STATE_FILE" ]] && command -v jq >/dev/null 2>&1; then
+          local temp_state
+          temp_state=$(mktemp)
+          jq '.auto_completed = true' "$HARM_BREAK_STATE_FILE" >"$temp_state" 2>/dev/null \
+            && mv "$temp_state" "$HARM_BREAK_STATE_FILE" || rm -f "$temp_state"
+        fi
       fi
+    ) &
 
-      # Log the expiry (lightweight - just logging, no complex operations)
-      if declare -F log_info >/dev/null 2>&1; then
-        log_info "break" "Break timer expired" "Duration: ${duration}s"
-      fi
-
-      # Mark the break as auto-completed by updating the state
-      # This allows break_stop or the next command to detect it expired naturally
-      if [[ -f "$HARM_BREAK_STATE_FILE" ]] && command -v jq >/dev/null 2>&1; then
-        local temp_state
-        temp_state=$(mktemp)
-        jq '.auto_completed = true' "$HARM_BREAK_STATE_FILE" >"$temp_state" 2>/dev/null \
-          && mv "$temp_state" "$HARM_BREAK_STATE_FILE" || rm -f "$temp_state"
-      fi
-    fi
-  ) &
-
-  echo $! >"$HARM_BREAK_TIMER_PID_FILE"
+    echo $! >"$HARM_BREAK_TIMER_PID_FILE"
+  fi
 
   local duration_min=$((duration / 60))
   work_send_notification "☕ Break Started" "${break_type^} break - ${duration_min} minutes to recharge"
@@ -499,31 +502,34 @@ scheduled_break_start_daemon() {
 
   log_info "scheduled_break" "Starting scheduled break daemon" "interval=${interval_min}m"
 
-  (
-    while true; do
-      sleep "$interval_sec"
+  # Skip background process in test mode
+  if [[ "${HARM_TEST_MODE:-0}" != "1" ]]; then
+    (
+      while true; do
+        sleep "$interval_sec"
 
-      [[ ! -f "$HARM_SCHEDULED_BREAK_PID_FILE" ]] && break
+        [[ ! -f "$HARM_SCHEDULED_BREAK_PID_FILE" ]] && break
 
-      if ! work_is_active && ! break_is_active; then
-        log_info "scheduled_break" "Triggering scheduled break"
+        if ! work_is_active && ! break_is_active; then
+          log_info "scheduled_break" "Triggering scheduled break"
 
-        local break_type="short"
-        local duration
-        duration=$(options_get break_short)
+          local break_type="short"
+          local duration
+          duration=$(options_get break_short)
 
-        work_send_notification "⏰ Scheduled Break Time!" "It's been ${interval_min} minutes. Time for a break!"
+          work_send_notification "⏰ Scheduled Break Time!" "It's been ${interval_min} minutes. Time for a break!"
 
-        break_start --background "$duration" "$break_type" 2>/dev/null || true
-      else
-        log_debug "scheduled_break" "Skipping scheduled break (work/break active)"
-      fi
-    done
-  ) &
+          break_start --background "$duration" "$break_type" 2>/dev/null || true
+        else
+          log_debug "scheduled_break" "Skipping scheduled break (work/break active)"
+        fi
+      done
+    ) &
 
-  echo $! >"$HARM_SCHEDULED_BREAK_PID_FILE"
+    echo $! >"$HARM_SCHEDULED_BREAK_PID_FILE"
+  fi
 
-  log_info "scheduled_break" "Daemon started" "PID=$!, interval=${interval_min}m"
+  log_info "scheduled_break" "Daemon started" "interval=${interval_min}m"
   return 0
 }
 
@@ -555,7 +561,7 @@ scheduled_break_status() {
     if [[ "${HARM_CLI_FORMAT:-text}" == "json" ]]; then
       jq -n '{status: "disabled"}'
     else
-      echo "Scheduled breaks: ${WARN_YELLOW}DISABLED${RESET}"
+      echo "Scheduled breaks: ${WARNING_YELLOW}DISABLED${RESET}"
       echo "  Enable: harm-cli options set break_scheduled_enabled 1"
     fi
     return 0

@@ -65,7 +65,7 @@ export HARM_WORK_STATE_FILE
 
 work_is_active() {
   [[ -f "$HARM_WORK_STATE_FILE" ]] \
-    && json_get "$(cat "$HARM_WORK_STATE_FILE")" ".status" | grep -q "active"
+    && json_get "$(cat "$HARM_WORK_STATE_FILE")" ".status" | grep -q "^active$"
 }
 
 work_get_state() {
@@ -102,7 +102,16 @@ work_save_state() {
 }
 
 work_load_state() {
-  require_file "$HARM_WORK_STATE_FILE" "work session state"
+  if [[ ! -f "$HARM_WORK_STATE_FILE" ]]; then
+    return 0
+  fi
+
+  # Validate JSON before returning
+  if ! jq empty "$HARM_WORK_STATE_FILE" 2>/dev/null; then
+    log_error "work" "Corrupted work session state file" "File: $HARM_WORK_STATE_FILE"
+    return 0
+  fi
+
   cat "$HARM_WORK_STATE_FILE"
 }
 
@@ -175,6 +184,14 @@ work_start() {
     fi
   fi
 
+  # Check if session is active, but clean up corrupted state first
+  if [[ -f "$HARM_WORK_STATE_FILE" ]]; then
+    if ! jq empty "$HARM_WORK_STATE_FILE" 2>/dev/null; then
+      log_warn "work" "Removing corrupted work session state file" "File: $HARM_WORK_STATE_FILE"
+      rm -f "$HARM_WORK_STATE_FILE"
+    fi
+  fi
+
   if work_is_active; then
     error_msg "Work session already active" "$EXIT_ERROR"
     return "$EXIT_ERROR"
@@ -240,43 +257,46 @@ work_start() {
 
   log_info "work" "Work session started" "Goal: ${goal:-none}, Duration: ${work_duration}s"
 
-  (
-    sleep "$work_duration"
-
-    if [[ -f "$HARM_WORK_STATE_FILE" ]]; then
-      work_send_notification "🍅 Work Session Complete" "Time for a break! You've completed a pomodoro."
-      log_info "work" "Work timer expired" "Duration: ${work_duration}s"
-    fi
-  ) &
-
-  echo $! >"$HARM_WORK_TIMER_PID_FILE"
-
-  local reminder_interval
-  reminder_interval=$(options_get work_reminder_interval)
-
-  if ((reminder_interval > 0)); then
-    local reminder_seconds=$((reminder_interval * 60))
-
+  # Skip background processes in test mode
+  if [[ "${HARM_TEST_MODE:-0}" != "1" ]]; then
     (
-      while [[ -f "$HARM_WORK_STATE_FILE" ]]; do
-        sleep "$reminder_seconds"
+      sleep "$work_duration"
 
-        if [[ -f "$HARM_WORK_STATE_FILE" ]]; then
-          local state elapsed_min session_start_time start_epoch now_epoch
-          state=$(cat "$HARM_WORK_STATE_FILE")
-          session_start_time=$(json_get "$state" ".start_time")
-          start_epoch=$(iso8601_to_epoch "$session_start_time")
-          now_epoch=$(get_utc_epoch)
-          elapsed_min=$(((now_epoch - start_epoch) / 60))
-
-          work_send_notification "⏰ Focus Reminder" "You've been working for ${elapsed_min} minutes. Keep going!"
-          log_info "work" "Interval reminder sent" "Elapsed: ${elapsed_min}m"
-        fi
-      done
+      if [[ -f "$HARM_WORK_STATE_FILE" ]]; then
+        work_send_notification "🍅 Work Session Complete" "Time for a break! You've completed a pomodoro."
+        log_info "work" "Work timer expired" "Duration: ${work_duration}s"
+      fi
     ) &
 
-    echo $! >"$HARM_WORK_REMINDER_PID_FILE"
-    log_debug "work" "Started reminder process" "Interval: ${reminder_interval}m"
+    echo $! >"$HARM_WORK_TIMER_PID_FILE"
+
+    local reminder_interval
+    reminder_interval=$(options_get work_reminder_interval)
+
+    if ((reminder_interval > 0)); then
+      local reminder_seconds=$((reminder_interval * 60))
+
+      (
+        while [[ -f "$HARM_WORK_STATE_FILE" ]]; do
+          sleep "$reminder_seconds"
+
+          if [[ -f "$HARM_WORK_STATE_FILE" ]]; then
+            local state elapsed_min session_start_time start_epoch now_epoch
+            state=$(cat "$HARM_WORK_STATE_FILE")
+            session_start_time=$(json_get "$state" ".start_time")
+            start_epoch=$(iso8601_to_epoch "$session_start_time")
+            now_epoch=$(get_utc_epoch)
+            elapsed_min=$(((now_epoch - start_epoch) / 60))
+
+            work_send_notification "⏰ Focus Reminder" "You've been working for ${elapsed_min} minutes. Keep going!"
+            log_info "work" "Interval reminder sent" "Elapsed: ${elapsed_min}m"
+          fi
+        done
+      ) &
+
+      echo $! >"$HARM_WORK_REMINDER_PID_FILE"
+      log_debug "work" "Started reminder process" "Interval: ${reminder_interval}m"
+    fi
   fi
 
   local duration_min=$((work_duration / 60))

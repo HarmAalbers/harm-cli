@@ -581,38 +581,58 @@ _ai_make_request() {
   log_debug "ai" "Sending request" "Timeout: ${AI_TIMEOUT}s"
 
   # Show progress feedback
+  local curl_status
+  local response_file
+  response_file=$(mktemp)
+
   if command -v gum >/dev/null 2>&1 && [[ -t 1 ]]; then
     # Use gum spinner for beautiful progress
-    response=$(gum spin --spinner dot --title "Thinking..." -- \
+    set +e  # Temporarily disable errexit
+    gum spin --spinner dot --title "Thinking..." -- \
       curl -s -w "\n%{http_code}" \
       -m "$AI_TIMEOUT" \
       -H "Content-Type: application/json" \
       -H "x-goog-api-key: $api_key" \
       -d "$request_body" \
-      "$api_url" 2>&1 | _ai_sanitize_secrets)
+      "$api_url" > "$response_file" 2>&1
+    curl_status=$?
+    set -e  # Re-enable errexit
+    response=$(cat "$response_file")
+    rm -f "$response_file"
+    # Sanitize response after capturing exit code
+    response=$(echo "$response" | _ai_sanitize_secrets)
   else
     # Fallback: simple text spinner
     if [[ -t 1 ]]; then
       printf "🤖 Thinking... "
     fi
 
-    response=$(curl -s -w "\n%{http_code}" \
+    # Write to file to capture exit code reliably
+    set +e  # Temporarily disable errexit
+    curl -s -w "\n%{http_code}" \
       -m "$AI_TIMEOUT" \
       -H "Content-Type: application/json" \
       -H "x-goog-api-key: $api_key" \
       -d "$request_body" \
-      "$api_url" 2>&1 | _ai_sanitize_secrets)
+      "$api_url" > "$response_file" 2>&1
+    curl_status=$?
+    set -e  # Re-enable errexit
+    response=$(cat "$response_file")
+    rm -f "$response_file"
+    # Sanitize response after capturing exit code
+    response=$(echo "$response" | _ai_sanitize_secrets)
 
     if [[ -t 1 ]]; then
       printf "\r✓ Response received\n"
     fi
   fi
 
-  local curl_status=$?
-
   # Extract HTTP code from last line
   http_code=$(echo "$response" | tail -n1)
   response=$(echo "$response" | sed '$d')
+
+  # Debug: log curl status
+  log_debug "ai" "curl exit status captured" "Status: $curl_status"
 
   # Check for curl errors (network, timeout, etc.)
   if [[ $curl_status -ne 0 ]]; then
@@ -881,12 +901,12 @@ ai_query() {
   start_time=$(get_utc_epoch)
 
   local response
-  if ! response=$(_ai_make_request "$api_key" "$query" "$context"); then
+  response=$(_ai_make_request "$api_key" "$query" "$context") || {
     local exit_code=$?
     log_error "ai" "API request failed"
     _ai_fallback
     return "$exit_code"
-  fi
+  }
 
   # Calculate duration in milliseconds
   local end_time duration_ms

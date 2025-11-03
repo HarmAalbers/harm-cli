@@ -182,14 +182,17 @@ safe_rm() {
     return 0
   fi
 
-  # SECURITY: ALWAYS require confirmation for any deletion
-  # This is "safe_rm" - it should be safer than regular rm
-  # Users can use regular rm if they want no confirmation
-  echo ""
-  if [[ $is_dangerous -eq 1 ]]; then
-    echo "⚠️  WARNING: Recursive or force deletion detected"
+  # Require confirmation for dangerous operations or many files
+  # - Dangerous flags (-r, -R, -f, --force, --recursive): always confirm
+  # - More than 5 files: confirm to prevent accidents
+  # - 5 or fewer files without dangerous flags: no confirmation needed
+  if [[ $is_dangerous -eq 1 ]] || [[ $count -gt 5 ]]; then
+    echo ""
+    if [[ $is_dangerous -eq 1 ]]; then
+      echo "⚠️  WARNING: Recursive or force deletion detected"
+    fi
+    _safety_confirm "Delete $count items" "delete" || return 130
   fi
-  _safety_confirm "Delete $count items" "delete" || return 130
 
   # Perform deletion
   _safety_log "rm" "Args: $*, Count: $count"
@@ -200,7 +203,7 @@ safe_rm() {
     return 0
   else
     error_msg "Deletion failed"
-    return "$EXIT_COMMAND_FAILED"
+    return "$EXIT_ERROR"
   fi
 }
 
@@ -234,7 +237,7 @@ safe_docker_prune() {
   if ! command -v docker >/dev/null 2>&1; then
     log_error "safety" "Docker command not found"
     error_msg "Docker not installed"
-    return "$EXIT_DEPENDENCY_MISSING"
+    return "$EXIT_MISSING_DEPS"
   fi
 
   if ! docker info >/dev/null 2>&1; then
@@ -276,7 +279,7 @@ safe_docker_prune() {
       return 0
     else
       error_msg "Docker prune failed"
-      return "$EXIT_COMMAND_FAILED"
+      return "$EXIT_ERROR"
     fi
   else
     # Fallback without progress
@@ -286,7 +289,7 @@ safe_docker_prune() {
       return 0
     else
       error_msg "Docker prune failed"
-      return "$EXIT_COMMAND_FAILED"
+      return "$EXIT_ERROR"
     fi
   fi
 }
@@ -415,7 +418,7 @@ safe_git_reset() {
   else
     log_error "safety" "Failed to create backup branch" "Branch: $backup_branch"
     error_msg "Failed to create backup branch"
-    return "$EXIT_COMMAND_FAILED"
+    return "$EXIT_ERROR"
   fi
 
   # Log operation
@@ -430,7 +433,7 @@ safe_git_reset() {
     return 0
   else
     error_msg "Git reset failed"
-    return "$EXIT_COMMAND_FAILED"
+    return "$EXIT_ERROR"
   fi
 }
 
@@ -438,6 +441,10 @@ safe_git_reset() {
 export -f safe_rm
 export -f safe_docker_prune
 export -f safe_git_reset
+
+# Export internal functions for testing
+export -f _safety_confirm
+export -f _safety_log
 
 # Mark module as loaded
 readonly _HARM_SAFETY_LOADED=1

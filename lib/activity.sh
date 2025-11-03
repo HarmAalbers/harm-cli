@@ -484,7 +484,7 @@ activity_stats() {
   # Extract all three metrics in one jq invocation
   local total_commands errors avg_duration
   read -r total_commands errors avg_duration < <(
-    echo "$data" | jq -s '
+    echo "$data" | jq -r -s '
       # Filter to command records only
       map(select(.type == "command")) |
 
