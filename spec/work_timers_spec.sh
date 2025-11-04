@@ -183,24 +183,6 @@ cleanup_process() {
 
 AfterEach cleanup_process
 
-It 'kills running timer process'
-Skip "Complex test with real processes - needs refinement"
-# TODO: Fix this test to work reliably in CI/test environments
-# Current issue: Example aborts due to complex process management
-local pid
-pid=$(cat "$HARM_WORK_TIMER_PID_FILE")
-
-# Verify process exists before stopping
-kill -0 "$pid" 2>/dev/null || skip "Process not running"
-
-When call work_stop_timer
-The status should be success
-
-# Verify process was actually killed (wait a moment for kill to take effect)
-sleep 0.1
-kill -0 "$pid" 2>/dev/null
-The status should be failure
-End
 End
 End
 

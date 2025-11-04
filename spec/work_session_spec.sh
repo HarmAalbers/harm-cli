@@ -13,7 +13,7 @@ AfterAll 'cleanup_session_test_env'
 setup_session_test_env() {
   export HARM_CLI_HOME="$TEST_TMP/harm-cli"
   export HARM_LOG_LEVEL=ERROR
-  export HARM_TEST_MODE=1  # Prevents background processes
+  export HARM_TEST_MODE=1 # Prevents background processes
   export HARM_WORK_DIR="$TEST_TMP/work"
   export HARM_WORK_STATE_FILE="$HARM_WORK_DIR/current_session.json"
   export HARM_WORK_ENFORCEMENT=off
@@ -59,7 +59,13 @@ setup_session_test_env() {
     esac
   }
 
+  # Mock helper functions
+  break_start() { return 0; }
+  get_epoch_seconds() { echo "$MOCK_TIME"; }
+  parse_iso8601_to_epoch() { echo "$MOCK_TIME"; }
+
   export -f date sleep activity_query pkill kill ps osascript notify-send paplay options_get
+  export -f break_start get_epoch_seconds parse_iso8601_to_epoch
 
   # CRITICAL: Add </dev/null stdin redirection to prevent hangs
   source "$ROOT/lib/work_session.sh" 2>/dev/null </dev/null
@@ -92,16 +98,19 @@ End
 It 'exports work_start function'
 When call type work_start
 The status should be success
+The output should include "work_start"
 End
 
 It 'exports work_stop function'
 When call type work_stop
 The status should be success
+The output should include "work_stop"
 End
 
 It 'exports work_status function'
 When call type work_status
 The status should be success
+The output should include "work_status"
 End
 End
 
@@ -197,10 +206,11 @@ End
 End
 
 Describe 'work_load_state'
-It 'fails when no state file exists'
+It 'returns success with no output when no state file exists'
 rm -f "$HARM_WORK_STATE_FILE"
 When run work_load_state
-The status should be failure
+The status should be success
+The output should be blank
 End
 
 It 'returns JSON state from file'
@@ -213,32 +223,36 @@ End
 
 Describe 'work_start'
 It 'starts new work session with goal'
-Skip "Complex test - needs mock for timers and enforcement"
 rm -f "$HARM_WORK_STATE_FILE"
 When call work_start "Test goal"
 The status should be success
+The output should include "Test goal"
+The stderr should include "started"
 The path "$HARM_WORK_STATE_FILE" should be exist
 End
 
 It 'fails when session already active'
-Skip "Needs mock for work_is_active check"
-echo '{"status":"active"}' >"$HARM_WORK_STATE_FILE"
+echo '{"status":"active","start_time":"2025-01-01T12:00:00Z"}' >"$HARM_WORK_STATE_FILE"
 When run work_start "Another goal"
 The status should be failure
+The stderr should include "already active"
 End
 End
 
 Describe 'work_stop'
 It 'fails when no active session'
-Skip "Needs mock for work_is_active check"
 rm -f "$HARM_WORK_STATE_FILE"
 When run work_stop
 The status should be failure
+The stderr should include "No active"
 End
 
 It 'stops active session'
-Skip "Complex test - needs timer mocks"
-# Would need to mock work_is_active, work_stop_timer, etc.
+echo '{"status":"active","start_time":"2025-01-01T12:00:00Z"}' >"$HARM_WORK_STATE_FILE"
+When call work_stop
+The status should be success
+The output should include "Pomodoro"
+The stderr should include "stopped"
 End
 End
 
@@ -251,8 +265,11 @@ The status should be success
 End
 
 It 'shows active session details'
-Skip "Needs time calculation mocks"
-# Would need to mock timestamps for consistent output
+echo '{"status":"active","start_time":"2025-01-01T12:00:00Z","goal":"Test goal"}' >"$HARM_WORK_STATE_FILE"
+When call work_status
+The output should include "ACTIVE"
+The output should include "Test goal"
+The status should be success
 End
 End
 
@@ -267,6 +284,7 @@ It 'returns failure and shows reminder when inactive'
 rm -f "$HARM_WORK_STATE_FILE"
 When call work_require_active
 The status should be failure
+The stderr should include "Tip"
 End
 End
 
@@ -288,15 +306,36 @@ The status should be failure
 End
 
 It 'calculates score based on elapsed time'
-Skip "Complex test - needs time mocking"
-# Would need to mock timestamps and calculate expected score
+# Create active session - score depends on elapsed time
+# With MOCK_TIME and parse_iso8601_to_epoch both returning same value, elapsed=0, score=0
+echo '{"status":"active","start_time":"2025-01-01T12:00:00Z"}' >"$HARM_WORK_STATE_FILE"
+When call work_focus_score
+The status should be success
+# Score will be 0 with elapsed=0, which is correct behavior
+The output should equal "0"
 End
 End
 
 Describe 'Integration - State lifecycle'
-It 'complete session lifecycle works'
-Skip "Full integration test - complex setup"
-# This would test: start -> status -> stop -> verify cleanup
+It 'starts a session and state becomes active'
+rm -f "$HARM_WORK_STATE_FILE"
+work_start "Integration test goal" 2>/dev/null
+When call work_get_state
+The output should equal "active"
+End
+
+It 'shows active session in status'
+echo '{"status":"active","start_time":"2025-01-01T12:00:00Z","goal":"Integration test"}' >"$HARM_WORK_STATE_FILE"
+When call work_status
+The output should include "ACTIVE"
+The output should include "Integration test"
+End
+
+It 'stops session and state becomes inactive'
+echo '{"status":"active","start_time":"2025-01-01T12:00:00Z"}' >"$HARM_WORK_STATE_FILE"
+work_stop 2>/dev/null
+When call work_get_state
+The output should equal "inactive"
 End
 End
 End

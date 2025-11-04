@@ -103,7 +103,7 @@ log_timestamp() {
 # Usage: log_should_write "DEBUG" || return
 log_should_write() {
   local level="${1:?log_should_write requires level}"
-  local current_priority="${LOG_LEVELS[${HARM_LOG_LEVEL}]:-1}"
+  local current_priority="${LOG_LEVELS[${HARM_LOG_LEVEL:-WARN}]:-1}"
   local message_priority="${LOG_LEVELS[${level}]:-0}"
 
   ((message_priority >= current_priority))

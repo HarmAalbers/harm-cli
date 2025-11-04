@@ -21,15 +21,15 @@ if [[ -n "${_HARM_OPTIONS_LOADED:-}" ]] && declare -p OPTIONS_SCHEMA &>/dev/null
 fi
 
 # Require bash 4.0+ for associative arrays
-if ((BASH_VERSINFO[0] < 4)); then
+if [[ -z "${BASH_VERSINFO:-}" ]] || ((BASH_VERSINFO[0] < 4)); then
   echo "Error: lib/options.sh requires bash 4.0 or higher" >&2
-  echo "Current version: $BASH_VERSION" >&2
+  echo "Current version: ${BASH_VERSION:-unknown}" >&2
   echo "Please install bash 4+ (e.g., via Homebrew: brew install bash)" >&2
   return 1
 fi
 
 # Get script directory for sourcing dependencies
-OPTIONS_SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd -P)"
+OPTIONS_SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]:-$0}")" && pwd -P)"
 readonly OPTIONS_SCRIPT_DIR
 
 # Source dependencies
@@ -153,7 +153,7 @@ options_get_schema() {
   local key="${1:?options_get_schema requires option key}"
 
   if [[ -z "${OPTIONS_SCHEMA[$key]:-}" ]]; then
-    error_msg "Unknown option: $key" 1 >&2
+    error_msg "Unknown option: $key" 1
     return 1
   fi
 
@@ -194,13 +194,13 @@ options_load_config() {
 
   # Check if file is valid bash
   if ! bash -n "$OPTIONS_CONFIG_FILE" 2>/dev/null; then
-    warn_msg "Config file is corrupted: $OPTIONS_CONFIG_FILE" >&2
+    warn_msg "Config file is corrupted: $OPTIONS_CONFIG_FILE"
 
     # Backup corrupted file
     local backup="$OPTIONS_CONFIG_FILE.corrupted"
     mv "$OPTIONS_CONFIG_FILE" "$backup"
-    warn_msg "Backed up to: $backup" >&2
-    warn_msg "Using default values" >&2
+    warn_msg "Backed up to: $backup"
+    warn_msg "Using default values"
 
     return 0
   fi
@@ -357,7 +357,7 @@ options_get() {
           env_var=$(_options_schema_field "$key" 2)
           default_value=$(_options_schema_field "$key" 1)
         else
-          error_msg "Unknown option: $key (schema not loaded)" 1 >&2
+          error_msg "Unknown option: $key (schema not loaded)" 1
           return 1
         fi
         ;;
@@ -445,31 +445,31 @@ options_validate() {
 
   # Get option type and description
   local option_type description
-  option_type=$(_options_schema_field "$key" 0)
-  description=$(_options_schema_field "$key" 3)
+  option_type=$(_options_schema_field "$key" 0) || return 1
+  description=$(_options_schema_field "$key" 3) || return 1
 
   # Run validator
   if ! "$validator" "$value" 2>/dev/null; then
     case "$option_type" in
       bool)
-        error_msg "Invalid value for $key: $value (must be 0 or 1)" >&2
+        error_msg "Invalid value for $key: $value (must be 0 or 1)"
         ;;
       enum)
         if [[ "$key" == "log_level" ]]; then
-          error_msg "Invalid value for $key: $value (must be DEBUG, INFO, WARN, ERROR)" >&2
+          error_msg "Invalid value for $key: $value (must be DEBUG, INFO, WARN, ERROR)"
         elif [[ "$key" == "format" ]]; then
-          error_msg "Invalid value for $key: $value (must be text or json)" >&2
+          error_msg "Invalid value for $key: $value (must be text or json)"
         elif [[ "$key" == "ai_model" ]]; then
-          error_msg "Invalid value for $key: $value (must be gemini-2.0-flash-exp, gemini-1.5-pro, gemini-1.5-flash, or gemini-1.5-flash-8b)" >&2
+          error_msg "Invalid value for $key: $value (must be gemini-2.0-flash-exp, gemini-1.5-pro, gemini-1.5-flash, or gemini-1.5-flash-8b)"
         else
-          error_msg "Invalid value for $key: $value" >&2
+          error_msg "Invalid value for $key: $value"
         fi
         ;;
       int)
-        error_msg "Invalid value for $key: $value (must be a positive integer)" >&2
+        error_msg "Invalid value for $key: $value (must be a positive integer)"
         ;;
       *)
-        error_msg "Invalid value for $key: $value" >&2
+        error_msg "Invalid value for $key: $value"
         ;;
     esac
     return 1
@@ -504,9 +504,9 @@ options_set() {
   env_var=$(_options_schema_field "$key" 2)
 
   if [[ -n "${!env_var:-}" ]]; then
-    warn_msg "Note: Environment variable $env_var is set and will override this value" >&2
-    warn_msg "Current env value: ${!env_var}" >&2
-    warn_msg "Saving to config anyway..." >&2
+    warn_msg "Note: Environment variable $env_var is set and will override this value"
+    warn_msg "Current env value: ${!env_var}"
+    warn_msg "Saving to config anyway..."
   fi
 
   # Save to config
@@ -541,8 +541,8 @@ options_reset() {
 
   # Warn if env var is set
   if [[ -n "${!env_var:-}" ]]; then
-    warn_msg "Note: Environment variable $env_var is set" >&2
-    warn_msg "The default value will still be overridden by the env var" >&2
+    warn_msg "Note: Environment variable $env_var is set"
+    warn_msg "The default value will still be overridden by the env var"
   fi
 
   # Remove from config file

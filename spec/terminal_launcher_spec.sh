@@ -137,6 +137,7 @@ uname() { echo "Linux"; }
 command() { return 1; }
 When call terminal_detect
 The status should equal 1
+The stderr should include "No terminal emulator found on Linux"
 End
 End
 
@@ -156,6 +157,7 @@ It 'fails on unsupported OS'
 uname() { echo "FreeBSD"; }
 When call terminal_detect
 The status should equal 1
+The stderr should include "Unsupported OS: FreeBSD"
 End
 End
 End
@@ -166,13 +168,16 @@ It 'rejects when no command provided'
 TERMINAL_EMULATOR="iterm2"
 When call terminal_open_macos
 The status should equal 1
+The stderr should include "No command provided"
 End
 
 It 'accepts command argument'
 TERMINAL_EMULATOR="iterm2"
 osascript() { return 0; }
 mktemp() { echo "/tmp/test-$RANDOM.sh"; }
-When call terminal_open_macos bash -c "echo test" 2>/dev/null
+mv() { return 0; }
+rm() { return 0; }
+When call terminal_open_macos bash -c "echo test"
 The status should equal 0
 End
 End
@@ -182,7 +187,9 @@ It 'handles iTerm2 emulator'
 TERMINAL_EMULATOR="iterm2"
 osascript() { return 0; }
 mktemp() { echo "/tmp/test-$RANDOM.sh"; }
-When call terminal_open_macos bash -c "echo hello" 2>/dev/null
+mv() { return 0; }
+rm() { return 0; }
+When call terminal_open_macos bash -c "echo hello"
 The status should equal 0
 End
 
@@ -190,15 +197,18 @@ It 'handles Terminal.app emulator'
 TERMINAL_EMULATOR="terminal"
 osascript() { return 0; }
 mktemp() { echo "/tmp/test-$RANDOM.sh"; }
-When call terminal_open_macos bash -c "echo hello" 2>/dev/null
+mv() { return 0; }
+rm() { return 0; }
+When call terminal_open_macos bash -c "echo hello"
 The status should equal 0
 End
 
 It 'fails with unknown emulator'
 TERMINAL_EMULATOR="unknown"
 mktemp() { echo "/tmp/test-$RANDOM.sh"; }
-When call terminal_open_macos bash -c "echo test" 2>/dev/null
+When call terminal_open_macos bash -c "echo test"
 The status should equal 1
+The stderr should include "Unknown macOS terminal emulator"
 End
 End
 
@@ -207,15 +217,20 @@ It 'fails when osascript returns non-zero'
 TERMINAL_EMULATOR="iterm2"
 osascript() { return 1; }
 mktemp() { echo "/tmp/test-$RANDOM.sh"; }
-When call terminal_open_macos bash -c "echo test" 2>/dev/null
+mv() { return 0; }
+rm() { return 0; }
+When call terminal_open_macos bash -c "echo test"
 The status should equal 1
+The stderr should include "Failed to open terminal"
 End
 
 It 'handles special characters in arguments'
 TERMINAL_EMULATOR="iterm2"
 osascript() { return 0; }
 mktemp() { echo "/tmp/test-$RANDOM.sh"; }
-When call terminal_open_macos bash -c "echo 'hello world'" 2>/dev/null
+mv() { return 0; }
+rm() { return 0; }
+When call terminal_open_macos bash -c "echo 'hello world'"
 The status should equal 0
 End
 End
@@ -227,6 +242,7 @@ It 'rejects when no command provided'
 TERMINAL_EMULATOR="gnome-terminal"
 When call terminal_open_linux
 The status should equal 1
+The stderr should include "No command provided"
 End
 
 It 'accepts command with arguments'
@@ -270,6 +286,7 @@ It 'fails with unknown emulator'
 TERMINAL_EMULATOR="unknown"
 When call terminal_open_linux bash -c "echo test"
 The status should equal 1
+The stderr should include "Unknown Linux terminal emulator"
 End
 End
 
@@ -384,6 +401,7 @@ TERMINAL_EMULATOR="gnome-terminal"
 chmod() { return 1; }
 When call terminal_launch_script "$TEST_SCRIPT"
 The status should equal 1
+The stderr should include "Cannot make script executable"
 End
 End
 End
@@ -397,5 +415,7 @@ End
 It 'exports all public functions'
 When call type terminal_detect
 The status should equal 0
+The output should include "terminal_detect"
+End
 End
 End

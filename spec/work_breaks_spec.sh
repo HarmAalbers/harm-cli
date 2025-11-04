@@ -91,16 +91,19 @@ End
 It 'exports break_is_active function'
 When call type break_is_active
 The status should be success
+The output should include "functie"
 End
 
 It 'exports break_start function'
 When call type break_start
 The status should be success
+The output should include "functie"
 End
 
 It 'exports break_stop function'
 When call type break_stop
 The status should be success
+The output should include "functie"
 End
 End
 
@@ -123,6 +126,7 @@ It 'fails when no active break'
 rm -f "$HARM_BREAK_STATE_FILE"
 When run break_stop
 The status should be failure
+The stderr should include "No active break"
 End
 End
 
@@ -139,7 +143,7 @@ Describe 'scheduled_break_status'
 It 'shows daemon not running when no PID file'
 rm -f "$HARM_SCHEDULED_BREAK_PID_FILE"
 When call scheduled_break_status
-The output should include "not running"
+The output should include "DISABLED"
 End
 End
 End

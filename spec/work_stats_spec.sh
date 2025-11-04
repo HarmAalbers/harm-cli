@@ -29,11 +29,13 @@ End
 It 'exports work_stats_today function'
 When call type work_stats_today
 The status should be success
+The output should include "functie"
 End
 
 It 'exports work_stats function'
 When call type work_stats
 The status should be success
+The output should include "functie"
 End
 End
 
@@ -48,6 +50,7 @@ Describe 'work_stats'
 It 'shows overall stats'
 When call work_stats
 The status should be success
+The output should include "No sessions"
 End
 End
 End

@@ -48,6 +48,7 @@ End
 It 'exports work_enforcement_save_state function'
 When call type work_enforcement_save_state
 The status should be success
+The output should include "work_enforcement_save_state"
 End
 End
 
@@ -201,6 +202,7 @@ export _WORK_ACTIVE_GOAL=""
 When call work_reset_violations
 The status should be success
 The variable _WORK_VIOLATIONS should equal 0
+The output should include "reset"
 End
 
 It 'saves state after reset'
@@ -234,27 +236,37 @@ The stderr should include "required"
 End
 
 It 'accepts strict mode'
-Skip "Modifies config file - needs isolation"
+# Use isolated config file
+export HOME="$TEST_TMP"
+mkdir -p "$HOME/.harm-cli"
 When call work_set_enforcement "strict"
 The status should be success
+The output should include "strict"
+The path "$HOME/.harm-cli/config" should be exist
 End
 
 It 'accepts moderate mode'
-Skip "Modifies config file - needs isolation"
+# Use isolated config file
+export HOME="$TEST_TMP"
+mkdir -p "$HOME/.harm-cli"
 When call work_set_enforcement "moderate"
 The status should be success
+The output should include "moderate"
 End
 
 It 'accepts off mode'
-Skip "Modifies config file - needs isolation"
+# Use isolated config file
+export HOME="$TEST_TMP"
+mkdir -p "$HOME/.harm-cli"
 When call work_set_enforcement "off"
 The status should be success
+The output should include "off"
 End
 
 It 'rejects invalid mode'
-Skip "Modifies config file - needs isolation"
 When call work_set_enforcement "invalid"
 The status should be failure
+The stderr should include "Invalid"
 End
 End
 
@@ -269,13 +281,20 @@ The status should be success
 End
 
 It 'blocks work when break is required'
-Skip "Complex test - needs work_is_active mock"
-# TODO: Mock work_is_active and options_get
 export HARM_WORK_ENFORCEMENT="strict"
 echo '{"break_required":true,"break_type_required":"short"}' >"$HARM_WORK_ENFORCEMENT_FILE"
 
 When call work_strict_enforce_break
 The status should be failure
+The stderr should include "BREAK REQUIRED"
+End
+
+It 'allows work when enforcement is not strict'
+export HARM_WORK_ENFORCEMENT="moderate"
+echo '{"break_required":true,"break_type_required":"short"}' >"$HARM_WORK_ENFORCEMENT_FILE"
+
+When call work_strict_enforce_break
+The status should be success
 End
 End
 End
@@ -297,6 +316,7 @@ export _WORK_ACTIVE_GOAL=""
 
 When call work_reset_violations
 The status should be success
+The output should include "reset"
 End
 End
 End

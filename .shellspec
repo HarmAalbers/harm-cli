@@ -7,7 +7,8 @@
 ## Shell to use (bash 5+ required for associative arrays)
 ## Note: Shell path can be overridden via SHELLSPEC_SHELL env var or -s flag
 ## Default: use system bash (ensure 5+ is installed)
---shell /opt/homebrew/bin/bash
+# Commented out to use default shell
+# --shell /opt/homebrew/bin/bash
 
 ## Coverage (uncomment to enable)
 # --kcov
@@ -24,6 +25,6 @@
 --no-warning-as-failure
 
 ## Execution
-# Use 4 parallel jobs for faster test execution
-# Adjust based on your CPU cores (use --jobs $(nproc) for auto-detection)
---jobs 4
+# Use sequential execution to avoid hanging issues
+# --jobs 4
+--jobs 1
