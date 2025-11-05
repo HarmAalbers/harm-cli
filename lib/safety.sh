@@ -182,17 +182,13 @@ safe_rm() {
     return 0
   fi
 
-  # Require confirmation for dangerous operations or many files
-  # - Dangerous flags (-r, -R, -f, --force, --recursive): always confirm
-  # - More than 5 files: confirm to prevent accidents
-  # - 5 or fewer files without dangerous flags: no confirmation needed
-  if [[ $is_dangerous -eq 1 ]] || [[ $count -gt 5 ]]; then
-    echo ""
-    if [[ $is_dangerous -eq 1 ]]; then
-      echo "⚠️  WARNING: Recursive or force deletion detected"
-    fi
-    _safety_confirm "Delete $count items" "delete" || return 130
+  # Always require confirmation - this is a safety wrapper
+  echo ""
+  if [[ $is_dangerous -eq 1 ]]; then
+    echo "⚠️  WARNING: Recursive or force deletion detected"
   fi
+  echo "Total: $count item(s)"
+  _safety_confirm "Delete $count items" "delete" || return 130
 
   # Perform deletion
   _safety_log "rm" "Args: $*, Count: $count"
@@ -318,7 +314,24 @@ safe_docker_prune() {
 #   - Shows commits that will be lost
 #   - Requires confirmation
 safe_git_reset() {
-  local ref="${1:-origin/main}"
+  local ref="${1:-}"
+
+  # If no ref specified, try to auto-detect default branch
+  if [[ -z "$ref" ]]; then
+    # Try origin/main first, then origin/master
+    if git rev-parse --verify origin/main >/dev/null 2>&1; then
+      ref="origin/main"
+    elif git rev-parse --verify origin/master >/dev/null 2>&1; then
+      ref="origin/master"
+    else
+      error_msg "No reference specified and no origin/main or origin/master found"
+      echo "Usage: safe_git_reset [ref]"
+      echo "Examples:"
+      echo "  safe_git_reset origin/main"
+      echo "  safe_git_reset HEAD~1"
+      return "$EXIT_INVALID_ARGS"
+    fi
+  fi
 
   log_info "safety" "Git reset requested" "Ref: $ref"
 
@@ -329,9 +342,23 @@ safe_git_reset() {
     return "$EXIT_INVALID_STATE"
   fi
 
+  # Verify the ref exists
+  if ! git rev-parse --verify "$ref" >/dev/null 2>&1; then
+    log_error "safety" "Invalid git reference" "Ref: $ref"
+    error_msg "Invalid git reference: $ref"
+    echo "The specified ref '$ref' does not exist"
+    return "$EXIT_INVALID_ARGS"
+  fi
+
   # Get current branch
   local current_branch
   current_branch=$(git branch --show-current)
+
+  if [[ -z "$current_branch" ]]; then
+    error_msg "Not on a branch (detached HEAD state)"
+    echo "Cannot reset in detached HEAD state"
+    return "$EXIT_INVALID_STATE"
+  fi
 
   # Create backup branch
   local backup_branch="backup-${current_branch}-$(date +%Y%m%d-%H%M%S)"

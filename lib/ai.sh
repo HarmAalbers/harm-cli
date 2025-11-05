@@ -1027,20 +1027,32 @@ ai_review() {
 
   log_info "ai" "Starting code review" "Type: $([ $use_staged -eq 1 ] && echo 'staged' || echo 'unstaged')"
 
+  # Check API key first before doing any work
+  local api_key
+  api_key=$(ai_get_api_key 2>/dev/null) || {
+    error_msg "No Gemini API key configured. Run: harm-cli ai --setup"
+    log_error "ai" "Code review failed" "No API key configured"
+    return "$EXIT_AI_NO_KEY"
+  }
+  log_debug "ai" "API key validated"
+
   # Check if in git repository
   if ! git rev-parse --git-dir >/dev/null 2>&1; then
     error_msg "Not in a git repository"
     log_error "ai" "Code review failed" "Not in git repository"
     return "$EXIT_INVALID_STATE"
   fi
+  log_debug "ai" "Git repository confirmed"
 
   # Get diff
   local diff
+  log_debug "ai" "Getting git diff" "Type: $([ $use_staged -eq 1 ] && echo 'staged' || echo 'unstaged')"
   if [[ $use_staged -eq 1 ]]; then
     diff=$(git diff --cached 2>/dev/null)
   else
     diff=$(git diff 2>/dev/null)
   fi
+  log_debug "ai" "Git diff retrieved"
 
   # Check if empty
   if [[ -z "$diff" ]]; then
@@ -1088,20 +1100,33 @@ ai_review() {
   # Build full query (use printf for proper newline handling)
   local full_query
   full_query=$(printf "%b\n\n%b" "$context" "$prompt")
+  log_debug "ai" "Query built" "Length: ${#full_query} chars"
 
   # Query AI (always bypass cache for reviews)
   local response
-  if ! response=$(_ai_make_request "$(ai_get_api_key)" "$full_query" ""); then
+  if ! response=$(_ai_make_request "$api_key" "$full_query" ""); then
     local exit_code=$?
     log_error "ai" "Code review failed" "API request error"
     return "$exit_code"
   fi
+  log_debug "ai" "API response received"
 
   # Parse and display
   local review_text
   if review_text=$(_ai_parse_response "$response"); then
     echo ""
-    echo "$review_text"
+    # Render markdown if terminal and tools available
+    if [[ -t 1 ]]; then
+      if command -v glow >/dev/null 2>&1; then
+        echo "$review_text" | glow -
+      elif command -v bat >/dev/null 2>&1; then
+        echo "$review_text" | bat --language=markdown --style=plain --paging=never -
+      else
+        echo "$review_text"
+      fi
+    else
+      echo "$review_text"
+    fi
     echo ""
     log_info "ai" "Code review completed" "Lines reviewed: $line_count"
     return 0
@@ -1220,7 +1245,18 @@ ai_explain_error() {
   # Parse and display
   local explanation
   if explanation=$(_ai_parse_response "$response"); then
-    echo "$explanation"
+    # Render markdown if terminal and tools available
+    if [[ -t 1 ]]; then
+      if command -v glow >/dev/null 2>&1; then
+        echo "$explanation" | glow -
+      elif command -v bat >/dev/null 2>&1; then
+        echo "$explanation" | bat --language=markdown --style=plain --paging=never -
+      else
+        echo "$explanation"
+      fi
+    else
+      echo "$explanation"
+    fi
     echo ""
     log_info "ai" "Error explanation completed"
     return 0
@@ -1421,7 +1457,20 @@ ai_daily() {
   # Parse and display
   local insights
   if insights=$(_ai_parse_response "$response"); then
-    echo "$insights"
+    # Render markdown if terminal and tools available
+    if [[ -t 1 ]]; then
+      # Try to render with glow, then bat, otherwise plain text
+      if command -v glow >/dev/null 2>&1; then
+        echo "$insights" | glow -
+      elif command -v bat >/dev/null 2>&1; then
+        echo "$insights" | bat --language=markdown --style=plain --paging=never -
+      else
+        echo "$insights"
+      fi
+    else
+      # Not a terminal (being piped), output raw markdown
+      echo "$insights"
+    fi
     echo ""
     log_info "ai" "Daily insights completed" "Period: $period"
     return 0

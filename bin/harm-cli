@@ -235,13 +235,43 @@ cmd_doctor() {
 }
 
 cmd_init() {
-  # Output the actual initialization script for eval "$(harm-cli init)"
-  if [[ -f "$ROOT_DIR/etc/harm-cli-init.sh" ]]; then
-    # Skip shebang line when outputting for eval
-    tail -n +2 "$ROOT_DIR/etc/harm-cli-init.sh"
+  # Detect if being eval'd (stdout is not a terminal, or we're in a pipe)
+  # When run directly with `harm-cli init`, provide helpful instructions
+  # When run with `eval "$(harm-cli init)"`, output the script for evaluation
+
+  if [[ -t 1 ]]; then
+    # stdout is a terminal - user ran this directly, show instructions
+    cat <<'EOF'
+harm-cli init - Shell initialization
+
+This command outputs shell code for initialization. To use it, run:
+
+  eval "$(harm-cli init)"
+
+Or add this to your ~/.bashrc or ~/.zshrc:
+
+  eval "$(harm-cli init)"
+
+This will:
+  • Add harm-cli to your PATH
+  • Enable shell completions
+  • Load activity tracking hooks
+  • Add the proj() helper function for project switching
+
+To see the initialization script (without running it):
+  harm-cli init | less
+
+To initialize now (in current shell):
+  eval "$(harm-cli init)"
+EOF
   else
-    # Fallback: minimal init if script not found
-    cat <<EOF
+    # stdout is a pipe or being eval'd - output the initialization script
+    if [[ -f "$ROOT_DIR/etc/harm-cli-init.sh" ]]; then
+      # Skip shebang line when outputting for eval
+      tail -n +2 "$ROOT_DIR/etc/harm-cli-init.sh"
+    else
+      # Fallback: minimal init if script not found
+      cat <<EOF
 # harm-cli minimal initialization
 export HARM_CLI_ROOT="$ROOT_DIR"
 export PATH="\$HARM_CLI_ROOT/bin:\$PATH"
@@ -249,6 +279,7 @@ export HARM_CLI_HOME="\${HARM_CLI_HOME:-\$HOME/.harm-cli}"
 [[ ! -d "\$HARM_CLI_HOME" ]] && mkdir -p "\$HARM_CLI_HOME"
 echo "✓ harm-cli initialized (minimal mode)"
 EOF
+    fi
   fi
 }
 
@@ -398,8 +429,39 @@ EOF
         status) work_status "$@" ;;
         reset) work_reset_pomodoro_count "$@" && echo "✅ Pomodoro counter reset to 0" ;;
         stats)
-          local period="${2:-all}"
-          shift 2 || shift || true # Remove 'stats' and period safely
+          # Parse format flags first
+          local period=""
+          while [[ $# -gt 0 ]]; do
+            case "$1" in
+              --format | -F)
+                export HARM_CLI_FORMAT="${2:?--format requires an argument}"
+                shift 2
+                ;;
+              --format=*)
+                export HARM_CLI_FORMAT="${1#*=}"
+                shift
+                ;;
+              --json | -j)
+                export HARM_CLI_FORMAT="json"
+                shift
+                ;;
+              -*)
+                # Unknown flag, skip it
+                shift
+                ;;
+              *)
+                # First non-flag argument is the period
+                if [[ -z "$period" ]]; then
+                  period="$1"
+                fi
+                shift
+                ;;
+            esac
+          done
+
+          # Default to 'all' if no period specified
+          period="${period:-all}"
+
           case "$period" in
             today) work_stats_today ;;
             week) work_stats_week ;;
@@ -915,10 +977,16 @@ EOF
           if [[ -z "$pattern" ]]; then
             error_msg "Pattern required for filter"
             echo "Usage: harm-cli log filter PATTERN [--level=LEVEL] [--lines=N]"
+            echo ""
+            echo "Examples:"
+            echo "  harm-cli log filter error"
+            echo "  harm-cli log filter 'api' --level=ERROR"
+            echo "  harm-cli log filter 'work' --lines=200"
             exit "$EXIT_INVALID_ARGS"
           fi
 
           # Apply filter with optional level filtering
+          local result
           if [[ -n "$level" ]]; then
             local grep_pattern
             case "$level" in
@@ -928,9 +996,17 @@ EOF
               ERROR) grep_pattern="\[ERROR\]" ;;
               *) grep_pattern="\[$level\]" ;; # Fallback for unknown levels
             esac
-            log_tail "$lines" | grep -E "$grep_pattern" | grep -i "$pattern" || true
+            result=$(log_tail "$lines" | grep -E "$grep_pattern" | grep -i "$pattern" || true)
           else
-            log_tail "$lines" | grep -i "$pattern" || true
+            result=$(log_tail "$lines" | grep -i "$pattern" || true)
+          fi
+
+          # Output results or message if no matches
+          if [[ -n "$result" ]]; then
+            echo "$result"
+          else
+            echo "No log entries matching pattern: $pattern"
+            [[ -n "$level" ]] && echo "Level filter: $level"
           fi
           ;;
         *) die "Unknown log command: $subcmd. Try: stream, view, tail, filter, search, stats, clear" 2 ;;
@@ -1569,13 +1645,40 @@ EOF
           fi
           ;;
         context)
-          github_create_context_summary
+          # Render with markdown if available
+          local context_md
+          context_md=$(github_create_context_summary)
+          if [[ -t 1 ]]; then
+            # Terminal output - use markdown rendering if available
+            if command -v glow >/dev/null 2>&1; then
+              echo "$context_md" | glow -
+            elif command -v bat >/dev/null 2>&1; then
+              echo "$context_md" | bat --language=markdown --style=plain --paging=never -
+            else
+              echo "$context_md"
+            fi
+          else
+            # Piped output - raw markdown
+            echo "$context_md"
+          fi
           ;;
         issues)
-          github_list_issues "$@" | jq -r '.[] | "#\(.number): \(.title)"'
+          local issues_json
+          issues_json=$(github_list_issues "$@")
+          if [[ "$issues_json" == "[]" ]] || [[ -z "$issues_json" ]]; then
+            echo "No issues found"
+          else
+            echo "$issues_json" | jq -r '.[] | "#\(.number): \(.title)"'
+          fi
           ;;
         prs | pr-list)
-          github_list_prs "$@" | jq -r '.[] | "#\(.number): \(.title) (\(.state))"'
+          local prs_json
+          prs_json=$(github_list_prs "$@")
+          if [[ "$prs_json" == "[]" ]] || [[ -z "$prs_json" ]]; then
+            echo "No pull requests found"
+          else
+            echo "$prs_json" | jq -r '.[] | "#\(.number): \(.title) (\(.state))"'
+          fi
           ;;
         issue)
           github_get_issue "$@" | jq '.'

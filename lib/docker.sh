@@ -256,8 +256,17 @@ docker_build_compose_flags() {
   local files_array
   read -ra files_array <<<"$compose_files"
 
-  # Output -f flags (one per line for easy array building)
+  # Validate that all files actually exist before passing to docker
   local file
+  for file in "${files_array[@]}"; do
+    if [[ ! -f "$file" ]]; then
+      log_error "docker" "Compose file not found" "File: $file"
+      error_msg "Compose file not found: $file"
+      return 1
+    fi
+  done
+
+  # Output -f flags (one per line for easy array building)
   for file in "${files_array[@]}"; do
     printf '%s\n' "-f"
     printf '%s\n' "$file"
