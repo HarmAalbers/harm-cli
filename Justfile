@@ -27,7 +27,7 @@ fmt:
 # Lint all shell scripts with shellcheck
 lint:
     @echo "🔍 Linting shell scripts..."
-    @shellcheck bin/* lib/*.sh lib/**/*.sh install.sh uninstall.sh 2>/dev/null || true
+    @shellcheck -x --exclude=2016,2034,2094,2148,2155 bin/* lib/*.sh lib/**/*.sh install.sh uninstall.sh 2>/dev/null || true
     @echo "✅ Linting complete"
 
 # Run codespell on documentation

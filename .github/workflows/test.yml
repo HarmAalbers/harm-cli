@@ -22,6 +22,8 @@ jobs:
           sudo ln -s "$HOME/.local/bin/shellspec" /usr/local/bin/shellspec
 
       - name: Run tests
+        env:
+          SHELLSPEC_SHELL: /bin/bash
         run: |
           shellspec
           EXIT_CODE=$?
@@ -43,8 +45,11 @@ jobs:
           sudo apt-get install -y shellcheck
           # Find all .sh files excluding spec/golden and pass them all to shellcheck at once
           # This is much faster than invoking shellcheck separately for each file
+          # SC2317: Unreachable code (false positive in test mocks)
+          # SC2218: Function defined later (false positive in shellspec tests)
+          # Note: -x flag removed due to performance issues with complex source chains
           find . -name "*.sh" -not -path "./spec/golden/*" -type f -print0 | \
-            xargs -0 shellcheck -x --exclude=2016,2034,2094,2148,2155
+            xargs -0 shellcheck --exclude=2016,2034,2094,2148,2155,2218,2317
 
   shfmt:
     name: shfmt (Formatting)
@@ -54,7 +59,7 @@ jobs:
 
       - name: Install shfmt
         run: |
-          SHFMT_VERSION="3.8.0"
+          SHFMT_VERSION="3.11.0"
           wget -q "https://github.com/mvdan/sh/releases/download/v${SHFMT_VERSION}/shfmt_v${SHFMT_VERSION}_linux_amd64" -O shfmt
           chmod +x shfmt
           sudo mv shfmt /usr/local/bin/
