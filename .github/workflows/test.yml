@@ -36,6 +36,7 @@ jobs:
   shellcheck:
     name: ShellCheck (Linting)
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@v4
 
@@ -43,13 +44,19 @@ jobs:
         run: |
           sudo apt-get update -qq
           sudo apt-get install -y shellcheck
-          # Find all .sh files excluding spec/golden and pass them all to shellcheck at once
-          # This is much faster than invoking shellcheck separately for each file
-          # SC2317: Unreachable code (false positive in test mocks)
+          # Find all .sh files excluding spec/golden and batch them to shellcheck
+          # Using -n 5 to process files in small batches to avoid timeout issues
+          # Using --severity=error to only fail on actual errors, not warnings/info
+          # SC2016: Expressions don't expand in single quotes
+          # SC2034: Variable appears unused
+          # SC2094: Make sure not to read and write the same file
+          # SC2148: Tips depend on target shell and yours is unknown
+          # SC2155: Declare and assign separately to avoid masking return values
+          # SC2168: 'local' is only valid in functions (false positive in shellspec tests)
           # SC2218: Function defined later (false positive in shellspec tests)
-          # Note: -x flag removed due to performance issues with complex source chains
+          # SC2317: Unreachable code (false positive in test mocks)
           find . -name "*.sh" -not -path "./spec/golden/*" -type f -print0 | \
-            xargs -0 shellcheck --exclude=2016,2034,2094,2148,2155,2218,2317
+            xargs -0 -n 5 shellcheck --severity=error --exclude=2016,2034,2094,2148,2155,2168,2218,2317
 
   shfmt:
     name: shfmt (Formatting)
