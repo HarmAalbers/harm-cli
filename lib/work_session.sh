@@ -575,5 +575,11 @@ work_focus_score() {
 # Module Initialization
 # ═══════════════════════════════════════════════════════════════
 
+# Export public functions
+export -f work_is_active
+export -f work_start
+export -f work_stop
+export -f work_status
+
 readonly _HARM_WORK_SESSION_LOADED=1
 export _HARM_WORK_SESSION_LOADED

@@ -134,6 +134,8 @@ When call options_save_config "format" "json" 2>/dev/null
 The status should be success
 # Check permissions are 600 (rw-------)
 result=$(stat -f "%Lp" "$HARM_CLI_HOME/config.sh" 2>/dev/null || stat -c "%a" "$HARM_CLI_HOME/config.sh" 2>/dev/null)
+# Normalize to remove leading zeros for comparison
+result="${result#0}"
 The value "$result" should equal "600"
 End
 End

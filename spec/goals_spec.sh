@@ -256,7 +256,7 @@ The output should include '"progress"'
 The output should include '50'
 The output should include '"completed"'
 The output should include 'false'
-The stderr should be present # Allow logging output
+# Stderr output not required (HARM_LOG_LEVEL=ERROR suppresses INFO/DEBUG)
 End
 
 It 'validates progress is 0-100'

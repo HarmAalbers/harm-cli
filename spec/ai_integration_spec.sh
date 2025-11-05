@@ -142,7 +142,7 @@ It 'returns early with appropriate message'
 When call ai_review --staged
 The status should equal 0
 The output should include "No changes to review"
-The stderr should be present # Allow logging output
+# Stderr output not required (HARM_LOG_LEVEL=ERROR suppresses INFO/DEBUG)
 End
 End
 
@@ -169,7 +169,7 @@ When call ai_review --staged
 The status should equal 0
 The output should include "Mock AI response"
 The output should include "Analysis"
-The stderr should be present # Allow logging output
+# Stderr output not required (HARM_LOG_LEVEL=ERROR suppresses INFO/DEBUG)
 End
 
 It 'truncates large diffs with warning'
@@ -182,7 +182,7 @@ git add file.txt
 When call ai_review --staged
 The status should equal 0
 The output should include "Diff truncated to 200 lines"
-The stderr should be present # Allow logging output
+# Stderr output not required (HARM_LOG_LEVEL=ERROR suppresses INFO/DEBUG)
 End
 End
 End
@@ -218,14 +218,14 @@ When call ai_explain_error
 The status should equal 0
 The output should include "Mock AI response"
 The output should include "Failed to commit"
-The stderr should be present # Allow logging output
+# Stderr output not required (HARM_LOG_LEVEL=ERROR suppresses INFO/DEBUG)
 End
 
 It 'parses error components correctly'
 When call ai_explain_error
 The status should equal 0
 The output should include "Analysis"
-The stderr should be present # Allow logging output
+# Stderr output not required (HARM_LOG_LEVEL=ERROR suppresses INFO/DEBUG)
 End
 End
 
@@ -266,14 +266,14 @@ It 'handles missing data gracefully'
 When call ai_daily
 The status should equal 0
 The output should include "No activity data available"
-The stderr should be present # Allow logging output
+# Stderr output not required (HARM_LOG_LEVEL=ERROR suppresses INFO/DEBUG)
 End
 
 It 'returns success exit code even with no data'
 When call ai_daily
 The status should equal 0
 The stdout should be present # Allow output messages
-The stderr should be present # Allow logging output
+# Stderr output not required (HARM_LOG_LEVEL=ERROR suppresses INFO/DEBUG)
 End
 End
 
@@ -301,7 +301,7 @@ It 'generates insights for today with all data sources'
 When call ai_daily
 The status should equal 0
 The output should include "Mock AI response"
-The stderr should be present # Allow logging output
+# Stderr output not required (HARM_LOG_LEVEL=ERROR suppresses INFO/DEBUG)
 End
 
 It 'includes work session data in context'
@@ -309,7 +309,7 @@ When call ai_daily
 The status should equal 0
 # Function completes successfully
 The stdout should be present # Allow output messages
-The stderr should be present # Allow logging output
+# Stderr output not required (HARM_LOG_LEVEL=ERROR suppresses INFO/DEBUG)
 End
 End
 
@@ -337,7 +337,7 @@ When call ai_daily --yesterday
 The status should equal 0
 # With or without data, should complete
 The stdout should be present # Allow output messages
-The stderr should be present # Allow logging output
+# Stderr output not required (HARM_LOG_LEVEL=ERROR suppresses INFO/DEBUG)
 End
 End
 
@@ -346,7 +346,7 @@ It 'handles weekly request correctly'
 When call ai_daily --week
 The status should equal 0
 The stdout should be present # Allow output messages
-The stderr should be present # Allow logging output
+# Stderr output not required (HARM_LOG_LEVEL=ERROR suppresses INFO/DEBUG)
 End
 End
 End
@@ -361,7 +361,7 @@ It 'processes AI response through markdown pipeline'
 When call ai_query "test query"
 The status should equal 0
 The output should include "Mock AI response"
-The stderr should be present # Allow logging output
+# Stderr output not required (HARM_LOG_LEVEL=ERROR suppresses INFO/DEBUG)
 End
 End
 
@@ -371,7 +371,7 @@ export HARM_CLI_FORMAT="text"
 When call ai_query "test query"
 The status should equal 0
 The output should include "Mock AI response"
-The stderr should be present # Allow logging output
+# Stderr output not required (HARM_LOG_LEVEL=ERROR suppresses INFO/DEBUG)
 End
 
 It 'handles JSON format request'
@@ -379,7 +379,7 @@ export HARM_CLI_FORMAT="json"
 When call ai_query "test query"
 The status should equal 0
 The output should include "Mock AI response"
-The stderr should be present # Allow logging output
+# Stderr output not required (HARM_LOG_LEVEL=ERROR suppresses INFO/DEBUG)
 End
 End
 End
@@ -447,7 +447,7 @@ result1=$(ai_query "caching test" 2>/dev/null)
 # Second call should hit cache
 When call ai_query "caching test"
 The output should include "(cached response)"
-The stderr should be present # Allow logging output
+# Stderr output not required (HARM_LOG_LEVEL=ERROR suppresses INFO/DEBUG)
 End
 
 It 'bypasses cache with --no-cache flag'
@@ -456,7 +456,7 @@ ai_query "no-cache test" >/dev/null 2>&1
 # Second call with --no-cache
 When call ai_query --no-cache "no-cache test"
 The output should not include "(cached response)"
-The stderr should be present # Allow logging output
+# Stderr output not required (HARM_LOG_LEVEL=ERROR suppresses INFO/DEBUG)
 End
 End
 End

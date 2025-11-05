@@ -600,5 +600,10 @@ scheduled_break_status() {
   fi
 }
 
+# Export public functions
+export -f break_is_active
+export -f break_start
+export -f break_stop
+
 readonly _HARM_WORK_BREAKS_LOADED=1
 export _HARM_WORK_BREAKS_LOADED

@@ -23,63 +23,63 @@ It 'runs complete health check'
 When call health_check
 The status should be defined
 The output should include "Comprehensive Health Check"
-The stderr should be present
+# Stderr output not required (HARM_LOG_LEVEL=ERROR suppresses INFO/DEBUG)
 End
 
 It 'runs system check'
 When call health_check system
 The status should be defined
 The output should include "System Health"
-The stderr should be present
+# Stderr output not required (HARM_LOG_LEVEL=ERROR suppresses INFO/DEBUG)
 End
 
 It 'runs git check'
 When call health_check git
 The status should be defined
 The output should include "Git Health"
-The stderr should be present
+# Stderr output not required (HARM_LOG_LEVEL=ERROR suppresses INFO/DEBUG)
 End
 
 It 'runs docker check'
 When call health_check docker
 The status should be defined
 The output should include "Docker Health"
-The stderr should be present
+# Stderr output not required (HARM_LOG_LEVEL=ERROR suppresses INFO/DEBUG)
 End
 
 It 'runs python check'
 When call health_check python
 The status should be defined
 The output should include "Python Health"
-The stderr should be present
+# Stderr output not required (HARM_LOG_LEVEL=ERROR suppresses INFO/DEBUG)
 End
 
 It 'runs ai check'
 When call health_check ai
 The status should be defined
 The output should include "AI Health"
-The stderr should be present
+# Stderr output not required (HARM_LOG_LEVEL=ERROR suppresses INFO/DEBUG)
 End
 
 It 'accepts --quick flag'
 When call health_check --quick
 The status should be defined
 The output should include "Health Check"
-The stderr should be present
+# Stderr output not required (HARM_LOG_LEVEL=ERROR suppresses INFO/DEBUG)
 End
 
 It 'handles unknown category'
 When call health_check invalid_category
 The status should not equal 0
 The stdout should be present
-The stderr should be present
+# Stderr output not required (HARM_LOG_LEVEL=ERROR suppresses INFO/DEBUG)
 End
 
 It 'displays summary'
 When call health_check
 The status should be defined
 The output should include "Health Summary"
-The stderr should be present
+# Stderr output not required (HARM_LOG_LEVEL=ERROR suppresses INFO/DEBUG)
 End
 
 It 'function exists and is exported'
@@ -97,21 +97,21 @@ It 'checks CPU usage'
 When call health_check system
 The status should be defined
 The output should include "CPU"
-The stderr should be present
+# Stderr output not required (HARM_LOG_LEVEL=ERROR suppresses INFO/DEBUG)
 End
 
 It 'checks memory'
 When call health_check system
 The status should be defined
 The output should include "Memory"
-The stderr should be present
+# Stderr output not required (HARM_LOG_LEVEL=ERROR suppresses INFO/DEBUG)
 End
 
 It 'checks disk space'
 When call health_check system
 The status should be defined
 The output should include "Disk"
-The stderr should be present
+# Stderr output not required (HARM_LOG_LEVEL=ERROR suppresses INFO/DEBUG)
 End
 End
 
@@ -120,7 +120,7 @@ It 'produces git health output'
 When call health_check git
 The status should be defined
 The output should include "Git"
-The stderr should be present
+# Stderr output not required (HARM_LOG_LEVEL=ERROR suppresses INFO/DEBUG)
 End
 End
 
@@ -129,7 +129,7 @@ It 'produces docker health output'
 When call health_check docker
 The status should be defined
 The output should include "Docker"
-The stderr should be present
+# Stderr output not required (HARM_LOG_LEVEL=ERROR suppresses INFO/DEBUG)
 End
 End
 
@@ -138,7 +138,7 @@ It 'produces python health output'
 When call health_check python
 The status should be defined
 The output should include "Python"
-The stderr should be present
+# Stderr output not required (HARM_LOG_LEVEL=ERROR suppresses INFO/DEBUG)
 End
 End
 
@@ -147,7 +147,7 @@ It 'checks AI module'
 When call health_check ai
 The status should be defined
 The output should include "AI"
-The stderr should be present
+# Stderr output not required (HARM_LOG_LEVEL=ERROR suppresses INFO/DEBUG)
 End
 End
 End

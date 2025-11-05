@@ -321,5 +321,9 @@ work_break_compliance() {
   fi
 }
 
+# Export public functions
+export -f work_stats_today
+export -f work_stats
+
 readonly _HARM_WORK_STATS_LOADED=1
 export _HARM_WORK_STATS_LOADED
