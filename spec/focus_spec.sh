@@ -106,7 +106,8 @@ Describe 'focus_calculate_score'
 Context 'when no work session active'
 It 'returns neutral score of 5'
 When call focus_calculate_score
-The output should equal "5"
+The output should include "Focus Score: 5/10"
+The output should include "Status: Moderate focus"
 End
 End
 End

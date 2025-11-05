@@ -59,7 +59,23 @@ exit 0
 EOF
   chmod +x "$TEST_TMP/bin/curl"
 
-  # Put mock curl first in PATH
+  # Create mock security command (prevents keychain access in tests)
+  cat >"$TEST_TMP/bin/security" <<'EOF'
+#!/usr/bin/env bash
+# Mock security for tests - prevents real keychain access
+exit 1
+EOF
+  chmod +x "$TEST_TMP/bin/security"
+
+  # Create mock secret-tool command (prevents secret storage access in tests)
+  cat >"$TEST_TMP/bin/secret-tool" <<'EOF'
+#!/usr/bin/env bash
+# Mock secret-tool for tests - prevents real secret storage access
+exit 1
+EOF
+  chmod +x "$TEST_TMP/bin/secret-tool"
+
+  # Put mock binaries first in PATH
   export PATH="$TEST_TMP/bin:$PATH"
 
   # Source the AI module

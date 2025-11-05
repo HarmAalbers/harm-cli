@@ -157,7 +157,7 @@ End
 
 Describe 'require_permission'
 It 'succeeds when path is writable'
-Skip if 'test ! -w /tmp' # Skip if /tmp is not writable
+Skip if 'test ! -w /tmp' sh -c 'test ! -w /tmp' # Skip if /tmp is not writable
 When call require_permission "/tmp"
 The status should be success
 End

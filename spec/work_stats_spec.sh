@@ -29,13 +29,13 @@ End
 It 'exports work_stats_today function'
 When call type work_stats_today
 The status should be success
-The output should include "functie"
+The output should include "function"
 End
 
 It 'exports work_stats function'
 When call type work_stats
 The status should be success
-The output should include "functie"
+The output should include "function"
 End
 End
 

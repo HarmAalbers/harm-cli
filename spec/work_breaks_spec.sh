@@ -91,19 +91,19 @@ End
 It 'exports break_is_active function'
 When call type break_is_active
 The status should be success
-The output should include "functie"
+The output should include "function"
 End
 
 It 'exports break_start function'
 When call type break_start
 The status should be success
-The output should include "functie"
+The output should include "function"
 End
 
 It 'exports break_stop function'
 When call type break_stop
 The status should be success
-The output should include "functie"
+The output should include "function"
 End
 End
 

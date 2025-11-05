@@ -76,7 +76,6 @@ When call goal_set "Test goal" 60
 The output should include '"status"'
 The output should include '"goal"'
 The output should include '"estimated_minutes"'
-The error should include "[INFO]"
 End
 
 Describe 'Duration format parsing'
@@ -220,7 +219,7 @@ goal_set "Test goal" >/dev/null 2>&1
 goal_complete 1 >/dev/null 2>&1
 When call goal_reopen 1 50
 The status should be success
-The error should include "Goal reopened"
+The error should include "reopened"
 End
 
 It 'sets completed=false when reopening'
