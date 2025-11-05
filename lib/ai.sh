@@ -1365,8 +1365,16 @@ ai_daily() {
     fi
 
     local work_summary
-    work_summary=$(grep "\"started_at\":\"$cutoff_date" "$work_archive" 2>/dev/null \
-      | jq -r '.goal + " (" + (.duration_seconds/60|floor|tostring) + "m)"' 2>/dev/null || echo "")
+    # For week period, get all sessions from the past week
+    if [[ $period_days -gt 1 ]]; then
+      work_summary=$(jq -r --arg cutoff "$cutoff_date" \
+        'select(.started_at >= $cutoff) | .goal + " (" + (.duration_seconds/60|floor|tostring) + "m)"' \
+        "$work_archive" 2>/dev/null || echo "")
+    else
+      # For today/yesterday, match exact date
+      work_summary=$(grep "\"started_at\":\"$cutoff_date" "$work_archive" 2>/dev/null \
+        | jq -r '.goal + " (" + (.duration_seconds/60|floor|tostring) + "m)"' 2>/dev/null || echo "")
+    fi
 
     if [[ -n "$work_summary" ]]; then
       context+="Work sessions:\n$work_summary\n\n"

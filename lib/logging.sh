@@ -59,12 +59,39 @@ export HARM_LOG_LEVEL HARM_LOG_TO_FILE HARM_LOG_TO_CONSOLE
 export HARM_LOG_MAX_SIZE HARM_LOG_MAX_FILES HARM_LOG_UNBUFFERED
 
 # Log level priorities (bash 4+ associative array)
-declare -gA LOG_LEVELS=(
-  [DEBUG]=0
-  [INFO]=1
-  [WARN]=2
-  [ERROR]=3
-)
+# Check bash version for associative array support
+if [[ "${BASH_VERSINFO[0]:-0}" -ge 4 ]]; then
+  # Temporarily disable set -u for associative array declaration (bash bug workaround)
+  set +u
+  if [[ "${BASH_VERSINFO[0]}" -ge 4 && "${BASH_VERSINFO[1]:-0}" -ge 2 ]]; then
+    # Bash 4.2+ supports -g flag
+    declare -gA LOG_LEVELS=(
+      [DEBUG]=0
+      [INFO]=1
+      [WARN]=2
+      [ERROR]=3
+    )
+  else
+    # Bash 4.0-4.1
+    declare -A LOG_LEVELS
+    LOG_LEVELS[DEBUG]=0
+    LOG_LEVELS[INFO]=1
+    LOG_LEVELS[WARN]=2
+    LOG_LEVELS[ERROR]=3
+  fi
+  set -u
+else
+  # Bash 3.x - no associative array support, use functions as fallback
+  log_level_priority() {
+    case "$1" in
+      DEBUG) echo 0 ;;
+      INFO) echo 1 ;;
+      WARN) echo 2 ;;
+      ERROR) echo 3 ;;
+      *) echo 1 ;;
+    esac
+  }
+fi
 
 # ═══════════════════════════════════════════════════════════════
 # Core Logging Functions
@@ -103,8 +130,14 @@ log_timestamp() {
 # Usage: log_should_write "DEBUG" || return
 log_should_write() {
   local level="${1:?log_should_write requires level}"
-  local current_priority="${LOG_LEVELS[${HARM_LOG_LEVEL:-WARN}]:-1}"
-  local message_priority="${LOG_LEVELS[${level}]:-0}"
+  # Get priorities based on bash version
+  if [[ "${BASH_VERSINFO[0]:-0}" -ge 4 ]]; then
+    local current_priority="${LOG_LEVELS[${HARM_LOG_LEVEL:-WARN}]:-1}"
+    local message_priority="${LOG_LEVELS[${level}]:-0}"
+  else
+    local current_priority=$(log_level_priority "${HARM_LOG_LEVEL:-WARN}")
+    local message_priority=$(log_level_priority "$level")
+  fi
 
   ((message_priority >= current_priority))
 }
@@ -346,14 +379,28 @@ log_stats() {
 # Performance Timers (bash 4+ using associative array)
 # ═══════════════════════════════════════════════════════════════
 
-# Associative array for timers
-declare -gA HARM_PERF_TIMERS
+# Associative array for timers (bash 4+)
+if [[ "${BASH_VERSINFO[0]:-0}" -ge 4 ]]; then
+  set +u
+  if [[ "${BASH_VERSINFO[0]}" -ge 4 && "${BASH_VERSINFO[1]:-0}" -ge 2 ]]; then
+    declare -gA HARM_PERF_TIMERS
+  else
+    declare -A HARM_PERF_TIMERS
+  fi
+  set -u
+fi
 
 # log_perf_start: Start performance timer
 # Usage: log_perf_start "timer_name"
 log_perf_start() {
   local name="${1:?log_perf_start requires timer name}"
-  HARM_PERF_TIMERS[$name]="$(date +%s%N 2>/dev/null || date +%s)"
+  if [[ "${BASH_VERSINFO[0]:-0}" -ge 4 ]]; then
+    HARM_PERF_TIMERS[$name]="$(date +%s%N 2>/dev/null || date +%s)"
+  else
+    # For bash 3.x, use a file-based approach or just skip timers
+    # Timers are not critical for functionality
+    :
+  fi
 }
 
 # log_perf_end: End performance timer and log duration
@@ -362,26 +409,31 @@ log_perf_end() {
   local name="${1:?log_perf_end requires timer name}"
   local component="${2:?log_perf_end requires component}"
 
-  if [[ -z "${HARM_PERF_TIMERS[$name]:-}" ]]; then
-    log_warn "$component" "Timer not started: $name"
-    return 1
-  fi
+  if [[ "${BASH_VERSINFO[0]:-0}" -ge 4 ]]; then
+    if [[ -z "${HARM_PERF_TIMERS[$name]:-}" ]]; then
+      log_warn "$component" "Timer not started: $name"
+      return 1
+    fi
 
-  local start_time="${HARM_PERF_TIMERS[$name]}"
-  local end_time
-  end_time="$(date +%s%N 2>/dev/null || date +%s)"
-  local duration=$((end_time - start_time))
+    local start_time="${HARM_PERF_TIMERS[$name]}"
+    local end_time
+    end_time="$(date +%s%N 2>/dev/null || date +%s)"
+    local duration=$((end_time - start_time))
 
-  # Convert nanoseconds to milliseconds
-  if [[ "$end_time" =~ [0-9]{10,} ]]; then
-    duration=$((duration / 1000000)) # ns to ms
-    log_debug "$component" "Timer: $name completed in ${duration}ms"
+    # Convert nanoseconds to milliseconds
+    if [[ "$end_time" =~ [0-9]{10,} ]]; then
+      duration=$((duration / 1000000)) # ns to ms
+      log_debug "$component" "Timer: $name completed in ${duration}ms"
+    else
+      log_debug "$component" "Timer: $name completed in ${duration}s"
+    fi
+
+    # Clean up timer
+    unset "HARM_PERF_TIMERS[$name]"
   else
-    log_debug "$component" "Timer: $name completed in ${duration}s"
+    # For bash 3.x, timers are not available
+    :
   fi
-
-  # Clean up timer
-  unset "HARM_PERF_TIMERS[$name]"
 }
 
 # ═══════════════════════════════════════════════════════════════
@@ -394,18 +446,28 @@ log_perf_end() {
 _log_build_level_filter() {
   local min_level="${1:?_log_build_level_filter requires level}"
 
-  # Validate level
-  if [[ -z "${LOG_LEVELS[$min_level]:-}" ]]; then
-    echo "cat" # Invalid level, show everything
-    return 1
+  # Validate level and get priority
+  local min_priority
+  if [[ "${BASH_VERSINFO[0]:-0}" -ge 4 ]]; then
+    if [[ -z "${LOG_LEVELS[$min_level]:-}" ]]; then
+      echo "cat" # Invalid level, show everything
+      return 1
+    fi
+    min_priority="${LOG_LEVELS[$min_level]}"
+  else
+    min_priority=$(log_level_priority "$min_level")
   fi
 
-  local min_priority="${LOG_LEVELS[$min_level]}"
   local pattern=""
 
   # Build pattern for all levels >= min_priority
   for lvl in DEBUG INFO WARN ERROR; do
-    local lvl_priority="${LOG_LEVELS[$lvl]}"
+    local lvl_priority
+    if [[ "${BASH_VERSINFO[0]:-0}" -ge 4 ]]; then
+      lvl_priority="${LOG_LEVELS[$lvl]}"
+    else
+      lvl_priority=$(log_level_priority "$lvl")
+    fi
     if ((lvl_priority >= min_priority)); then
       pattern="${pattern:+$pattern|}\\[$lvl\\]"
     fi
@@ -530,9 +592,25 @@ log_stream() {
   done
 
   # Validate log level if provided
-  if [[ -n "$level" && -z "${LOG_LEVELS[$level]:-}" ]]; then
-    error_msg "Invalid log level: $level (must be DEBUG, INFO, WARN, or ERROR)"
-    return 1
+  if [[ -n "$level" ]]; then
+    if [[ "${BASH_VERSINFO[0]:-0}" -ge 4 ]]; then
+      if [[ -z "${LOG_LEVELS[$level]:-}" ]]; then
+        error_msg "Invalid log level: $level (must be DEBUG, INFO, WARN, or ERROR)"
+        return 1
+      fi
+    else
+      # For bash 3.x, validate using the function
+      local test_priority=$(log_level_priority "$level")
+      # If level is invalid, log_level_priority returns 1 (same as INFO)
+      # So we need explicit validation
+      case "$level" in
+        DEBUG | INFO | WARN | ERROR) ;;
+        *)
+          error_msg "Invalid log level: $level (must be DEBUG, INFO, WARN, or ERROR)"
+          return 1
+          ;;
+      esac
+    fi
   fi
 
   # Determine log file (use main log, debug logs are also in main when level >= DEBUG)

@@ -242,52 +242,204 @@ safe_docker_prune() {
     return "$EXIT_INVALID_STATE"
   fi
 
-  # Show what will be removed (with progress indicator)
-  echo "Docker System Prune Preview:"
+  echo "🐳 Docker Cleanup Assistant"
+  echo "══════════════════════════════════════════"
   echo ""
 
-  # Use progress indicator for potentially slow df command
-  local space
-  if command -v show_spinner >/dev/null 2>&1; then
-    space=$(show_spinner "Analyzing Docker disk usage..." docker system df 2>/dev/null)
-  else
-    # Fallback if util.sh not loaded yet
-    echo "Analyzing Docker disk usage..." >&2
-    space=$(docker system df 2>/dev/null || echo "")
+  # Quick analysis mode by default
+  local quick_mode=1
+  local ai_analysis=0
+
+  # Parse options
+  while [[ $# -gt 0 ]]; do
+    case "$1" in
+      --detailed | -d)
+        quick_mode=0
+        shift
+        ;;
+      --ai | -a)
+        ai_analysis=1
+        shift
+        ;;
+      *)
+        break
+        ;;
+    esac
+  done
+
+  # Cache file for docker system df (5 min TTL)
+  local cache_file="/tmp/.docker_df_cache"
+  local cache_ttl=300 # 5 minutes
+  local use_cache=0
+
+  # Check if cache exists and is fresh
+  if [[ -f "$cache_file" ]]; then
+    local cache_age=$(($(date +%s) - $(stat -f %m "$cache_file" 2>/dev/null || stat -c %Y "$cache_file" 2>/dev/null || echo 0)))
+    if [[ $cache_age -lt $cache_ttl ]]; then
+      use_cache=1
+      echo "📊 Using cached analysis (${cache_age}s old)"
+    fi
   fi
 
-  if [[ -n "$space" ]]; then
-    echo "$space"
+  # Gather information efficiently
+  echo "Analyzing Docker resources..."
+  echo ""
+
+  # Get detailed information about what can be pruned
+  local stopped_containers dangling_images unused_volumes build_cache
+
+  if [[ $use_cache -eq 1 ]] && [[ -f "${cache_file}.details" ]]; then
+    source "${cache_file}.details"
+  else
+    # Count resources that would be removed
+    stopped_containers=$(docker ps -aq -f status=exited -f status=dead 2>/dev/null | wc -l | tr -d ' ')
+    dangling_images=$(docker images -q -f dangling=true 2>/dev/null | wc -l | tr -d ' ')
+    unused_volumes=$(docker volume ls -q -f dangling=true 2>/dev/null | wc -l | tr -d ' ')
+
+    # Save to cache
+    cat >"${cache_file}.details" <<EOF
+stopped_containers=$stopped_containers
+dangling_images=$dangling_images
+unused_volumes=$unused_volumes
+EOF
+  fi
+
+  # Display analysis
+  echo "📋 Cleanup Candidates:"
+  echo "──────────────────────"
+
+  local has_cleanup=0
+
+  if [[ $stopped_containers -gt 0 ]]; then
+    echo "  🔸 Stopped containers: $stopped_containers"
+    has_cleanup=1
+  fi
+
+  if [[ $dangling_images -gt 0 ]]; then
+    echo "  🔸 Dangling images: $dangling_images"
+    has_cleanup=1
+  fi
+
+  if [[ $unused_volumes -gt 0 ]]; then
+    echo "  🔸 Unused volumes: $unused_volumes"
+    has_cleanup=1
+  fi
+
+  if [[ $has_cleanup -eq 0 ]]; then
+    echo "  ✓ System is already clean!"
+    return 0
+  fi
+
+  echo ""
+
+  # Show space usage if requested
+  if [[ $quick_mode -eq 0 ]]; then
+    echo "💾 Space Analysis:"
+    echo "──────────────────────"
+
+    if [[ $use_cache -eq 1 ]] && [[ -f "$cache_file" ]]; then
+      cat "$cache_file"
+    else
+      docker system df 2>/dev/null | tee "$cache_file"
+    fi
     echo ""
   fi
 
-  _safety_confirm "Prune Docker system" "prune" || return 130
+  # AI Safety Analysis if requested
+  if [[ $ai_analysis -eq 1 ]] && command -v ai_query >/dev/null 2>&1; then
+    echo "🤖 AI Safety Analysis:"
+    echo "──────────────────────"
 
-  # Log operation
-  _safety_log "docker system prune" "Args: $*"
+    local ai_prompt="I have $stopped_containers stopped containers, $dangling_images dangling images, and $unused_volumes unused volumes in Docker. "
+    ai_prompt+="Is it safe to remove these? What should I be careful about? Keep response brief (2-3 lines)."
 
-  # Perform prune (with progress indicator)
-  echo ""
-  if command -v show_spinner >/dev/null 2>&1; then
-    if show_spinner "Pruning Docker system..." docker system prune -f "$@"; then
-      echo "✓ Docker system pruned"
-      log_info "safety" "Docker pruned successfully"
-      return 0
+    local ai_response
+    if ai_response=$(ai_query "$ai_prompt" 2>/dev/null); then
+      echo "$ai_response" | fold -s -w 70 | sed 's/^/  /'
     else
-      error_msg "Docker prune failed"
-      return "$EXIT_ERROR"
+      echo "  (AI analysis unavailable)"
     fi
-  else
-    # Fallback without progress
-    if docker system prune -f "$@"; then
-      echo "✓ Docker system pruned"
-      log_info "safety" "Docker pruned successfully"
-      return 0
-    else
-      error_msg "Docker prune failed"
-      return "$EXIT_ERROR"
-    fi
+    echo ""
   fi
+
+  # Provide selective cleanup options
+  echo "🛠  Cleanup Options:"
+  echo "──────────────────────"
+  echo "  1) Remove all (containers, images, volumes, build cache)"
+  echo "  2) Remove stopped containers only"
+  echo "  3) Remove dangling images only"
+  echo "  4) Remove unused volumes only"
+  echo "  5) Custom docker prune command"
+  echo "  6) Cancel"
+  echo ""
+
+  local choice
+  read -r -p "Select option [1-6]: " choice
+
+  case "$choice" in
+    1)
+      echo ""
+      _safety_confirm "Remove ALL unused Docker resources" "prune-all" || return 130
+      _safety_log "docker system prune --all" "Full cleanup"
+
+      echo "Cleaning all resources..."
+      docker system prune -af --volumes
+      echo "✓ All unused resources removed"
+      ;;
+    2)
+      echo ""
+      _safety_confirm "Remove stopped containers" "prune-containers" || return 130
+      _safety_log "docker container prune" "Container cleanup"
+
+      echo "Removing stopped containers..."
+      docker container prune -f
+      echo "✓ Stopped containers removed"
+      ;;
+    3)
+      echo ""
+      _safety_confirm "Remove dangling images" "prune-images" || return 130
+      _safety_log "docker image prune" "Image cleanup"
+
+      echo "Removing dangling images..."
+      docker image prune -f
+      echo "✓ Dangling images removed"
+      ;;
+    4)
+      echo ""
+      _safety_confirm "Remove unused volumes" "prune-volumes" || return 130
+      _safety_log "docker volume prune" "Volume cleanup"
+
+      echo "Removing unused volumes..."
+      docker volume prune -f
+      echo "✓ Unused volumes removed"
+      ;;
+    5)
+      echo ""
+      echo "Enter custom docker prune command:"
+      local custom_cmd
+      read -r -p "> docker " custom_cmd
+
+      _safety_confirm "Run: docker $custom_cmd" "custom-prune" || return 130
+      _safety_log "docker $custom_cmd" "Custom cleanup"
+
+      echo "Executing custom command..."
+      eval "docker $custom_cmd"
+      ;;
+    6)
+      echo "Cleanup cancelled"
+      return 130
+      ;;
+    *)
+      echo "Invalid option"
+      return 1
+      ;;
+  esac
+
+  # Clear cache after cleanup
+  rm -f "$cache_file" "${cache_file}.details"
+
+  log_info "safety" "Docker cleanup completed" "Choice: $choice"
+  return 0
 }
 
 # safe_git_reset: Safe git reset with backup

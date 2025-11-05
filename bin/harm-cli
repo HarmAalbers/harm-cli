@@ -426,7 +426,29 @@ EOF
           ;;
         start) work_start "$@" ;;
         stop) work_stop "$@" ;;
-        status) work_status "$@" ;;
+        status)
+          # Parse format flags first
+          while [[ $# -gt 0 ]]; do
+            case "$1" in
+              --format | -F)
+                export HARM_CLI_FORMAT="${2:?--format requires an argument}"
+                shift 2
+                ;;
+              --format=*)
+                export HARM_CLI_FORMAT="${1#*=}"
+                shift
+                ;;
+              --json | -j)
+                export HARM_CLI_FORMAT="json"
+                shift
+                ;;
+              *)
+                break
+                ;;
+            esac
+          done
+          work_status "$@"
+          ;;
         reset) work_reset_pomodoro_count "$@" && echo "✅ Pomodoro counter reset to 0" ;;
         stats)
           # Parse format flags first
@@ -988,15 +1010,19 @@ EOF
           # Apply filter with optional level filtering
           local result
           if [[ -n "$level" ]]; then
-            local grep_pattern
+            # Build level filter pattern - include the level and all higher severity levels
+            local level_pattern
             case "$level" in
-              DEBUG) grep_pattern="\[(DEBUG|INFO|WARN|ERROR)\]" ;;
-              INFO) grep_pattern="\[(INFO|WARN|ERROR)\]" ;;
-              WARN) grep_pattern="\[(WARN|ERROR)\]" ;;
-              ERROR) grep_pattern="\[ERROR\]" ;;
-              *) grep_pattern="\[$level\]" ;; # Fallback for unknown levels
+              DEBUG) level_pattern="\[(DEBUG|INFO|WARN|ERROR)\]" ;;
+              INFO) level_pattern="\[(INFO|WARN|ERROR)\]" ;;
+              WARN) level_pattern="\[(WARN|ERROR)\]" ;;
+              ERROR) level_pattern="\[ERROR\]" ;;
+              *) level_pattern="\[$level\]" ;; # Fallback for unknown levels
             esac
-            result=$(log_tail "$lines" | grep -E "$grep_pattern" | grep -i "$pattern" || true)
+
+            # Filter by level first to get all logs at specified level or higher
+            # Then filter those results by the pattern
+            result=$(log_tail "$lines" | grep -E "$level_pattern" | grep -i "$pattern" || true)
           else
             result=$(log_tail "$lines" | grep -i "$pattern" || true)
           fi

@@ -190,9 +190,9 @@ proj_list() {
     return 0
   fi
 
-  # Count projects
+  # Count projects (only valid JSON entries)
   local count
-  count=$(wc -l <"$PROJ_REGISTRY" | tr -d ' ')
+  count=$(jq -r 'select(type == "object" and .name and .path) | .name' "$PROJ_REGISTRY" 2>/dev/null | wc -l | tr -d ' ')
   log_debug "proj" "Found projects" "Count: $count"
 
   # Output format

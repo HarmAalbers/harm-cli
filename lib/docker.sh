@@ -381,6 +381,34 @@ docker_up() {
     echo "📋 Using compose files: ${files_array[*]}"
   fi
 
+  # Check if services are already running
+  local running_services
+  running_services=$(docker compose "${compose_flags[@]}" ps --services 2>/dev/null || true)
+
+  if [[ -n "$running_services" ]]; then
+    local requested_services=("$@")
+    if [[ ${#requested_services[@]} -gt 0 ]]; then
+      # Check specific services
+      for service in "${requested_services[@]}"; do
+        if echo "$running_services" | grep -q "^$service$"; then
+          echo "⚠️  Service '$service' is already running"
+          echo "   To restart it, run: harm-cli docker down $service && harm-cli docker up $service"
+          echo "   Or to recreate: docker compose up -d --force-recreate $service"
+        fi
+      done
+    else
+      # Check all services
+      if [[ -n "$running_services" ]]; then
+        echo "ℹ️  Some services are already running:"
+        echo "$running_services" | sed 's/^/   - /'
+        echo ""
+        echo "   To restart all: harm-cli docker down && harm-cli docker up"
+        echo "   To recreate all: docker compose up -d --force-recreate"
+        echo ""
+      fi
+    fi
+  fi
+
   # Start services
   echo "🐳 Starting services..."
 

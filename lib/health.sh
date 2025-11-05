@@ -457,6 +457,11 @@ health_check() {
   local json_output=0
   local verbose=0
 
+  # Check HARM_CLI_FORMAT environment variable
+  if [[ "${HARM_CLI_FORMAT:-text}" == "json" ]]; then
+    json_output=1
+  fi
+
   # Parse options
   while [[ $# -gt 0 ]]; do
     case "$1" in
@@ -493,28 +498,29 @@ health_check() {
     _health_warning_count=0
 
     # Run checks silently (redirect to /dev/null)
+    # Use || true to prevent exit on non-zero status with set -e
     case "$category" in
       all)
-        _health_check_system >/dev/null 2>&1
-        [[ $quick -eq 0 ]] && _health_check_git >/dev/null 2>&1
-        [[ $quick -eq 0 ]] && _health_check_docker >/dev/null 2>&1
-        [[ $quick -eq 0 ]] && _health_check_python >/dev/null 2>&1
-        [[ $quick -eq 0 ]] && _health_check_ai >/dev/null 2>&1
+        _health_check_system >/dev/null 2>&1 || true
+        [[ $quick -eq 0 ]] && (_health_check_git >/dev/null 2>&1 || true)
+        [[ $quick -eq 0 ]] && (_health_check_docker >/dev/null 2>&1 || true)
+        [[ $quick -eq 0 ]] && (_health_check_python >/dev/null 2>&1 || true)
+        [[ $quick -eq 0 ]] && (_health_check_ai >/dev/null 2>&1 || true)
         ;;
       system)
-        _health_check_system >/dev/null 2>&1
+        _health_check_system >/dev/null 2>&1 || true
         ;;
       git)
-        _health_check_git >/dev/null 2>&1
+        _health_check_git >/dev/null 2>&1 || true
         ;;
       docker)
-        _health_check_docker >/dev/null 2>&1
+        _health_check_docker >/dev/null 2>&1 || true
         ;;
       python)
-        _health_check_python >/dev/null 2>&1
+        _health_check_python >/dev/null 2>&1 || true
         ;;
       ai)
-        _health_check_ai >/dev/null 2>&1
+        _health_check_ai >/dev/null 2>&1 || true
         ;;
       *)
         error_msg "Unknown health category: $category"

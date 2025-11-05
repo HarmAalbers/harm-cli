@@ -695,31 +695,83 @@ _options_prompt_for_value() {
 # Returns:
 #   0 on success
 options_set_interactive() {
-  echo "═══════════════════════════════════════════════════════════════"
-  echo "  Interactive Options Configuration"
+  echo "⚙️  Interactive Options Configuration"
   echo "═══════════════════════════════════════════════════════════════"
   echo ""
-  echo "Current configuration will be shown for each option."
-  echo "Press Enter to keep current value, or enter a new value."
-  echo "Options controlled by environment variables cannot be changed here."
-  echo ""
+
+  # Load interactive library if available
+  local interactive_available=0
+  if [[ -f "$OPTIONS_SCRIPT_DIR/interactive.sh" ]]; then
+    source "$OPTIONS_SCRIPT_DIR/interactive.sh" 2>/dev/null || true
+    if declare -F interactive_choose >/dev/null 2>&1; then
+      interactive_available=1
+    fi
+  fi
 
   # Load current config
   options_load_config
 
   local changed_count=0
 
-  # Iterate through all options
-  while IFS= read -r key; do
-    local new_value
-    new_value=$(_options_prompt_for_value "$key")
+  if [[ $interactive_available -eq 1 ]]; then
+    # Use menu-based interface if interactive.sh is available
+    while true; do
+      echo "Select an option to configure:"
+      echo ""
 
-    if [[ -n "$new_value" ]]; then
-      if options_set "$key" "$new_value"; then
-        changed_count=$((changed_count + 1))
+      # Build options array with current values
+      local -a menu_options=()
+      while IFS= read -r key; do
+        local value description
+        value=$(options_get "$key")
+        description=$(_options_schema_field "$key" 3)
+        menu_options+=("$key = $value  ($description)")
+      done < <(options_list_all)
+      menu_options+=("Save and Exit")
+
+      # Show interactive menu
+      local selection
+      if selection=$(interactive_choose "Options" "${menu_options[@]}"); then
+        if [[ "$selection" == "Save and Exit" ]]; then
+          break
+        fi
+
+        # Extract key from selection
+        local key="${selection%% =*}"
+
+        # Prompt for new value
+        local new_value
+        new_value=$(_options_prompt_for_value "$key")
+
+        if [[ -n "$new_value" ]]; then
+          if options_set "$key" "$new_value"; then
+            changed_count=$((changed_count + 1))
+          fi
+        fi
+      else
+        # User cancelled
+        break
       fi
-    fi
-  done < <(options_list_all)
+    done
+  else
+    # Fallback to sequential prompts
+    echo "Current configuration will be shown for each option."
+    echo "Press Enter to keep current value, or enter a new value."
+    echo "Options controlled by environment variables cannot be changed here."
+    echo ""
+
+    # Iterate through all options
+    while IFS= read -r key; do
+      local new_value
+      new_value=$(_options_prompt_for_value "$key")
+
+      if [[ -n "$new_value" ]]; then
+        if options_set "$key" "$new_value"; then
+          changed_count=$((changed_count + 1))
+        fi
+      fi
+    done < <(options_list_all)
+  fi
 
   echo ""
   echo "═══════════════════════════════════════════════════════════════"
