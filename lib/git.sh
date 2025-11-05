@@ -190,6 +190,15 @@ git_default_branch() {
 git_commit_msg() {
   log_info "git" "Generating AI commit message"
 
+  # Check API key first before doing any work
+  local api_key
+  api_key=$(ai_get_api_key 2>/dev/null) || {
+    error_msg "No Gemini API key configured. Run: harm-cli ai --setup"
+    log_error "git" "Commit message generation failed" "No API key configured"
+    return "$EXIT_AI_NO_KEY"
+  }
+  log_debug "git" "API key validated"
+
   # Check if in git repository
   if ! git_is_repo; then
     error_msg "Not in a git repository"
@@ -199,6 +208,7 @@ git_commit_msg() {
 
   # Get staged changes
   local diff
+  log_debug "git" "Getting staged changes"
   diff=$(git diff --cached 2>/dev/null)
 
   if [[ -z "$diff" ]]; then
@@ -208,6 +218,7 @@ git_commit_msg() {
     echo "Tip: Stage changes with: git add <files>"
     return "$EXIT_INVALID_STATE"
   fi
+  log_debug "git" "Staged changes retrieved"
 
   # Count lines
   local line_count
@@ -260,13 +271,15 @@ git_commit_msg() {
   # Query AI (bypass cache)
   local full_query="$context\n\n$prompt"
   local response
-  if ! response=$(_ai_make_request "$(ai_get_api_key)" "$full_query" ""); then
+  log_debug "git" "Sending request to AI" "Length: ${#full_query} chars"
+  if ! response=$(_ai_make_request "$api_key" "$full_query" ""); then
     local exit_code=$?
     log_error "git" "Commit message generation failed" "AI API error"
     echo ""
     echo "Fallback: Generate commit message manually or try again"
     return "$exit_code"
   fi
+  log_debug "git" "AI response received"
 
   # Parse response
   local commit_msg

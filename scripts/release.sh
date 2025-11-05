@@ -151,7 +151,7 @@ get_current_version() {
     echo "0.0.0"
     return
   fi
-  tr -d '\n' < "$VERSION_FILE"
+  tr -d '\n' <"$VERSION_FILE"
 }
 
 bump_version() {
@@ -159,7 +159,7 @@ bump_version() {
   local current_version
   current_version=$(get_current_version)
 
-  IFS='.' read -r major minor patch <<< "$current_version"
+  IFS='.' read -r major minor patch <<<"$current_version"
 
   case "$bump_type" in
     major)
@@ -190,7 +190,7 @@ update_version_file() {
     return 0
   fi
 
-  echo "$new_version" > "$VERSION_FILE"
+  echo "$new_version" >"$VERSION_FILE"
   log_success "Updated VERSION file to: $new_version"
 }
 
@@ -250,12 +250,13 @@ create_git_tag() {
 
   # Extract recent changes for tag message
   local tag_message
-  tag_message=$(cat <<EOF
+  tag_message=$(
+    cat <<EOF
 Release v$new_version
 
 See CHANGELOG.md for full details.
 EOF
-)
+  )
 
   git tag -a "$tag_name" -m "$tag_message"
   log_success "Tag created: $tag_name"
@@ -320,7 +321,7 @@ build_release_tarball() {
   log_success "Created: $tarball_path"
 
   # Generate checksums
-  (cd "$DIST_DIR" && shasum -a 256 "$tarball_name" > "${tarball_name}.sha256")
+  (cd "$DIST_DIR" && shasum -a 256 "$tarball_name" >"${tarball_name}.sha256")
   log_success "Created: ${tarball_path}.sha256"
 
   # Show tarball info
@@ -438,13 +439,13 @@ main() {
   local command="${1:-patch}"
 
   case "$command" in
-    major|minor|patch)
+    major | minor | patch)
       release "$command"
       ;;
     build)
       build_release_tarball
       ;;
-    help|--help|-h)
+    help | --help | -h)
       show_usage
       ;;
     *)

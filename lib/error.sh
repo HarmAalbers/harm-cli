@@ -141,7 +141,7 @@ error_with_code() {
 
   # Log fatal error
   if declare -F log_error >/dev/null 2>&1; then
-    log_error "Fatal error, exiting with code $code: $msg"
+    log_error "error" "Fatal error, exiting with code $code" "Message: $msg"
   fi
 
   error_msg "$msg" "$code"
@@ -167,7 +167,7 @@ require_command() {
   if ! command -v "$cmd" >/dev/null 2>&1; then
     # Log missing command
     if declare -F log_error >/dev/null 2>&1; then
-      log_error "Required command not found: $cmd"
+      log_error "error" "Required command not found" "Command: $cmd${hint:+, Install: $hint}"
     fi
 
     local msg="Required command not found: $cmd"
@@ -185,7 +185,7 @@ require_file() {
   if [[ ! -f "$file" ]]; then
     # Log missing file
     if declare -F log_error >/dev/null 2>&1; then
-      log_error "Required $desc not found: $file"
+      log_error "error" "Required $desc not found" "Path: $file"
     fi
 
     error_with_code "$EXIT_NOT_FOUND" "Required $desc not found: $file"
@@ -201,7 +201,7 @@ require_dir() {
   if [[ ! -d "$dir" ]]; then
     # Log missing directory
     if declare -F log_error >/dev/null 2>&1; then
-      log_error "Required $desc not found: $dir"
+      log_error "error" "Required $desc not found" "Path: $dir"
     fi
 
     error_with_code "$EXIT_NOT_FOUND" "Required $desc not found: $dir"
@@ -217,7 +217,7 @@ require_permission() {
   if [[ ! -w "$path" ]]; then
     # Log permission error
     if declare -F log_error >/dev/null 2>&1; then
-      log_error "No write permission for $desc: $path"
+      log_error "error" "No write permission for $desc" "Path: $path"
     fi
 
     error_with_code "$EXIT_PERMISSION" "No write permission for $desc: $path"

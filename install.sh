@@ -1059,10 +1059,10 @@ _set_if_not_readonly() {
 # ═══════════════════════════════════════════════════════════════
 
 # Main data directory (where goals, projects, sessions are stored)
-_set_if_not_readonly HARM_CLI_HOME "\${HARM_CLI_HOME:-HARM_CLI_HOME_PLACEHOLDER}"
+_set_if_not_readonly HARM_CLI_HOME "${HARM_CLI_HOME:-HARM_CLI_HOME_PLACEHOLDER}"
 
 # Log directory (can be separate for performance/storage reasons)
-_set_if_not_readonly HARM_LOG_DIR "\${HARM_LOG_DIR:-HARM_LOG_DIR_PLACEHOLDER}"
+_set_if_not_readonly HARM_LOG_DIR "${HARM_LOG_DIR:-HARM_LOG_DIR_PLACEHOLDER}"
 EOF
 
   # Replace placeholders with actual values

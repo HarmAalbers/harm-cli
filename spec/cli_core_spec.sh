@@ -4,6 +4,8 @@
 Describe 'harm-cli core'
 Include spec/helpers/env.sh
 
+BeforeAll 'export HARM_LOG_LEVEL=ERROR'
+
 Describe 'version command'
 It 'shows version in text format'
 When run "$CLI" version

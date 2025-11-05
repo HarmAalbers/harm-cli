@@ -204,6 +204,23 @@ python_status() {
 
   echo ""
 
+  # Package manager
+  echo "Package Manager:"
+  if command -v uv >/dev/null 2>&1; then
+    echo "  ✓ uv (fast Python package installer)"
+    echo "    Version: $(uv --version 2>/dev/null | cut -d' ' -f2)"
+  elif command -v poetry >/dev/null 2>&1; then
+    echo "  ✓ Poetry"
+    echo "    Version: $(poetry --version 2>/dev/null | cut -d' ' -f3)"
+  elif command -v pip >/dev/null 2>&1; then
+    echo "  ✓ pip"
+    echo "    Version: $(pip --version 2>/dev/null | cut -d' ' -f2)"
+  else
+    echo "  ✗ No package manager found"
+  fi
+
+  echo ""
+
   # Project type
   echo "Project Type:"
   if python_is_poetry; then

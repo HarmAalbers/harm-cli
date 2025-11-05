@@ -7,7 +7,7 @@ Include spec/helpers/env.sh
 BeforeAll 'setup_gcloud_test_env'
 
 setup_gcloud_test_env() {
-  export HARM_CLI_LOG_LEVEL="DEBUG"
+  export HARM_LOG_LEVEL=ERROR # Suppress DEBUG/INFO logs during tests
   source "$ROOT/lib/gcloud.sh"
 }
 
@@ -38,6 +38,8 @@ It 'provides helpful information'
 # Shows either installation or configuration info
 When call gcloud_status
 The status should be defined
+The output should not be blank
+The output should include "GCloud SDK"
 End
 
 It 'function exists and is exported'

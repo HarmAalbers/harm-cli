@@ -182,13 +182,12 @@ safe_rm() {
     return 0
   fi
 
-  # SECURITY: ALWAYS require confirmation for any deletion
-  # This is "safe_rm" - it should be safer than regular rm
-  # Users can use regular rm if they want no confirmation
+  # Always require confirmation - this is a safety wrapper
   echo ""
   if [[ $is_dangerous -eq 1 ]]; then
     echo "⚠️  WARNING: Recursive or force deletion detected"
   fi
+  echo "Total: $count item(s)"
   _safety_confirm "Delete $count items" "delete" || return 130
 
   # Perform deletion
@@ -200,7 +199,7 @@ safe_rm() {
     return 0
   else
     error_msg "Deletion failed"
-    return "$EXIT_COMMAND_FAILED"
+    return "$EXIT_ERROR"
   fi
 }
 
@@ -234,7 +233,7 @@ safe_docker_prune() {
   if ! command -v docker >/dev/null 2>&1; then
     log_error "safety" "Docker command not found"
     error_msg "Docker not installed"
-    return "$EXIT_DEPENDENCY_MISSING"
+    return "$EXIT_MISSING_DEPS"
   fi
 
   if ! docker info >/dev/null 2>&1; then
@@ -243,52 +242,204 @@ safe_docker_prune() {
     return "$EXIT_INVALID_STATE"
   fi
 
-  # Show what will be removed (with progress indicator)
-  echo "Docker System Prune Preview:"
+  echo "🐳 Docker Cleanup Assistant"
+  echo "══════════════════════════════════════════"
   echo ""
 
-  # Use progress indicator for potentially slow df command
-  local space
-  if command -v show_spinner >/dev/null 2>&1; then
-    space=$(show_spinner "Analyzing Docker disk usage..." docker system df 2>/dev/null)
-  else
-    # Fallback if util.sh not loaded yet
-    echo "Analyzing Docker disk usage..." >&2
-    space=$(docker system df 2>/dev/null || echo "")
+  # Quick analysis mode by default
+  local quick_mode=1
+  local ai_analysis=0
+
+  # Parse options
+  while [[ $# -gt 0 ]]; do
+    case "$1" in
+      --detailed | -d)
+        quick_mode=0
+        shift
+        ;;
+      --ai | -a)
+        ai_analysis=1
+        shift
+        ;;
+      *)
+        break
+        ;;
+    esac
+  done
+
+  # Cache file for docker system df (5 min TTL)
+  local cache_file="/tmp/.docker_df_cache"
+  local cache_ttl=300 # 5 minutes
+  local use_cache=0
+
+  # Check if cache exists and is fresh
+  if [[ -f "$cache_file" ]]; then
+    local cache_age=$(($(date +%s) - $(stat -f %m "$cache_file" 2>/dev/null || stat -c %Y "$cache_file" 2>/dev/null || echo 0)))
+    if [[ $cache_age -lt $cache_ttl ]]; then
+      use_cache=1
+      echo "📊 Using cached analysis (${cache_age}s old)"
+    fi
   fi
 
-  if [[ -n "$space" ]]; then
-    echo "$space"
+  # Gather information efficiently
+  echo "Analyzing Docker resources..."
+  echo ""
+
+  # Get detailed information about what can be pruned
+  local stopped_containers dangling_images unused_volumes build_cache
+
+  if [[ $use_cache -eq 1 ]] && [[ -f "${cache_file}.details" ]]; then
+    source "${cache_file}.details"
+  else
+    # Count resources that would be removed
+    stopped_containers=$(docker ps -aq -f status=exited -f status=dead 2>/dev/null | wc -l | tr -d ' ')
+    dangling_images=$(docker images -q -f dangling=true 2>/dev/null | wc -l | tr -d ' ')
+    unused_volumes=$(docker volume ls -q -f dangling=true 2>/dev/null | wc -l | tr -d ' ')
+
+    # Save to cache
+    cat >"${cache_file}.details" <<EOF
+stopped_containers=$stopped_containers
+dangling_images=$dangling_images
+unused_volumes=$unused_volumes
+EOF
+  fi
+
+  # Display analysis
+  echo "📋 Cleanup Candidates:"
+  echo "──────────────────────"
+
+  local has_cleanup=0
+
+  if [[ $stopped_containers -gt 0 ]]; then
+    echo "  🔸 Stopped containers: $stopped_containers"
+    has_cleanup=1
+  fi
+
+  if [[ $dangling_images -gt 0 ]]; then
+    echo "  🔸 Dangling images: $dangling_images"
+    has_cleanup=1
+  fi
+
+  if [[ $unused_volumes -gt 0 ]]; then
+    echo "  🔸 Unused volumes: $unused_volumes"
+    has_cleanup=1
+  fi
+
+  if [[ $has_cleanup -eq 0 ]]; then
+    echo "  ✓ System is already clean!"
+    return 0
+  fi
+
+  echo ""
+
+  # Show space usage if requested
+  if [[ $quick_mode -eq 0 ]]; then
+    echo "💾 Space Analysis:"
+    echo "──────────────────────"
+
+    if [[ $use_cache -eq 1 ]] && [[ -f "$cache_file" ]]; then
+      cat "$cache_file"
+    else
+      docker system df 2>/dev/null | tee "$cache_file"
+    fi
     echo ""
   fi
 
-  _safety_confirm "Prune Docker system" "prune" || return 130
+  # AI Safety Analysis if requested
+  if [[ $ai_analysis -eq 1 ]] && command -v ai_query >/dev/null 2>&1; then
+    echo "🤖 AI Safety Analysis:"
+    echo "──────────────────────"
 
-  # Log operation
-  _safety_log "docker system prune" "Args: $*"
+    local ai_prompt="I have $stopped_containers stopped containers, $dangling_images dangling images, and $unused_volumes unused volumes in Docker. "
+    ai_prompt+="Is it safe to remove these? What should I be careful about? Keep response brief (2-3 lines)."
 
-  # Perform prune (with progress indicator)
-  echo ""
-  if command -v show_spinner >/dev/null 2>&1; then
-    if show_spinner "Pruning Docker system..." docker system prune -f "$@"; then
-      echo "✓ Docker system pruned"
-      log_info "safety" "Docker pruned successfully"
-      return 0
+    local ai_response
+    if ai_response=$(ai_query "$ai_prompt" 2>/dev/null); then
+      echo "$ai_response" | fold -s -w 70 | sed 's/^/  /'
     else
-      error_msg "Docker prune failed"
-      return "$EXIT_COMMAND_FAILED"
+      echo "  (AI analysis unavailable)"
     fi
-  else
-    # Fallback without progress
-    if docker system prune -f "$@"; then
-      echo "✓ Docker system pruned"
-      log_info "safety" "Docker pruned successfully"
-      return 0
-    else
-      error_msg "Docker prune failed"
-      return "$EXIT_COMMAND_FAILED"
-    fi
+    echo ""
   fi
+
+  # Provide selective cleanup options
+  echo "🛠  Cleanup Options:"
+  echo "──────────────────────"
+  echo "  1) Remove all (containers, images, volumes, build cache)"
+  echo "  2) Remove stopped containers only"
+  echo "  3) Remove dangling images only"
+  echo "  4) Remove unused volumes only"
+  echo "  5) Custom docker prune command"
+  echo "  6) Cancel"
+  echo ""
+
+  local choice
+  read -r -p "Select option [1-6]: " choice
+
+  case "$choice" in
+    1)
+      echo ""
+      _safety_confirm "Remove ALL unused Docker resources" "prune-all" || return 130
+      _safety_log "docker system prune --all" "Full cleanup"
+
+      echo "Cleaning all resources..."
+      docker system prune -af --volumes
+      echo "✓ All unused resources removed"
+      ;;
+    2)
+      echo ""
+      _safety_confirm "Remove stopped containers" "prune-containers" || return 130
+      _safety_log "docker container prune" "Container cleanup"
+
+      echo "Removing stopped containers..."
+      docker container prune -f
+      echo "✓ Stopped containers removed"
+      ;;
+    3)
+      echo ""
+      _safety_confirm "Remove dangling images" "prune-images" || return 130
+      _safety_log "docker image prune" "Image cleanup"
+
+      echo "Removing dangling images..."
+      docker image prune -f
+      echo "✓ Dangling images removed"
+      ;;
+    4)
+      echo ""
+      _safety_confirm "Remove unused volumes" "prune-volumes" || return 130
+      _safety_log "docker volume prune" "Volume cleanup"
+
+      echo "Removing unused volumes..."
+      docker volume prune -f
+      echo "✓ Unused volumes removed"
+      ;;
+    5)
+      echo ""
+      echo "Enter custom docker prune command:"
+      local custom_cmd
+      read -r -p "> docker " custom_cmd
+
+      _safety_confirm "Run: docker $custom_cmd" "custom-prune" || return 130
+      _safety_log "docker $custom_cmd" "Custom cleanup"
+
+      echo "Executing custom command..."
+      eval "docker $custom_cmd"
+      ;;
+    6)
+      echo "Cleanup cancelled"
+      return 130
+      ;;
+    *)
+      echo "Invalid option"
+      return 1
+      ;;
+  esac
+
+  # Clear cache after cleanup
+  rm -f "$cache_file" "${cache_file}.details"
+
+  log_info "safety" "Docker cleanup completed" "Choice: $choice"
+  return 0
 }
 
 # safe_git_reset: Safe git reset with backup
@@ -315,7 +466,24 @@ safe_docker_prune() {
 #   - Shows commits that will be lost
 #   - Requires confirmation
 safe_git_reset() {
-  local ref="${1:-origin/main}"
+  local ref="${1:-}"
+
+  # If no ref specified, try to auto-detect default branch
+  if [[ -z "$ref" ]]; then
+    # Try origin/main first, then origin/master
+    if git rev-parse --verify origin/main >/dev/null 2>&1; then
+      ref="origin/main"
+    elif git rev-parse --verify origin/master >/dev/null 2>&1; then
+      ref="origin/master"
+    else
+      error_msg "No reference specified and no origin/main or origin/master found"
+      echo "Usage: safe_git_reset [ref]"
+      echo "Examples:"
+      echo "  safe_git_reset origin/main"
+      echo "  safe_git_reset HEAD~1"
+      return "$EXIT_INVALID_ARGS"
+    fi
+  fi
 
   log_info "safety" "Git reset requested" "Ref: $ref"
 
@@ -326,9 +494,23 @@ safe_git_reset() {
     return "$EXIT_INVALID_STATE"
   fi
 
+  # Verify the ref exists
+  if ! git rev-parse --verify "$ref" >/dev/null 2>&1; then
+    log_error "safety" "Invalid git reference" "Ref: $ref"
+    error_msg "Invalid git reference: $ref"
+    echo "The specified ref '$ref' does not exist"
+    return "$EXIT_INVALID_ARGS"
+  fi
+
   # Get current branch
   local current_branch
   current_branch=$(git branch --show-current)
+
+  if [[ -z "$current_branch" ]]; then
+    error_msg "Not on a branch (detached HEAD state)"
+    echo "Cannot reset in detached HEAD state"
+    return "$EXIT_INVALID_STATE"
+  fi
 
   # Create backup branch
   local backup_branch="backup-${current_branch}-$(date +%Y%m%d-%H%M%S)"
@@ -415,7 +597,7 @@ safe_git_reset() {
   else
     log_error "safety" "Failed to create backup branch" "Branch: $backup_branch"
     error_msg "Failed to create backup branch"
-    return "$EXIT_COMMAND_FAILED"
+    return "$EXIT_ERROR"
   fi
 
   # Log operation
@@ -430,7 +612,7 @@ safe_git_reset() {
     return 0
   else
     error_msg "Git reset failed"
-    return "$EXIT_COMMAND_FAILED"
+    return "$EXIT_ERROR"
   fi
 }
 
@@ -438,6 +620,10 @@ safe_git_reset() {
 export -f safe_rm
 export -f safe_docker_prune
 export -f safe_git_reset
+
+# Export internal functions for testing
+export -f _safety_confirm
+export -f _safety_log
 
 # Mark module as loaded
 readonly _HARM_SAFETY_LOADED=1

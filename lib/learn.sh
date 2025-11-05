@@ -149,13 +149,35 @@ discover_features() {
   prompt+="- python: Python development\n\n"
   prompt+="Suggest 3-5 features I should try, with specific examples."
 
-  if type ai_query >/dev/null 2>&1; then
+  if type ai_query >/dev/null 2>&1 && ai_check_requirements >/dev/null 2>&1; then
     log_debug "learn" "Querying AI for feature suggestions"
     ai_query "$prompt" --no-cache
   else
-    log_error "learn" "AI assistant not available for feature discovery"
-    echo "❌ AI assistant not available"
-    return 1
+    log_info "learn" "AI not available, showing default suggestions"
+    echo "📚 Recommended features to try:"
+    echo ""
+
+    if [[ -n "$recent_commands" ]]; then
+      # Analyze patterns and suggest based on usage
+      if echo "$recent_commands" | grep -q "git"; then
+        echo "  🔸 harm-cli git commit-msg - Generate smart commit messages"
+        echo "  🔸 harm-cli git workflow - Enhanced git workflows"
+      fi
+
+      if echo "$recent_commands" | grep -q "docker"; then
+        echo "  🔸 harm-cli docker health - Check container health"
+        echo "  🔸 harm-cli safe docker-prune - Smart Docker cleanup"
+      fi
+    fi
+
+    # Always suggest these core features
+    echo "  🎯 harm-cli work start - Track your work sessions with Pomodoro"
+    echo "  🎯 harm-cli goal set - Set and track daily goals"
+    echo "  🎯 harm-cli focus score - Check your focus level"
+    echo "  🎯 harm-cli insights show - View productivity analytics"
+    echo "  🎯 harm-cli ai --setup - Set up AI assistant for enhanced features"
+    echo ""
+    echo "💡 Tip: Run 'harm-cli --help' to see all available commands"
   fi
 
   echo ""
@@ -195,8 +217,42 @@ find_unused_commands() {
 
   # Get used commands
   local used_commands=""
+  local has_activity_data=0
+
   if type activity_query >/dev/null 2>&1; then
     used_commands=$(activity_query all 2>/dev/null | jq -r 'select(.type == "command" and (.command | startswith("harm-cli"))) | .command' | sort -u)
+    if [[ -n "$used_commands" ]]; then
+      has_activity_data=1
+    fi
+  fi
+
+  # If no activity data, show all commands as recommendations
+  if [[ $has_activity_data -eq 0 ]]; then
+    echo "ℹ️  No activity data found yet."
+    echo ""
+    echo "📋 Essential commands to get started:"
+    echo ""
+    echo "  Getting Started:"
+    echo "   • harm-cli init          - Initialize harm-cli"
+    echo "   • harm-cli doctor        - Check system setup"
+    echo ""
+    echo "  Work Tracking:"
+    echo "   • harm-cli work start    - Start a work session"
+    echo "   • harm-cli work stop     - Stop current session"
+    echo "   • harm-cli work stats    - View statistics"
+    echo ""
+    echo "  Goal Setting:"
+    echo "   • harm-cli goal set      - Set daily goals"
+    echo "   • harm-cli goal show     - View current goals"
+    echo ""
+    echo "  AI Features:"
+    echo "   • harm-cli ai --setup    - Configure AI assistant"
+    echo "   • harm-cli ai daily      - Daily insights"
+    echo ""
+    echo "💡 Activity tracking will start once you begin using commands."
+    echo ""
+    echo "═══════════════════════════════════════════════════════════"
+    return 0
   fi
 
   # Find unused

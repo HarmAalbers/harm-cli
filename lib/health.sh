@@ -457,6 +457,11 @@ health_check() {
   local json_output=0
   local verbose=0
 
+  # Check HARM_CLI_FORMAT environment variable
+  if [[ "${HARM_CLI_FORMAT:-text}" == "json" ]]; then
+    json_output=1
+  fi
+
   # Parse options
   while [[ $# -gt 0 ]]; do
     case "$1" in
@@ -466,6 +471,8 @@ health_check() {
         ;;
       --json | -j)
         json_output=1
+        # Also set format for consistency
+        export HARM_CLI_FORMAT="json"
         shift
         ;;
       --verbose | -v)
@@ -482,19 +489,80 @@ health_check() {
     esac
   done
 
-  log_info "health" "Starting health check" "Category: $category, Quick: $quick"
+  log_info "health" "Starting health check" "Category: $category, Quick: $quick, JSON: $json_output, Verbose: $verbose"
 
+  # JSON mode: Redirect stdout to temp file, run checks, then output JSON
+  if [[ $json_output -eq 1 ]]; then
+    # Reset counters
+    _health_critical_count=0
+    _health_warning_count=0
+
+    # Run checks silently (redirect to /dev/null)
+    # Use || true to prevent exit on non-zero status with set -e
+    case "$category" in
+      all)
+        _health_check_system >/dev/null 2>&1 || true
+        [[ $quick -eq 0 ]] && (_health_check_git >/dev/null 2>&1 || true)
+        [[ $quick -eq 0 ]] && (_health_check_docker >/dev/null 2>&1 || true)
+        [[ $quick -eq 0 ]] && (_health_check_python >/dev/null 2>&1 || true)
+        [[ $quick -eq 0 ]] && (_health_check_ai >/dev/null 2>&1 || true)
+        ;;
+      system)
+        _health_check_system >/dev/null 2>&1 || true
+        ;;
+      git)
+        _health_check_git >/dev/null 2>&1 || true
+        ;;
+      docker)
+        _health_check_docker >/dev/null 2>&1 || true
+        ;;
+      python)
+        _health_check_python >/dev/null 2>&1 || true
+        ;;
+      ai)
+        _health_check_ai >/dev/null 2>&1 || true
+        ;;
+      *)
+        error_msg "Unknown health category: $category"
+        return "$EXIT_INVALID_ARGS"
+        ;;
+    esac
+
+    # Output JSON result
+    local exit_code=0
+    if [[ $_health_critical_count -gt 0 ]]; then
+      exit_code=2
+    elif [[ $_health_warning_count -gt 0 ]]; then
+      exit_code=1
+    fi
+
+    jq -n \
+      --arg category "$category" \
+      --argjson critical "$_health_critical_count" \
+      --argjson warnings "$_health_warning_count" \
+      --arg timestamp "$(date -u '+%Y-%m-%dT%H:%M:%SZ')" \
+      '{
+        category: $category,
+        critical: $critical,
+        warnings: $warnings,
+        status: (if $critical > 0 then "critical" elif $warnings > 0 then "warning" else "healthy" end),
+        timestamp: $timestamp
+      }'
+
+    return $exit_code
+  fi
+
+  # Text mode with optional verbose details
   # Reset counters
   _health_critical_count=0
   _health_warning_count=0
 
-  # Header (text mode only)
-  if [[ $json_output -eq 0 ]]; then
-    echo "🏥 Comprehensive Health Check"
-    echo "══════════════════════════════════════════"
-    echo "Timestamp: $(date '+%Y-%m-%d %H:%M:%S')"
-    echo ""
-  fi
+  # Header
+  echo "🏥 Comprehensive Health Check"
+  echo "══════════════════════════════════════════"
+  echo "Timestamp: $(date '+%Y-%m-%d %H:%M:%S')"
+  [[ $verbose -eq 1 ]] && echo "Mode: $([ $quick -eq 1 ] && echo "Quick" || echo "Full") | Category: $category"
+  echo ""
 
   # Run checks based on category
   case "$category" in
@@ -527,40 +595,37 @@ health_check() {
       ;;
   esac
 
-  # Summary (text mode only)
-  if [[ $json_output -eq 0 ]]; then
-    echo "══════════════════════════════════════════"
-    echo "Health Summary"
+  # Summary
+  echo "══════════════════════════════════════════"
+  echo "Health Summary"
+  echo ""
+
+  if [[ $verbose -eq 1 ]]; then
+    echo "Details:"
+    echo "  • Critical issues: $_health_critical_count"
+    echo "  • Warnings: $_health_warning_count"
+    echo "  • Category checked: $category"
+    echo "  • Quick mode: $([ $quick -eq 1 ] && echo "Yes" || echo "No")"
     echo ""
-
-    if [[ $_health_critical_count -gt 0 ]]; then
-      echo "✗ $_health_critical_count critical issues found"
-      echo ""
-      echo "Immediate action required!"
-      log_warn "health" "Critical issues found" "Count: $_health_critical_count"
-      return 2
-    elif [[ $_health_warning_count -gt 0 ]]; then
-      echo "⚠  $_health_warning_count warnings found"
-      echo ""
-      echo "System functional but needs attention"
-      log_info "health" "Warnings found" "Count: $_health_warning_count"
-      return 1
-    else
-      echo "✅ All systems healthy!"
-      log_info "health" "Health check passed" "No issues found"
-      return 0
-    fi
   fi
 
-  # JSON output (future enhancement)
-  if [[ $json_output -eq 1 ]]; then
-    jq -n \
-      --argjson critical "$_health_critical_count" \
-      --argjson warnings "$_health_warning_count" \
-      '{critical: $critical, warnings: $warnings, status: (if $critical > 0 then "critical" elif $warnings > 0 then "warning" else "healthy" end)}'
+  if [[ $_health_critical_count -gt 0 ]]; then
+    echo "✗ $_health_critical_count critical issues found"
+    echo ""
+    echo "Immediate action required!"
+    log_warn "health" "Critical issues found" "Count: $_health_critical_count"
+    return 2
+  elif [[ $_health_warning_count -gt 0 ]]; then
+    echo "⚠  $_health_warning_count warnings found"
+    echo ""
+    echo "System functional but needs attention"
+    log_info "health" "Warnings found" "Count: $_health_warning_count"
+    return 1
+  else
+    echo "✅ All systems healthy!"
+    log_info "health" "Health check passed" "No issues found"
+    return 0
   fi
-
-  return 0
 }
 
 # Export public functions

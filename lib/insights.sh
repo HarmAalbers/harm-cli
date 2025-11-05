@@ -58,10 +58,10 @@ insights_command_frequency() {
   }
 
   echo "🔥 Most Used Commands ($period):"
-  echo "$data" | jq -r 'select(.type == "command") | .command' \
+  echo "$data" | jq -r 'select(.type == "command") | .command' 2>/dev/null \
     | awk '{print $1}' \
     | sort | uniq -c | sort -rn | head -10 \
-    | awk '{printf "   %2d. %-25s (%3d times)\n", NR, $2, $1}'
+    | awk '{printf "   %2d. %-25s (%3d times)\n", NR, $2, $1}' || true
 }
 
 # insights_peak_hours: Identify peak productivity hours
@@ -116,7 +116,7 @@ insights_error_analysis() {
   # Extract both total and errors in one jq invocation
   local total errors
   read -r total errors < <(
-    echo "$data" | jq -s '[
+    echo "$data" | jq -r -s '[
       (map(select(.type == "command")) | length),
       (map(select(.type == "command" and .exit_code != 0)) | length)
     ] | @tsv'
@@ -195,7 +195,7 @@ insights_performance() {
   # Extract both avg and max duration in one jq invocation
   local avg_duration max_duration
   read -r avg_duration max_duration < <(
-    echo "$data" | jq -s '[
+    echo "$data" | jq -r -s '[
       (map(select(.type == "command") | .duration_ms) | add / length | floor),
       (map(select(.type == "command") | .duration_ms) | max)
     ] | @tsv' 2>/dev/null || echo "0	0"
@@ -250,6 +250,15 @@ insights_show() {
       ;;
   esac
 
+  # Validate category
+  case "$category" in
+    all | commands | performance | errors | projects | hours) ;;
+    *)
+      log_error "insights" "Unknown category: $category"
+      return 1
+      ;;
+  esac
+
   echo "📊 Productivity Insights"
   echo "═══════════════════════════════════════════════════════════"
   echo "Period: $(echo "$period" | tr '[:lower:]' '[:upper:]')"
@@ -292,10 +301,6 @@ insights_show() {
       ;;
     hours)
       insights_peak_hours "$period"
-      ;;
-    *)
-      log_error "insights" "Unknown category: $category"
-      return 1
       ;;
   esac
 
@@ -544,7 +549,7 @@ insights_daily_summary() {
   # Extract all three metrics in one jq invocation
   local total errors avg_duration
   read -r total errors avg_duration < <(
-    echo "$data" | jq -s '[
+    echo "$data" | jq -r -s '[
       (map(select(.type == "command")) | length),
       (map(select(.type == "command" and .exit_code != 0)) | length),
       (map(select(.type == "command") | .duration_ms) | add / length | floor)

@@ -71,10 +71,16 @@ ensure_dir "$HARM_ACTIVITY_DIR"
 # ═══════════════════════════════════════════════════════════════
 
 # Track command start time (milliseconds since epoch)
-declare -g _ACTIVITY_CMD_START=0
-
-# Track last command for logging
-declare -g _ACTIVITY_LAST_CMD=""
+if [[ "${BASH_VERSINFO[0]:-0}" -ge 4 ]] && [[ "${BASH_VERSINFO[1]:-0}" -ge 2 ]]; then
+  declare -g _ACTIVITY_CMD_START=0
+  declare -g _ACTIVITY_LAST_CMD=""
+else
+  # For older bash, use export to make global
+  _ACTIVITY_CMD_START=0
+  export _ACTIVITY_CMD_START
+  _ACTIVITY_LAST_CMD=""
+  export _ACTIVITY_LAST_CMD
+fi
 
 # ═══════════════════════════════════════════════════════════════
 # Helper Functions
@@ -409,8 +415,12 @@ activity_query() {
 
   # Check if log file exists
   [[ -f "$HARM_ACTIVITY_LOG" ]] || {
-    log_warn "activity" "No activity log found"
-    return 1
+    # Create the log file if it doesn't exist
+    ensure_dir "$(dirname "$HARM_ACTIVITY_LOG")"
+    touch "$HARM_ACTIVITY_LOG"
+    log_info "activity" "Activity log created at $HARM_ACTIVITY_LOG"
+    # Return empty result since there's no data yet
+    return 0
   }
 
   local start_date
@@ -483,8 +493,8 @@ activity_stats() {
   #
   # Extract all three metrics in one jq invocation
   local total_commands errors avg_duration
-  read -r total_commands errors avg_duration < <(
-    echo "$data" | jq -s '
+  local metrics
+  metrics=$(echo "$data" | jq -r -s '
       # Filter to command records only
       map(select(.type == "command")) |
 
@@ -503,8 +513,8 @@ activity_stats() {
 
       # Output as TSV for bash parsing
       [.total, .errors, .avg_duration] | @tsv
-    ' 2>/dev/null || echo -e "0\t0\t0"
-  )
+    ' 2>/dev/null || echo -e "0\t0\t0")
+  read -r total_commands errors avg_duration <<<"$metrics"
 
   echo "📊 Total Commands: $total_commands"
 
@@ -571,13 +581,20 @@ activity_clear() {
 #   0 - Cleanup successful
 #   1 - Cleanup failed
 activity_cleanup() {
-  [[ -f "$HARM_ACTIVITY_LOG" ]] || return 0
+  [[ -f "$HARM_ACTIVITY_LOG" ]] || {
+    echo "No activity log file found. Nothing to clean up."
+    return 0
+  }
 
   local cutoff_date
   cutoff_date=$(date -u -d "$HARM_ACTIVITY_RETENTION_DAYS days ago" +%Y-%m-%d 2>/dev/null \
     || date -u -v-"${HARM_ACTIVITY_RETENTION_DAYS}"d +%Y-%m-%d)
 
   log_info "activity" "Cleaning up entries older than $cutoff_date"
+
+  # Count entries before cleanup
+  local count_before
+  count_before=$(wc -l <"$HARM_ACTIVITY_LOG")
 
   # Create temp file with recent entries
   local temp_file
@@ -589,6 +606,11 @@ activity_cleanup() {
     return 1
   }
 
+  # Count entries after cleanup
+  local count_after
+  count_after=$(wc -l <"$temp_file")
+  local removed=$((count_before - count_after))
+
   # Replace log file
   mv "$temp_file" "$HARM_ACTIVITY_LOG" || {
     log_error "activity" "Failed to update activity log"
@@ -596,7 +618,12 @@ activity_cleanup() {
     return 1
   }
 
-  log_info "activity" "Cleanup complete"
+  echo "Activity log cleanup complete:"
+  echo "  • Removed $removed entries older than $cutoff_date"
+  echo "  • Kept $count_after recent entries"
+  echo "  • Retention period: $HARM_ACTIVITY_RETENTION_DAYS days"
+
+  log_info "activity" "Cleanup complete" "Removed: $removed, Kept: $count_after"
   return 0
 }
 

@@ -5,7 +5,7 @@ Describe 'lib/interactive.sh'
 Include spec/helpers/env.sh
 
 # Source the interactive module
-BeforeAll 'source "$ROOT/lib/interactive.sh"'
+BeforeAll 'export HARM_LOG_LEVEL=ERROR && source "$ROOT/lib/interactive.sh"'
 
 Describe 'Module initialization'
 It 'defines global INTERACTIVE_TOOL variable'
@@ -82,14 +82,15 @@ Context 'when stdin is not a TTY'
 It 'returns error code 2'
 When run bash -c "source $ROOT/lib/interactive.sh && _interactive_check_tty" </dev/null
 The status should equal 2
+The stderr should include "No TTY available"
 End
 End
 
 Context 'when stdout is not a TTY'
-Skip if "CI environment" ! tty -s
 It 'returns error code 2'
 When run bash -c 'source "$ROOT/lib/interactive.sh" && _interactive_check_tty > /dev/null'
 The status should equal 2
+The stderr should include "No TTY available"
 End
 End
 End
@@ -99,11 +100,13 @@ Context 'parameter validation'
 It 'requires prompt parameter'
 When run bash -c "source $ROOT/lib/interactive.sh && interactive_choose"
 The status should equal 1
+The stderr should include "Requires prompt and options"
 End
 
 It 'requires at least one option'
 When run bash -c "source $ROOT/lib/interactive.sh && interactive_choose 'Select one'"
 The status should equal 1
+The stderr should include "Requires prompt and options"
 End
 End
 
@@ -111,6 +114,7 @@ Context 'without TTY'
 It 'fails with exit code 2'
 When run bash -c "source $ROOT/lib/interactive.sh && interactive_choose Select A B" </dev/null
 The status should equal 2
+The stderr should include "No TTY available"
 End
 End
 
@@ -133,11 +137,13 @@ Context 'parameter validation'
 It 'requires prompt parameter'
 When run bash -c "source $ROOT/lib/interactive.sh && interactive_choose_multi"
 The status should equal 1
+The stderr should include "Requires prompt and options"
 End
 
 It 'requires at least one option'
 When run bash -c "source $ROOT/lib/interactive.sh && interactive_choose_multi 'Select multiple'"
 The status should equal 1
+The stderr should include "Requires prompt and options"
 End
 End
 
@@ -145,6 +151,7 @@ Context 'without TTY'
 It 'fails with exit code 2'
 When run bash -c "source $ROOT/lib/interactive.sh && interactive_choose_multi Select A B" </dev/null
 The status should equal 2
+The stderr should include "No TTY available"
 End
 End
 End
@@ -154,6 +161,7 @@ Context 'parameter validation'
 It 'requires prompt parameter'
 When run bash -c "source $ROOT/lib/interactive.sh && interactive_input"
 The status should equal 1
+The stderr should include "Requires prompt"
 End
 End
 
@@ -161,15 +169,11 @@ Context 'without TTY'
 It 'fails with exit code 2'
 When run bash -c "source $ROOT/lib/interactive.sh && interactive_input 'Enter name'" </dev/null
 The status should equal 2
+The stderr should include "No TTY available"
 End
 End
 
 Context 'with default value'
-# Test with gum unavailable (uses read fallback)
-It 'returns default when input is empty'
-Skip "Requires interactive input simulation"
-End
-
 It 'accepts default parameter'
 # Verify parameters are passed correctly
 export INTERACTIVE_TOOL="select"
@@ -195,6 +199,7 @@ Context 'parameter validation'
 It 'requires prompt parameter'
 When run bash -c "source $ROOT/lib/interactive.sh && interactive_password"
 The status should equal 1
+The stderr should include "Requires prompt"
 End
 End
 
@@ -202,6 +207,7 @@ Context 'without TTY'
 It 'fails with exit code 2'
 When run bash -c "source $ROOT/lib/interactive.sh && interactive_password 'Enter password'" </dev/null
 The status should equal 2
+The stderr should include "No TTY available"
 End
 End
 End
@@ -211,6 +217,7 @@ Context 'parameter validation'
 It 'requires prompt parameter'
 When run bash -c "source $ROOT/lib/interactive.sh && interactive_confirm"
 The status should equal 1
+The stderr should include "Requires prompt"
 End
 End
 
@@ -218,6 +225,7 @@ Context 'without TTY'
 It 'fails with exit code 2'
 When run bash -c "source $ROOT/lib/interactive.sh && interactive_confirm Continue" </dev/null
 The status should equal 2
+The stderr should include "No TTY available"
 End
 End
 
@@ -245,6 +253,7 @@ Context 'without TTY'
 It 'fails with exit code 2'
 When run bash -c "source $ROOT/lib/interactive.sh && echo test | interactive_filter Filter" </dev/null
 The status should equal 2
+The stderr should include "No TTY available"
 End
 End
 
@@ -379,8 +388,9 @@ The status should be success
 End
 
 It 'handles TTY errors'
-When run bash -c "source $ROOT/lib/interactive.sh && interactive_choose test" </dev/null
+When run bash -c "source $ROOT/lib/interactive.sh && interactive_choose 'Select' A B" </dev/null
 The status should equal 2
+The stderr should include "No TTY available"
 End
 End
 
@@ -395,6 +405,7 @@ End
 It 'still reports errors without logging'
 When run bash -c "source $ROOT/lib/interactive.sh && interactive_choose" </dev/null
 The status should equal 1
+The stderr should include "Requires prompt and options"
 End
 End
 End

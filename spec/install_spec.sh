@@ -3,6 +3,8 @@
 # ShellSpec test for install.sh
 # Integration tests that verify installer behavior
 
+BeforeAll 'export HARM_LOG_LEVEL=ERROR'
+
 Describe "install.sh"
 Describe "Script structure validation"
 It "has valid bash syntax"
@@ -35,7 +37,7 @@ Describe "ShellCheck compliance"
 It "passes ShellCheck with project rules (if shellcheck available)"
 # This would have caught the bug if install.sh was linted
 # Skip if shellcheck is not installed
-Skip if "shellcheck is not installed" ! command -v shellcheck >/dev/null 2>&1
+Skip if "shellcheck is not installed" sh -c '! command -v shellcheck >/dev/null 2>&1'
 When run shellcheck install.sh --exclude=2016,2034,2094,2148,2155
 The status should be success
 End

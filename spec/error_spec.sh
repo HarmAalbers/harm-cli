@@ -5,7 +5,7 @@ Describe 'lib/error.sh'
 Include spec/helpers/env.sh
 
 # Source the error module
-BeforeAll 'source "$ROOT/lib/error.sh"'
+BeforeAll 'export HARM_LOG_LEVEL=ERROR && source "$ROOT/lib/error.sh"'
 
 Describe 'Exit codes'
 It 'defines standard exit codes'
@@ -157,7 +157,7 @@ End
 
 Describe 'require_permission'
 It 'succeeds when path is writable'
-Skip if 'test ! -w /tmp' # Skip if /tmp is not writable
+Skip if 'test ! -w /tmp' sh -c 'test ! -w /tmp' # Skip if /tmp is not writable
 When call require_permission "/tmp"
 The status should be success
 End

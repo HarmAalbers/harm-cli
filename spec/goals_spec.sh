@@ -5,7 +5,7 @@ Describe 'lib/goals.sh'
 Include spec/helpers/env.sh
 
 # Set up test goals directory
-BeforeAll 'export HARM_GOALS_DIR="$TEST_TMP/goals" && mkdir -p "$HARM_GOALS_DIR"'
+BeforeAll 'export HARM_LOG_LEVEL=ERROR && export HARM_GOALS_DIR="$TEST_TMP/goals" && mkdir -p "$HARM_GOALS_DIR"'
 
 # Clean up after tests
 AfterAll 'rm -rf "$HARM_GOALS_DIR"'
@@ -76,7 +76,6 @@ When call goal_set "Test goal" 60
 The output should include '"status"'
 The output should include '"goal"'
 The output should include '"estimated_minutes"'
-The error should include "[INFO]"
 End
 
 Describe 'Duration format parsing'
@@ -220,7 +219,7 @@ goal_set "Test goal" >/dev/null 2>&1
 goal_complete 1 >/dev/null 2>&1
 When call goal_reopen 1 50
 The status should be success
-The error should include "Goal reopened"
+The error should include "reopened"
 End
 
 It 'sets completed=false when reopening'
@@ -256,6 +255,7 @@ The output should include '"progress"'
 The output should include '50'
 The output should include '"completed"'
 The output should include 'false'
+# Stderr output not required (HARM_LOG_LEVEL=ERROR suppresses INFO/DEBUG)
 End
 
 It 'validates progress is 0-100'

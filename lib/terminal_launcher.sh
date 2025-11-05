@@ -142,8 +142,18 @@ terminal_open_macos() {
   }
 
   # Create a temporary wrapper script to avoid osascript quoting issues
+  # Note: On macOS, mktemp requires X's at the END (no extension after X's)
   local temp_script
-  temp_script=$(mktemp /tmp/harm-cli-launch.XXXXXX.sh)
+  temp_script=$(mktemp /tmp/harm-cli-launch.XXXXXX) || {
+    if declare -F log_error >/dev/null 2>&1; then
+      log_error "terminal" "Failed to create temp script"
+    fi
+    return 1
+  }
+
+  # Add .sh extension after creation for clarity
+  mv "$temp_script" "${temp_script}.sh"
+  temp_script="${temp_script}.sh"
 
   # Write the command to temp script with proper shebang
   cat >"$temp_script" <<'SCRIPT_HEADER'
@@ -159,6 +169,14 @@ SCRIPT_HEADER
 
   # Make executable
   chmod +x "$temp_script"
+
+  # Validate temp script was created successfully
+  if [[ ! -f "$temp_script" || -z "$temp_script" ]]; then
+    if declare -F log_error >/dev/null 2>&1; then
+      log_error "terminal" "Temp script validation failed" "path=$temp_script"
+    fi
+    return 1
+  fi
 
   case "$TERMINAL_EMULATOR" in
     iterm2)

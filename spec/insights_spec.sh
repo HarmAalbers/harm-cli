@@ -5,7 +5,7 @@ Describe 'lib/insights.sh'
 Include spec/helpers/env.sh
 
 # Source the insights module
-BeforeAll 'source "$ROOT/lib/insights.sh"'
+BeforeAll 'export HARM_LOG_LEVEL=ERROR && source "$ROOT/lib/insights.sh"'
 
 Describe 'Module initialization'
 It 'prevents double-loading'
@@ -266,6 +266,8 @@ Context 'parameter validation'
 It 'rejects invalid period'
 When call insights_show "invalid"
 The status should equal 1
+The stderr should include "ERROR"
+The stderr should include "Invalid period"
 End
 
 It 'accepts today period'
@@ -359,6 +361,8 @@ It 'rejects unknown category'
 log_error() { echo "ERROR: $*" >&2; }
 When call insights_show "week" "unknown"
 The status should equal 1
+The stderr should include "ERROR"
+The stderr should include "Unknown category"
 End
 End
 End
@@ -455,6 +459,8 @@ activity_query() { return 1; }
 It 'returns error code 1'
 When call insights_export_html "week" "$TEST_OUTPUT"
 The status should equal 1
+The stderr should include "ERROR"
+The stderr should include "Failed to export"
 End
 End
 
@@ -473,6 +479,8 @@ When call insights_export_html "week" "$TEST_OUTPUT"
 The status should equal 0
 The path "$TEST_OUTPUT" should be exist
 The output should include "Report exported to"
+The stderr should include "INFO"
+The stderr should include "HTML report exported"
 End
 
 It 'generates valid HTML'
@@ -633,10 +641,13 @@ End
 It 'rejects unknown subcommand'
 When call insights "unknown"
 The status should equal 1
+The stderr should include "ERROR"
+The stderr should include "Unknown subcommand"
 End
 
 It 'shows usage for unknown subcommand'
 When call insights "invalid"
+The status should equal 1
 The error should include "Usage: insights"
 End
 End
@@ -673,7 +684,9 @@ It 'handles malformed JSON gracefully'
 # The function should not crash
 When call insights_command_frequency "today"
 # May return success or error depending on jq behavior
-The status should satisfy [ "$SHELLSPEC_STATUS" -eq 0 ] || [ "$SHELLSPEC_STATUS" -eq 1 ]
+# Status should be success (it filters out bad lines)
+The status should be success
+The output should include "Most Used Commands"
 End
 End
 
@@ -719,7 +732,9 @@ activity_query() {
 }
 When call insights_export_html "week" "$SHELLSPEC_TMPDIR/test.html"
 The status should equal 0
-The error should include "LOG_INFO"
+The output should include "Report exported to"
+The stderr should include "LOG_INFO"
+The stderr should include "HTML report exported"
 End
 End
 
