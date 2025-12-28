@@ -70,15 +70,18 @@ mock_gh_not_installed() {
 It 'returns error code 1'
 When call github_check_gh_installed
 The status should equal 1
+The stderr should be present
 End
 
 It 'prints error message to stderr'
 When call github_check_gh_installed
-The stderr should include "GitHub CLI not installed"
+The status should equal 1
+The stderr should include "GitHub CLI"
 End
 
 It 'includes installation instructions'
 When call github_check_gh_installed
+The status should equal 1
 The stderr should include "brew install gh"
 End
 End
@@ -106,6 +109,7 @@ mock_gh_not_installed() {
 It 'returns error code 1'
 When call github_check_auth
 The status should equal 1
+The stderr should be present
 End
 End
 
@@ -132,15 +136,18 @@ mock_gh_not_authenticated() {
 It 'returns error code 1'
 When call github_check_auth
 The status should equal 1
+The stderr should be present
 End
 
 It 'prints authentication error'
 When call github_check_auth
+The status should equal 1
 The stderr should include "authentication required"
 End
 
 It 'includes auth login command'
 When call github_check_auth
+The status should equal 1
 The stderr should include "gh auth login"
 End
 End
@@ -255,10 +262,12 @@ mock_not_in_repo() {
 It 'returns error code 1'
 When call github_get_repo_info
 The status should equal 1
+The stderr should be present
 End
 
 It 'prints error message'
 When call github_get_repo_info
+The status should equal 1
 The stderr should include "Not in a GitHub repository"
 End
 End

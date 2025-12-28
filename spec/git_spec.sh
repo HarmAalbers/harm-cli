@@ -133,7 +133,13 @@ The stderr should include "fzf not installed"
 End
 
 It 'returns EXIT_INVALID_STATE when not in git repository'
-# Mock git_is_repo to return failure
+# Mock both fzf (to pass) and git_is_repo (to fail)
+command() {
+  if [[ "$2" == "fzf" ]]; then
+    return 0  # Make fzf appear installed
+  fi
+  builtin command "$@"
+}
 git_is_repo() { return 1; }
 When call git_fuzzy_checkout
 The status should equal "$EXIT_INVALID_STATE"
