@@ -1316,16 +1316,20 @@ Usage:
 Commands:
   status         Enhanced git status with suggestions
   commit-msg     Generate AI commit message from staged changes
+  fco            Interactive branch checkout with fuzzy search (requires fzf)
+  fuzzy-checkout Alias for fco
   --help         Show this help
 
 Examples:
   harm-cli git status
   git add lib/*.sh && harm-cli git commit-msg
   msg=$(harm-cli git commit-msg) && git commit -m "$msg"
+  harm-cli git fco
 
 Notes:
   - commit-msg requires staged changes
   - commit-msg uses AI (requires API key)
+  - fco requires fzf (brew install fzf)
   - status works in any git repository
 EOF
           ;;
@@ -1334,6 +1338,9 @@ EOF
           ;;
         status | st)
           git_status_enhanced "$@"
+          ;;
+        fco | fuzzy-checkout)
+          git_fuzzy_checkout "$@"
           ;;
         *)
           error_msg "Unknown git command: $subcmd"

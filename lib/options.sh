@@ -122,7 +122,7 @@ declare -gA OPTIONS_SCHEMA=(
   ["cleanup_min_size"]="string:104857600:HARM_CLEANUP_MIN_SIZE:Minimum file size in bytes (or with suffix like 100M, 1G):validate_string"
   ["cleanup_max_results"]="int:50:HARM_CLEANUP_MAX_RESULTS:Maximum number of results to return:validate_positive_int"
   ["cleanup_search_path"]="string:$HOME:HARM_CLEANUP_SEARCH_PATH:Default search path for cleanup scan:validate_path"
-  ["cleanup_exclude_patterns"]="string:.git,node_modules,.Trash,.npm,.cache:HARM_CLEANUP_EXCLUDES:Comma-separated exclude patterns:validate_string"
+  ["cleanup_exclude_patterns"]="string::HARM_CLEANUP_EXCLUDES:Comma-separated exclude patterns:validate_string"
 )
 
 # Dummy path validator (for now)
@@ -207,10 +207,17 @@ options_load_config() {
 
   # Source the config file to load values
   # shellcheck disable=SC1090
-  # Suppress "readonly variable" warnings (benign - variable already set correctly)
-  source "$OPTIONS_CONFIG_FILE" 2>/dev/null || true
-
-  log_debug "options" "Loaded config from $OPTIONS_CONFIG_FILE" ""
+  # Suppress only "readonly variable" warnings (benign - variable already set correctly)
+  # but log other errors
+  local source_errors
+  if source_errors=$(source "$OPTIONS_CONFIG_FILE" 2>&1 | grep -v "readonly variable"); then
+    log_debug "options" "Loaded config from $OPTIONS_CONFIG_FILE" ""
+  else
+    # Log non-readonly errors if any
+    if [[ -n "$source_errors" ]]; then
+      log_warn "options" "Config file has errors" "file=$OPTIONS_CONFIG_FILE, errors=$source_errors"
+    fi
+  fi
   return 0
 }
 
