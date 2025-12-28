@@ -107,6 +107,12 @@ End
 End
 
 Describe 'git_fuzzy_checkout'
+AfterEach 'cleanup_mocks'
+
+cleanup_mocks() {
+  unset -f command git_is_repo 2>/dev/null || true
+}
+
 It 'function exists and is exported'
 When call type -t git_fuzzy_checkout
 The output should equal "function"
