@@ -27,11 +27,22 @@ _harm_cli() {
     'doctor:Check system dependencies and health'
     'init:Initialize harm-cli in current shell'
     'work:Work session management'
+    'break:Break session management'
     'goal:Goal tracking and progress'
+    'activity:Activity tracking and command logging'
+    'insights:Productivity insights and analytics'
+    'focus:Focus monitoring and pomodoro timer'
+    'log:Real-time log streaming and management'
+    'learn:Interactive learning modules'
+    'discover:Discover helpful features'
+    'unused:Find unused commands'
+    'cheat:Quick command reference'
+    'md:Markdown rendering and viewing'
     'ai:AI assistant commands'
     'git:Enhanced git workflows'
     'proj:Project management'
     'docker:Docker management'
+    'cleanup:Find and remove large files'
     'python:Python development tools'
     'gcloud:Google Cloud SDK integration'
     'health:System and project health checks'
@@ -52,8 +63,38 @@ _harm_cli() {
         work)
           _harm_cli_work
           ;;
+        break)
+          _harm_cli_break
+          ;;
         goal)
           _harm_cli_goal
+          ;;
+        activity)
+          _harm_cli_activity
+          ;;
+        insights)
+          _harm_cli_insights
+          ;;
+        focus)
+          _harm_cli_focus
+          ;;
+        log)
+          _harm_cli_log
+          ;;
+        learn)
+          _harm_cli_learn
+          ;;
+        discover)
+          _harm_cli_discover
+          ;;
+        unused)
+          # No subcommands
+          ;;
+        cheat)
+          # Takes a query string
+          ;;
+        md)
+          _harm_cli_md
           ;;
         ai)
           _harm_cli_ai
@@ -66,6 +107,9 @@ _harm_cli() {
           ;;
         docker)
           _harm_cli_docker
+          ;;
+        cleanup)
+          _harm_cli_cleanup
           ;;
         python)
           _harm_cli_python
@@ -93,6 +137,12 @@ _harm_cli_work() {
     'start:Start a new work session'
     'stop:Stop current work session'
     'status:Show current work session status'
+    'reset:Reset pomodoro counter'
+    'stats:Show work statistics'
+    'violations:Show violation count'
+    'reset-violations:Reset violation counter'
+    'set-mode:Set enforcement mode'
+    'strict:Enable/disable strict mode'
   )
 
   _arguments \
@@ -104,6 +154,53 @@ _harm_cli_work() {
     subcmd)
       _describe 'work command' work_cmds
       ;;
+    args)
+      case $line[1] in
+        stats)
+          local -a periods
+          periods=('today' 'week' 'month' 'all')
+          _describe 'period' periods
+          ;;
+        set-mode)
+          local -a modes
+          modes=('strict' 'moderate' 'coaching' 'off')
+          _describe 'mode' modes
+          ;;
+        strict)
+          _arguments '1:state:(on off)'
+          ;;
+      esac
+      ;;
+  esac
+}
+
+_harm_cli_break() {
+  local -a break_cmds
+  break_cmds=(
+    'start:Start a break session'
+    'stop:Stop current break session'
+    'status:Show current break status'
+    'scheduled:Manage scheduled breaks'
+  )
+
+  _arguments \
+    '(-h --help)'{-h,--help}'[Show help]' \
+    '1: :->subcmd' \
+    '*:: :->args'
+
+  case $state in
+    subcmd)
+      _describe 'break command' break_cmds
+      ;;
+    args)
+      case $line[1] in
+        scheduled)
+          local -a scheduled_cmds
+          scheduled_cmds=('start' 'stop' 'status')
+          _describe 'scheduled command' scheduled_cmds
+          ;;
+      esac
+      ;;
   esac
 }
 
@@ -114,12 +211,20 @@ _harm_cli_goal() {
     'show:Show all goals'
     'progress:Update goal progress'
     'complete:Mark goal as complete'
+    'reopen:Reopen a completed goal'
     'clear:Clear all goals'
-    'validate:Validate goal file'
+    'ai-analyze:Analyze goal complexity'
+    'ai-plan:Generate implementation plan'
+    'ai-next:Suggest what to work on next'
+    'ai-check:Verify goal completion criteria'
+    'ai-context:Generate Claude Code context'
+    'link-github:Link goal to GitHub issue'
+    'sync-github:Sync goal with GitHub'
   )
 
   _arguments \
     '(-h --help)'{-h,--help}'[Show help]' \
+    '(-j --json)'{-j,--json}'[JSON output]' \
     '1: :->subcmd' \
     '*:: :->args'
 
@@ -354,3 +459,197 @@ _harm_cli_safe() {
       ;;
   esac
 }
+
+_harm_cli_activity() {
+  local -a activity_cmds
+  activity_cmds=(
+    'query:Query activity log by period'
+    'stats:Show activity statistics'
+    'clear:Remove all activity data'
+    'cleanup:Remove old entries'
+    'help:Show help information'
+  )
+
+  _arguments \
+    '(-h --help)'{-h,--help}'[Show help]' \
+    '1: :->subcmd' \
+    '*:: :->args'
+
+  case $state in
+    subcmd)
+      _describe 'activity command' activity_cmds
+      ;;
+    args)
+      case $line[1] in
+        query|stats)
+          local -a periods
+          periods=('today' 'yesterday' 'week' 'month' 'all')
+          _describe 'period' periods
+          ;;
+      esac
+      ;;
+  esac
+}
+
+_harm_cli_insights() {
+  local -a insights_cmds
+  insights_cmds=(
+    'show:Display productivity dashboard'
+    'export:Export as HTML report'
+    'json:Export as JSON'
+    'daily:Daily summary'
+  )
+
+  _arguments \
+    '(-h --help)'{-h,--help}'[Show help]' \
+    '1: :->subcmd' \
+    '*:: :->args'
+
+  case $state in
+    subcmd)
+      _describe 'insights command' insights_cmds
+      ;;
+    args)
+      case $line[1] in
+        show)
+          local -a periods
+          periods=('today' 'yesterday' 'week' 'month' 'all')
+          _describe 'period' periods
+          ;;
+      esac
+      ;;
+  esac
+}
+
+_harm_cli_focus() {
+  local -a focus_cmds
+  focus_cmds=(
+    'check:Perform focus check'
+    'pomodoro:Start pomodoro timer'
+    'pomodoro-stop:Stop active pomodoro'
+    'pomodoro-status:Show pomodoro status'
+  )
+
+  _arguments \
+    '(-h --help)'{-h,--help}'[Show help]' \
+    '1: :->subcmd'
+
+  case $state in
+    subcmd)
+      _describe 'focus command' focus_cmds
+      ;;
+  esac
+}
+
+_harm_cli_log() {
+  local -a log_cmds
+  log_cmds=(
+    'tail:Show last N log lines'
+    'search:Search logs'
+    'clear:Clear all logs'
+    'stats:Show log statistics'
+    'stream:Real-time log streaming'
+  )
+
+  _arguments \
+    '(-h --help)'{-h,--help}'[Show help]' \
+    '1: :->subcmd' \
+    '*:: :->args'
+
+  case $state in
+    subcmd)
+      _describe 'log command' log_cmds
+      ;;
+  esac
+}
+
+_harm_cli_learn() {
+  local -a learn_topics
+  learn_topics=(
+    'list:List all learning topics'
+    'git:Learn git workflows'
+    'docker:Learn Docker'
+    'python:Learn Python tools'
+    'bash:Learn bash scripting'
+    'productivity:Learn productivity tips'
+    'harm-cli:Learn harm-cli features'
+  )
+
+  _arguments \
+    '(-h --help)'{-h,--help}'[Show help]' \
+    '1: :->topic'
+
+  case $state in
+    topic)
+      _describe 'learning topic' learn_topics
+      ;;
+  esac
+}
+
+_harm_cli_discover() {
+  local -a discover_cmds
+  discover_cmds=(
+    'features:Suggest harm-cli features'
+    'unused:Find unused commands'
+  )
+
+  _arguments \
+    '1: :->subcmd'
+
+  case $state in
+    subcmd)
+      _describe 'discover command' discover_cmds
+      ;;
+  esac
+}
+
+_harm_cli_md() {
+  local -a md_cmds
+  md_cmds=(
+    'render:Render markdown file'
+    'render-pipe:Render from stdin'
+    'tui:Interactive markdown browser'
+    'suggest-tools:Show tool installation status'
+  )
+
+  _arguments \
+    '(-h --help)'{-h,--help}'[Show help]' \
+    '1: :->subcmd' \
+    '*:: :->args'
+
+  case $state in
+    subcmd)
+      _describe 'markdown command' md_cmds
+      ;;
+    args)
+      case $line[1] in
+        render)
+          _files -g '*.md'
+          ;;
+      esac
+      ;;
+  esac
+}
+
+_harm_cli_cleanup() {
+  local -a cleanup_cmds
+  cleanup_cmds=(
+    'scan:Scan for large files'
+    'delete:Delete specified files'
+    'preview:Preview files to delete'
+  )
+
+  _arguments \
+    '(-h --help)'{-h,--help}'[Show help]' \
+    '1: :->subcmd' \
+    '*:: :->args'
+
+  case $state in
+    subcmd)
+      _describe 'cleanup command' cleanup_cmds
+      ;;
+  esac
+}
+
+# Register completion
+_harm_cli "$@"

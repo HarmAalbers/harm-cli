@@ -256,8 +256,17 @@ docker_build_compose_flags() {
   local files_array
   read -ra files_array <<<"$compose_files"
 
-  # Output -f flags (one per line for easy array building)
+  # Validate that all files actually exist before passing to docker
   local file
+  for file in "${files_array[@]}"; do
+    if [[ ! -f "$file" ]]; then
+      log_error "docker" "Compose file not found" "File: $file"
+      error_msg "Compose file not found: $file"
+      return 1
+    fi
+  done
+
+  # Output -f flags (one per line for easy array building)
   for file in "${files_array[@]}"; do
     printf '%s\n' "-f"
     printf '%s\n' "$file"
@@ -370,6 +379,34 @@ docker_up() {
   # Show which files are being used if more than just base
   if ((${#files_array[@]} > 1)); then
     echo "📋 Using compose files: ${files_array[*]}"
+  fi
+
+  # Check if services are already running
+  local running_services
+  running_services=$(docker compose "${compose_flags[@]}" ps --services 2>/dev/null || true)
+
+  if [[ -n "$running_services" ]]; then
+    local requested_services=("$@")
+    if [[ ${#requested_services[@]} -gt 0 ]]; then
+      # Check specific services
+      for service in "${requested_services[@]}"; do
+        if echo "$running_services" | grep -q "^$service$"; then
+          echo "⚠️  Service '$service' is already running"
+          echo "   To restart it, run: harm-cli docker down $service && harm-cli docker up $service"
+          echo "   Or to recreate: docker compose up -d --force-recreate $service"
+        fi
+      done
+    else
+      # Check all services
+      if [[ -n "$running_services" ]]; then
+        echo "ℹ️  Some services are already running:"
+        echo "$running_services" | sed 's/^/   - /'
+        echo ""
+        echo "   To restart all: harm-cli docker down && harm-cli docker up"
+        echo "   To recreate all: docker compose up -d --force-recreate"
+        echo ""
+      fi
+    fi
   fi
 
   # Start services

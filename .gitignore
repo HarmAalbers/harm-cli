@@ -32,6 +32,9 @@ coverage/
 *.coveragerc
 htmlcov/
 
+# Python tooling
+.ruff_cache/
+
 # Temporary files
 tmp/
 temp/

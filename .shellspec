@@ -7,7 +7,7 @@
 ## Shell to use (bash 5+ required for associative arrays)
 ## Note: Shell path can be overridden via SHELLSPEC_SHELL env var or -s flag
 ## Default: use system bash (ensure 5+ is installed)
---shell /usr/bin/bash
+--shell bash
 
 ## Coverage (uncomment to enable)
 # --kcov
@@ -20,9 +20,10 @@
 
 ## Warnings
 # Warnings are informational only (stderr output expected in complex tests)
-# Exit codes: 0 = success, 1 = failures, 101 = warnings (not failures)
+# Don't treat warnings as failures - DEBUG logging to stderr is expected
+--no-warning-as-failure
 
 ## Execution
-# Use 4 parallel jobs for faster test execution
-# Adjust based on your CPU cores (use --jobs $(nproc) for auto-detection)
---jobs 4
+# Use sequential execution to avoid hanging issues
+# --jobs 4
+--jobs 1

@@ -50,9 +50,6 @@ readonly CLEANUP_DEFAULT_MAX_RESULTS=50
 # Default search path
 readonly CLEANUP_DEFAULT_SEARCH_PATH="${HOME}"
 
-# Default exclude patterns
-readonly CLEANUP_DEFAULT_EXCLUDES=".git,node_modules,.Trash,.npm,.cache"
-
 # Find command timeout (seconds)
 readonly CLEANUP_FIND_TIMEOUT=300
 
@@ -114,16 +111,24 @@ _cleanup_get_search_path() {
 # _cleanup_get_excludes: Get configured exclude patterns
 #
 # Returns:
-#   Comma-separated exclude patterns
+#   Comma-separated exclude patterns (empty string if none configured)
 _cleanup_get_excludes() {
   local excludes
-  excludes=$(options_get cleanup_exclude_patterns 2>/dev/null || echo "")
-
-  if [[ -z "$excludes" ]]; then
-    echo "$CLEANUP_DEFAULT_EXCLUDES"
-  else
-    echo "$excludes"
+  if ! excludes=$(options_get cleanup_exclude_patterns 2>&1); then
+    log_warn "cleanup" "Failed to get exclude patterns" "error=$excludes"
+    echo ""
+    return 0
   fi
+
+  # Validate exclude patterns (basic check for dangerous characters)
+  if [[ "$excludes" =~ [';'$'&''|''$''`'] ]]; then
+    log_error "cleanup" "Invalid exclude patterns" "patterns=$excludes"
+    error_msg "Exclude patterns contain unsafe characters"
+    echo ""
+    return 0
+  fi
+
+  echo "$excludes"
 }
 
 # _cleanup_parse_size_to_bytes: Convert human-readable size to bytes
@@ -246,17 +251,22 @@ _cleanup_validate_path() {
 
   # Resolve symlinks and get absolute canonical path
   local resolved_path
+
+  # Check if path exists first (works on all platforms)
+  if [[ ! -e "$path" ]]; then
+    error_msg "Invalid or non-existent path: $path" "$EXIT_NOT_FOUND"
+    return "$EXIT_NOT_FOUND"
+  fi
+
+  # Resolve the canonical path
   if command -v realpath >/dev/null 2>&1; then
-    resolved_path=$(realpath -e "$path" 2>/dev/null) || {
-      error_msg "Invalid or non-existent path: $path" "$EXIT_NOT_FOUND"
+    # macOS realpath doesn't support -e flag, but we already checked existence above
+    resolved_path=$(realpath "$path" 2>/dev/null) || {
+      error_msg "Cannot resolve path: $path" "$EXIT_NOT_FOUND"
       return "$EXIT_NOT_FOUND"
     }
   else
     # Fallback for systems without realpath
-    if [[ ! -e "$path" ]]; then
-      error_msg "Search path does not exist: $path" "$EXIT_NOT_FOUND"
-      return "$EXIT_NOT_FOUND"
-    fi
     resolved_path=$(cd "$path" && pwd -P) || {
       error_msg "Cannot resolve path: $path" "$EXIT_NOT_FOUND"
       return "$EXIT_NOT_FOUND"
@@ -285,9 +295,20 @@ _cleanup_validate_path() {
     # Get canonical path for base directory
     local base_resolved
     if command -v realpath >/dev/null 2>&1; then
-      base_resolved=$(realpath -e "$base" 2>/dev/null) || continue
+      # macOS realpath doesn't support -e flag, check existence first
+      if [[ ! -e "$base" ]]; then
+        log_debug "cleanup" "Base path does not exist" "path=$base"
+        continue
+      fi
+      if ! base_resolved=$(realpath "$base" 2>&1); then
+        log_warn "cleanup" "Failed to resolve base path" "path=$base, error=$base_resolved"
+        continue
+      fi
     else
-      base_resolved=$(cd "$base" 2>/dev/null && pwd -P) || continue
+      if ! base_resolved=$(cd "$base" 2>&1 && pwd -P); then
+        log_warn "cleanup" "Failed to resolve base path" "path=$base"
+        continue
+      fi
     fi
 
     # Check if resolved path is under this base
@@ -361,10 +382,18 @@ _cleanup_find_files() {
   local tmp_file
   tmp_file=$(mktemp)
 
+  # Trap to clean up temp file on interrupt (SIGINT/Ctrl-C)
+  # shellcheck disable=SC2064  # We want $tmp_file expanded at trap definition time
+  # (the file is created right before this trap and won't change)
+  trap "rm -f '$tmp_file'; return 130" INT
+
   log_info "cleanup" "find started" "timeout=${CLEANUP_FIND_TIMEOUT}s, path=$search_path"
 
   local find_exit_code=0
   timeout "$CLEANUP_FIND_TIMEOUT" "${find_cmd[@]}" 2>/dev/null >"$tmp_file" || find_exit_code=$?
+
+  # Remove the trap
+  trap - INT
 
   if ((find_exit_code == 124)); then
     rm -f "$tmp_file"
@@ -510,7 +539,22 @@ EOF
   fi
 
   # Validate path
-  _cleanup_validate_path "$search_path" || return $?
+  local validation_code
+  if ! _cleanup_validate_path "$search_path"; then
+    validation_code=$?
+    # Error message already shown by _cleanup_validate_path
+    # Provide specific hints based on the error type
+    case $validation_code in
+      "$EXIT_NOT_FOUND")
+        echo "Hint: Check that the path exists and is spelled correctly"
+        ;;
+      "$EXIT_PERMISSION")
+        echo "Hint: For security, only user-accessible directories are allowed"
+        echo "      Allowed paths: \$HOME, /tmp, /var/tmp, \$PWD"
+        ;;
+    esac
+    return $validation_code
+  fi
 
   # Log scan operation entry
   log_info "cleanup" "scan started" "path=$search_path, min_size=$(_cleanup_format_size "$min_size"), max=$max_results"
@@ -999,9 +1043,15 @@ cleanup_delete() {
 
     local response
     if ! read -r -t 30 response; then
+      local read_status=$?
       echo ""
-      echo "Timeout - operation cancelled for safety"
-      log_error "cleanup" "delete confirmation timeout" "safety_abort=true"
+      if [[ $read_status -gt 128 ]]; then
+        echo "Timeout - operation cancelled for safety (30 seconds)"
+        log_error "cleanup" "delete confirmation timeout" "safety_abort=true, duration=30s"
+      else
+        echo "Input cancelled or interrupted"
+        log_error "cleanup" "delete confirmation cancelled" "read_status=$read_status"
+      fi
       return "$EXIT_CANCELLED"
     fi
 

@@ -10,7 +10,7 @@ AfterAll 'cleanup_proj_test_env'
 setup_proj_test_env() {
   # Set test configuration
   export HARM_CLI_HOME="$TEST_TMP"
-  export HARM_CLI_LOG_LEVEL="DEBUG"
+  export HARM_LOG_LEVEL=ERROR # Suppress DEBUG/INFO logs during tests
 
   # Create test project directories
   mkdir -p "$TEST_TMP/test-project-1"
@@ -152,10 +152,13 @@ It 'handles non-existent project'
 When call proj_switch "nonexistent"
 The status should not equal 0
 The stderr should include "not found"
+The output should include "Available projects"
 End
 
 It 'shows available projects when not found'
 When call proj_switch "missing"
+The status should not equal 0
+The stderr should include "not found"
 The output should include "Available projects"
 End
 

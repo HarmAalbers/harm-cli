@@ -46,25 +46,40 @@ readonly HARM_HOOKS_DEBUG
 
 # Storage for registered hooks
 # Using arrays to store hook function names
-declare -ga _HARM_CHPWD_HOOKS=()   # Directory change hooks
-declare -ga _HARM_PREEXEC_HOOKS=() # Pre-command execution hooks
-declare -ga _HARM_PRECMD_HOOKS=()  # Pre-prompt hooks
+# For bash 3.x compatibility, we use declare -a without -g flag
+if [[ "${BASH_VERSINFO[0]:-0}" -ge 4 ]] && [[ "${BASH_VERSINFO[1]:-0}" -ge 2 ]]; then
+  # Bash 4.2+ supports -g flag
+  declare -ga _HARM_CHPWD_HOOKS=()   # Directory change hooks
+  declare -ga _HARM_PREEXEC_HOOKS=() # Pre-command execution hooks
+  declare -ga _HARM_PRECMD_HOOKS=()  # Pre-prompt hooks
+else
+  # Bash 3.x and 4.0-4.1 - declare without -g
+  declare -a _HARM_CHPWD_HOOKS=()
+  declare -a _HARM_PREEXEC_HOOKS=()
+  declare -a _HARM_PRECMD_HOOKS=()
+fi
 
 # ═══════════════════════════════════════════════════════════════
 # Hook State Management
 # ═══════════════════════════════════════════════════════════════
 
 # Track last directory for chpwd detection
-declare -g _HARM_LAST_PWD="${PWD}"
-
-# Track if we're in a hook to prevent recursion
-declare -gi _HARM_IN_HOOK=0
-
-# Track last command for preexec (set by DEBUG trap)
-declare -g _HARM_LAST_COMMAND=""
-
-# Flag to skip next DEBUG trap (used internally)
-declare -gi _HARM_SKIP_NEXT_DEBUG=0
+if [[ "${BASH_VERSINFO[0]:-0}" -ge 4 ]] && [[ "${BASH_VERSINFO[1]:-0}" -ge 2 ]]; then
+  declare -g _HARM_LAST_PWD="${PWD}"
+  declare -gi _HARM_IN_HOOK=0
+  declare -g _HARM_LAST_COMMAND=""
+  declare -gi _HARM_SKIP_NEXT_DEBUG=0
+else
+  # For older bash, use export to make global
+  _HARM_LAST_PWD="${PWD}"
+  export _HARM_LAST_PWD
+  _HARM_IN_HOOK=0
+  export _HARM_IN_HOOK
+  _HARM_LAST_COMMAND=""
+  export _HARM_LAST_COMMAND
+  _HARM_SKIP_NEXT_DEBUG=0
+  export _HARM_SKIP_NEXT_DEBUG
+fi
 
 # ═══════════════════════════════════════════════════════════════
 # Utility Functions
@@ -171,17 +186,19 @@ _harm_chpwd_handler() {
   _HARM_IN_HOOK=1
 
   # Execute all registered chpwd hooks
-  local hook
-  for hook in "${_HARM_CHPWD_HOOKS[@]}"; do
-    if type "$hook" >/dev/null 2>&1; then
-      _hooks_debug "Running chpwd hook: $hook"
-      "$hook" "$old_pwd" "$PWD" 2>/dev/null || {
-        log_warn "hooks" "chpwd hook failed: $hook"
-      }
-    else
-      log_warn "hooks" "chpwd hook not found: $hook"
-    fi
-  done
+  if [[ ${#_HARM_CHPWD_HOOKS[@]} -gt 0 ]]; then
+    local hook
+    for hook in "${_HARM_CHPWD_HOOKS[@]}"; do
+      if type "$hook" >/dev/null 2>&1; then
+        _hooks_debug "Running chpwd hook: $hook"
+        "$hook" "$old_pwd" "$PWD" 2>/dev/null || {
+          log_warn "hooks" "chpwd hook failed: $hook"
+        }
+      else
+        log_warn "hooks" "chpwd hook not found: $hook"
+      fi
+    done
+  fi
 
   # Clear recursion guard
   _HARM_IN_HOOK=0
@@ -240,17 +257,19 @@ _harm_preexec_handler() {
   _HARM_IN_HOOK=1
 
   # Execute all registered preexec hooks
-  local hook
-  for hook in "${_HARM_PREEXEC_HOOKS[@]}"; do
-    if type "$hook" >/dev/null 2>&1; then
-      _hooks_debug "Running preexec hook: $hook"
-      "$hook" "$cmd" 2>/dev/null || {
-        log_warn "hooks" "preexec hook failed: $hook"
-      }
-    else
-      log_warn "hooks" "preexec hook not found: $hook"
-    fi
-  done
+  if [[ ${#_HARM_PREEXEC_HOOKS[@]} -gt 0 ]]; then
+    local hook
+    for hook in "${_HARM_PREEXEC_HOOKS[@]}"; do
+      if type "$hook" >/dev/null 2>&1; then
+        _hooks_debug "Running preexec hook: $hook"
+        "$hook" "$cmd" 2>/dev/null || {
+          log_warn "hooks" "preexec hook failed: $hook"
+        }
+      else
+        log_warn "hooks" "preexec hook not found: $hook"
+      fi
+    done
+  fi
 
   # Clear recursion guard
   _HARM_IN_HOOK=0
@@ -291,17 +310,19 @@ _harm_precmd_handler() {
   _HARM_IN_HOOK=1
 
   # Execute all registered precmd hooks
-  local hook
-  for hook in "${_HARM_PRECMD_HOOKS[@]}"; do
-    if type "$hook" >/dev/null 2>&1; then
-      _hooks_debug "Running precmd hook: $hook"
-      "$hook" "$last_exit" "$_HARM_LAST_COMMAND" 2>/dev/null || {
-        log_warn "hooks" "precmd hook failed: $hook"
-      }
-    else
-      log_warn "hooks" "precmd hook not found: $hook"
-    fi
-  done
+  if [[ ${#_HARM_PRECMD_HOOKS[@]} -gt 0 ]]; then
+    local hook
+    for hook in "${_HARM_PRECMD_HOOKS[@]}"; do
+      if type "$hook" >/dev/null 2>&1; then
+        _hooks_debug "Running precmd hook: $hook"
+        "$hook" "$last_exit" "$_HARM_LAST_COMMAND" 2>/dev/null || {
+          log_warn "hooks" "precmd hook failed: $hook"
+        }
+      else
+        log_warn "hooks" "precmd hook not found: $hook"
+      fi
+    done
+  fi
 
   # Clear recursion guard
   _HARM_IN_HOOK=0
@@ -356,39 +377,45 @@ harm_add_hook() {
   case "$hook_type" in
     chpwd)
       # Check if already registered
-      local existing
-      for existing in "${_HARM_CHPWD_HOOKS[@]}"; do
-        if [[ "$existing" == "$hook_fn" ]]; then
-          log_warn "hooks" "Hook already registered: $hook_fn"
-          return 3
-        fi
-      done
+      if [[ ${#_HARM_CHPWD_HOOKS[@]} -gt 0 ]]; then
+        local existing
+        for existing in "${_HARM_CHPWD_HOOKS[@]}"; do
+          if [[ "$existing" == "$hook_fn" ]]; then
+            log_warn "hooks" "Hook already registered: $hook_fn"
+            return 3
+          fi
+        done
+      fi
       _HARM_CHPWD_HOOKS+=("$hook_fn")
       log_debug "hooks" "Registered chpwd hook: $hook_fn"
       ;;
 
     preexec)
       # Check if already registered
-      local existing
-      for existing in "${_HARM_PREEXEC_HOOKS[@]}"; do
-        if [[ "$existing" == "$hook_fn" ]]; then
-          log_warn "hooks" "Hook already registered: $hook_fn"
-          return 3
-        fi
-      done
+      if [[ ${#_HARM_PREEXEC_HOOKS[@]} -gt 0 ]]; then
+        local existing
+        for existing in "${_HARM_PREEXEC_HOOKS[@]}"; do
+          if [[ "$existing" == "$hook_fn" ]]; then
+            log_warn "hooks" "Hook already registered: $hook_fn"
+            return 3
+          fi
+        done
+      fi
       _HARM_PREEXEC_HOOKS+=("$hook_fn")
       log_debug "hooks" "Registered preexec hook: $hook_fn"
       ;;
 
     precmd)
       # Check if already registered
-      local existing
-      for existing in "${_HARM_PRECMD_HOOKS[@]}"; do
-        if [[ "$existing" == "$hook_fn" ]]; then
-          log_warn "hooks" "Hook already registered: $hook_fn"
-          return 3
-        fi
-      done
+      if [[ ${#_HARM_PRECMD_HOOKS[@]} -gt 0 ]]; then
+        local existing
+        for existing in "${_HARM_PRECMD_HOOKS[@]}"; do
+          if [[ "$existing" == "$hook_fn" ]]; then
+            log_warn "hooks" "Hook already registered: $hook_fn"
+            return 3
+          fi
+        done
+      fi
       _HARM_PRECMD_HOOKS+=("$hook_fn")
       log_debug "hooks" "Registered precmd hook: $hook_fn"
       ;;
@@ -427,35 +454,41 @@ harm_remove_hook() {
 
   case "$hook_type" in
     chpwd)
-      for hook in "${_HARM_CHPWD_HOOKS[@]}"; do
-        if [[ "$hook" != "$hook_fn" ]]; then
-          new_hooks+=("$hook")
-        else
-          found=1
-        fi
-      done
+      if [[ ${#_HARM_CHPWD_HOOKS[@]} -gt 0 ]]; then
+        for hook in "${_HARM_CHPWD_HOOKS[@]}"; do
+          if [[ "$hook" != "$hook_fn" ]]; then
+            new_hooks+=("$hook")
+          else
+            found=1
+          fi
+        done
+      fi
       _HARM_CHPWD_HOOKS=("${new_hooks[@]}")
       ;;
 
     preexec)
-      for hook in "${_HARM_PREEXEC_HOOKS[@]}"; do
-        if [[ "$hook" != "$hook_fn" ]]; then
-          new_hooks+=("$hook")
-        else
-          found=1
-        fi
-      done
+      if [[ ${#_HARM_PREEXEC_HOOKS[@]} -gt 0 ]]; then
+        for hook in "${_HARM_PREEXEC_HOOKS[@]}"; do
+          if [[ "$hook" != "$hook_fn" ]]; then
+            new_hooks+=("$hook")
+          else
+            found=1
+          fi
+        done
+      fi
       _HARM_PREEXEC_HOOKS=("${new_hooks[@]}")
       ;;
 
     precmd)
-      for hook in "${_HARM_PRECMD_HOOKS[@]}"; do
-        if [[ "$hook" != "$hook_fn" ]]; then
-          new_hooks+=("$hook")
-        else
-          found=1
-        fi
-      done
+      if [[ ${#_HARM_PRECMD_HOOKS[@]} -gt 0 ]]; then
+        for hook in "${_HARM_PRECMD_HOOKS[@]}"; do
+          if [[ "$hook" != "$hook_fn" ]]; then
+            new_hooks+=("$hook")
+          else
+            found=1
+          fi
+        done
+      fi
       _HARM_PRECMD_HOOKS=("${new_hooks[@]}")
       ;;
 
@@ -497,23 +530,29 @@ harm_list_hooks() {
 
   if [[ "$filter" == "all" || "$filter" == "chpwd" ]]; then
     echo "chpwd hooks (${#_HARM_CHPWD_HOOKS[@]}):"
-    for hook in "${_HARM_CHPWD_HOOKS[@]}"; do
-      echo "  • $hook"
-    done
+    if [[ ${#_HARM_CHPWD_HOOKS[@]} -gt 0 ]]; then
+      for hook in "${_HARM_CHPWD_HOOKS[@]}"; do
+        echo "  • $hook"
+      done
+    fi
   fi
 
   if [[ "$filter" == "all" || "$filter" == "preexec" ]]; then
     echo "preexec hooks (${#_HARM_PREEXEC_HOOKS[@]}):"
-    for hook in "${_HARM_PREEXEC_HOOKS[@]}"; do
-      echo "  • $hook"
-    done
+    if [[ ${#_HARM_PREEXEC_HOOKS[@]} -gt 0 ]]; then
+      for hook in "${_HARM_PREEXEC_HOOKS[@]}"; do
+        echo "  • $hook"
+      done
+    fi
   fi
 
   if [[ "$filter" == "all" || "$filter" == "precmd" ]]; then
     echo "precmd hooks (${#_HARM_PRECMD_HOOKS[@]}):"
-    for hook in "${_HARM_PRECMD_HOOKS[@]}"; do
-      echo "  • $hook"
-    done
+    if [[ ${#_HARM_PRECMD_HOOKS[@]} -gt 0 ]]; then
+      for hook in "${_HARM_PRECMD_HOOKS[@]}"; do
+        echo "  • $hook"
+      done
+    fi
   fi
 }
 

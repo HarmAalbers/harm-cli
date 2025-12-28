@@ -21,15 +21,15 @@ if [[ -n "${_HARM_OPTIONS_LOADED:-}" ]] && declare -p OPTIONS_SCHEMA &>/dev/null
 fi
 
 # Require bash 4.0+ for associative arrays
-if ((BASH_VERSINFO[0] < 4)); then
+if [[ -z "${BASH_VERSINFO:-}" ]] || ((BASH_VERSINFO[0] < 4)); then
   echo "Error: lib/options.sh requires bash 4.0 or higher" >&2
-  echo "Current version: $BASH_VERSION" >&2
+  echo "Current version: ${BASH_VERSION:-unknown}" >&2
   echo "Please install bash 4+ (e.g., via Homebrew: brew install bash)" >&2
   return 1
 fi
 
 # Get script directory for sourcing dependencies
-OPTIONS_SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd -P)"
+OPTIONS_SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]:-$0}")" && pwd -P)"
 readonly OPTIONS_SCRIPT_DIR
 
 # Source dependencies
@@ -122,7 +122,7 @@ declare -gA OPTIONS_SCHEMA=(
   ["cleanup_min_size"]="string:104857600:HARM_CLEANUP_MIN_SIZE:Minimum file size in bytes (or with suffix like 100M, 1G):validate_string"
   ["cleanup_max_results"]="int:50:HARM_CLEANUP_MAX_RESULTS:Maximum number of results to return:validate_positive_int"
   ["cleanup_search_path"]="string:$HOME:HARM_CLEANUP_SEARCH_PATH:Default search path for cleanup scan:validate_path"
-  ["cleanup_exclude_patterns"]="string:.git,node_modules,.Trash,.npm,.cache:HARM_CLEANUP_EXCLUDES:Comma-separated exclude patterns:validate_string"
+  ["cleanup_exclude_patterns"]="string::HARM_CLEANUP_EXCLUDES:Comma-separated exclude patterns:validate_string"
 )
 
 # Dummy path validator (for now)
@@ -153,7 +153,7 @@ options_get_schema() {
   local key="${1:?options_get_schema requires option key}"
 
   if [[ -z "${OPTIONS_SCHEMA[$key]:-}" ]]; then
-    error_msg "Unknown option: $key" 1 >&2
+    error_msg "Unknown option: $key" 1
     return 1
   fi
 
@@ -194,23 +194,30 @@ options_load_config() {
 
   # Check if file is valid bash
   if ! bash -n "$OPTIONS_CONFIG_FILE" 2>/dev/null; then
-    warn_msg "Config file is corrupted: $OPTIONS_CONFIG_FILE" >&2
+    warn_msg "Config file is corrupted: $OPTIONS_CONFIG_FILE"
 
     # Backup corrupted file
     local backup="$OPTIONS_CONFIG_FILE.corrupted"
     mv "$OPTIONS_CONFIG_FILE" "$backup"
-    warn_msg "Backed up to: $backup" >&2
-    warn_msg "Using default values" >&2
+    warn_msg "Backed up to: $backup"
+    warn_msg "Using default values"
 
     return 0
   fi
 
   # Source the config file to load values
   # shellcheck disable=SC1090
-  # Suppress "readonly variable" warnings (benign - variable already set correctly)
-  source "$OPTIONS_CONFIG_FILE" 2>/dev/null || true
-
-  log_debug "options" "Loaded config from $OPTIONS_CONFIG_FILE" ""
+  # Suppress only "readonly variable" warnings (benign - variable already set correctly)
+  # but log other errors
+  local source_output
+  source_output=$(source "$OPTIONS_CONFIG_FILE" 2>&1) || true
+  local source_errors
+  source_errors=$(echo "$source_output" | grep -v "readonly variable" || true)
+  if [[ -n "$source_errors" ]]; then
+    log_warn "options" "Config file has errors" "file=$OPTIONS_CONFIG_FILE, errors=$source_errors"
+  else
+    log_debug "options" "Loaded config from $OPTIONS_CONFIG_FILE" ""
+  fi
   return 0
 }
 
@@ -357,7 +364,7 @@ options_get() {
           env_var=$(_options_schema_field "$key" 2)
           default_value=$(_options_schema_field "$key" 1)
         else
-          error_msg "Unknown option: $key (schema not loaded)" 1 >&2
+          error_msg "Unknown option: $key (schema not loaded)" 1
           return 1
         fi
         ;;
@@ -377,13 +384,25 @@ options_get() {
 
   # Priority 2: Config file (source it if not already loaded)
   if [[ -f "$OPTIONS_CONFIG_FILE" ]]; then
-    # shellcheck disable=SC1090
-    # Suppress "readonly variable" warnings (benign - variable already set correctly)
-    source "$OPTIONS_CONFIG_FILE" 2>/dev/null || true
+    # Validate config is parseable before sourcing
+    if ! bash -n "$OPTIONS_CONFIG_FILE" 2>/dev/null; then
+      log_warn "options" "Corrupted config file in options_get" "file=$OPTIONS_CONFIG_FILE"
+      # Fall through to default
+    else
+      # shellcheck disable=SC1090
+      # Source and filter only readonly warnings
+      local source_output
+      source_output=$(source "$OPTIONS_CONFIG_FILE" 2>&1) || true
+      local source_errors
+      source_errors=$(echo "$source_output" | grep -v "readonly variable" || true)
+      if [[ -n "$source_errors" ]]; then
+        log_warn "options" "Config file errors in options_get" "errors=$source_errors"
+      fi
 
-    if [[ -n "${!env_var:-}" ]]; then
-      echo "${!env_var}"
-      return 0
+      if [[ -n "${!env_var:-}" ]]; then
+        echo "${!env_var}"
+        return 0
+      fi
     fi
   fi
 
@@ -445,31 +464,31 @@ options_validate() {
 
   # Get option type and description
   local option_type description
-  option_type=$(_options_schema_field "$key" 0)
-  description=$(_options_schema_field "$key" 3)
+  option_type=$(_options_schema_field "$key" 0) || return 1
+  description=$(_options_schema_field "$key" 3) || return 1
 
   # Run validator
   if ! "$validator" "$value" 2>/dev/null; then
     case "$option_type" in
       bool)
-        error_msg "Invalid value for $key: $value (must be 0 or 1)" >&2
+        error_msg "Invalid value for $key: $value (must be 0 or 1)"
         ;;
       enum)
         if [[ "$key" == "log_level" ]]; then
-          error_msg "Invalid value for $key: $value (must be DEBUG, INFO, WARN, ERROR)" >&2
+          error_msg "Invalid value for $key: $value (must be DEBUG, INFO, WARN, ERROR)"
         elif [[ "$key" == "format" ]]; then
-          error_msg "Invalid value for $key: $value (must be text or json)" >&2
+          error_msg "Invalid value for $key: $value (must be text or json)"
         elif [[ "$key" == "ai_model" ]]; then
-          error_msg "Invalid value for $key: $value (must be gemini-2.0-flash-exp, gemini-1.5-pro, gemini-1.5-flash, or gemini-1.5-flash-8b)" >&2
+          error_msg "Invalid value for $key: $value (must be gemini-2.0-flash-exp, gemini-1.5-pro, gemini-1.5-flash, or gemini-1.5-flash-8b)"
         else
-          error_msg "Invalid value for $key: $value" >&2
+          error_msg "Invalid value for $key: $value"
         fi
         ;;
       int)
-        error_msg "Invalid value for $key: $value (must be a positive integer)" >&2
+        error_msg "Invalid value for $key: $value (must be a positive integer)"
         ;;
       *)
-        error_msg "Invalid value for $key: $value" >&2
+        error_msg "Invalid value for $key: $value"
         ;;
     esac
     return 1
@@ -504,9 +523,9 @@ options_set() {
   env_var=$(_options_schema_field "$key" 2)
 
   if [[ -n "${!env_var:-}" ]]; then
-    warn_msg "Note: Environment variable $env_var is set and will override this value" >&2
-    warn_msg "Current env value: ${!env_var}" >&2
-    warn_msg "Saving to config anyway..." >&2
+    warn_msg "Note: Environment variable $env_var is set and will override this value"
+    warn_msg "Current env value: ${!env_var}"
+    warn_msg "Saving to config anyway..."
   fi
 
   # Save to config
@@ -541,8 +560,8 @@ options_reset() {
 
   # Warn if env var is set
   if [[ -n "${!env_var:-}" ]]; then
-    warn_msg "Note: Environment variable $env_var is set" >&2
-    warn_msg "The default value will still be overridden by the env var" >&2
+    warn_msg "Note: Environment variable $env_var is set"
+    warn_msg "The default value will still be overridden by the env var"
   fi
 
   # Remove from config file
@@ -695,31 +714,83 @@ _options_prompt_for_value() {
 # Returns:
 #   0 on success
 options_set_interactive() {
-  echo "═══════════════════════════════════════════════════════════════"
-  echo "  Interactive Options Configuration"
+  echo "⚙️  Interactive Options Configuration"
   echo "═══════════════════════════════════════════════════════════════"
   echo ""
-  echo "Current configuration will be shown for each option."
-  echo "Press Enter to keep current value, or enter a new value."
-  echo "Options controlled by environment variables cannot be changed here."
-  echo ""
+
+  # Load interactive library if available
+  local interactive_available=0
+  if [[ -f "$OPTIONS_SCRIPT_DIR/interactive.sh" ]]; then
+    source "$OPTIONS_SCRIPT_DIR/interactive.sh" 2>/dev/null || true
+    if declare -F interactive_choose >/dev/null 2>&1; then
+      interactive_available=1
+    fi
+  fi
 
   # Load current config
   options_load_config
 
   local changed_count=0
 
-  # Iterate through all options
-  while IFS= read -r key; do
-    local new_value
-    new_value=$(_options_prompt_for_value "$key")
+  if [[ $interactive_available -eq 1 ]]; then
+    # Use menu-based interface if interactive.sh is available
+    while true; do
+      echo "Select an option to configure:"
+      echo ""
 
-    if [[ -n "$new_value" ]]; then
-      if options_set "$key" "$new_value"; then
-        changed_count=$((changed_count + 1))
+      # Build options array with current values
+      local -a menu_options=()
+      while IFS= read -r key; do
+        local value description
+        value=$(options_get "$key")
+        description=$(_options_schema_field "$key" 3)
+        menu_options+=("$key = $value  ($description)")
+      done < <(options_list_all)
+      menu_options+=("Save and Exit")
+
+      # Show interactive menu
+      local selection
+      if selection=$(interactive_choose "Options" "${menu_options[@]}"); then
+        if [[ "$selection" == "Save and Exit" ]]; then
+          break
+        fi
+
+        # Extract key from selection
+        local key="${selection%% =*}"
+
+        # Prompt for new value
+        local new_value
+        new_value=$(_options_prompt_for_value "$key")
+
+        if [[ -n "$new_value" ]]; then
+          if options_set "$key" "$new_value"; then
+            changed_count=$((changed_count + 1))
+          fi
+        fi
+      else
+        # User cancelled
+        break
       fi
-    fi
-  done < <(options_list_all)
+    done
+  else
+    # Fallback to sequential prompts
+    echo "Current configuration will be shown for each option."
+    echo "Press Enter to keep current value, or enter a new value."
+    echo "Options controlled by environment variables cannot be changed here."
+    echo ""
+
+    # Iterate through all options
+    while IFS= read -r key; do
+      local new_value
+      new_value=$(_options_prompt_for_value "$key")
+
+      if [[ -n "$new_value" ]]; then
+        if options_set "$key" "$new_value"; then
+          changed_count=$((changed_count + 1))
+        fi
+      fi
+    done < <(options_list_all)
+  fi
 
   echo ""
   echo "═══════════════════════════════════════════════════════════════"

@@ -13,21 +13,166 @@ _harm_cli_completions() {
   prev="${COMP_WORDS[COMP_CWORD - 1]}"
 
   # Top-level commands
-  local commands="version help doctor init work goal ai git proj docker python gcloud health safe"
+  local commands="version help doctor init work break goal activity insights focus log learn discover unused cheat md ai git proj docker cleanup python gcloud health safe"
 
   # Global options
-  local global_opts="--help --version --format --quiet --debug"
+  local global_opts="--help --version --format --quiet --debug --minimal"
 
   # Command-specific completion
   case "${COMP_WORDS[1]}" in
     work)
-      local work_cmds="start stop status"
-      COMPREPLY=($(compgen -W "$work_cmds" -- "$cur"))
+      case "$prev" in
+        work)
+          local work_cmds="start stop status reset stats violations reset-violations set-mode strict"
+          COMPREPLY=($(compgen -W "$work_cmds" -- "$cur"))
+          ;;
+        stats)
+          local periods="today week month all"
+          COMPREPLY=($(compgen -W "$periods" -- "$cur"))
+          ;;
+        set-mode)
+          local modes="strict moderate coaching off"
+          COMPREPLY=($(compgen -W "$modes" -- "$cur"))
+          ;;
+        strict)
+          COMPREPLY=($(compgen -W "on off" -- "$cur"))
+          ;;
+        *)
+          COMPREPLY=()
+          ;;
+      esac
+      return 0
+      ;;
+    break)
+      case "$prev" in
+        break)
+          local break_cmds="start stop status scheduled"
+          COMPREPLY=($(compgen -W "$break_cmds" -- "$cur"))
+          ;;
+        scheduled)
+          local scheduled_cmds="start stop status"
+          COMPREPLY=($(compgen -W "$scheduled_cmds" -- "$cur"))
+          ;;
+        *)
+          COMPREPLY=()
+          ;;
+      esac
       return 0
       ;;
     goal)
-      local goal_cmds="set show progress complete clear validate"
-      COMPREPLY=($(compgen -W "$goal_cmds" -- "$cur"))
+      case "$prev" in
+        goal)
+          local goal_cmds="set show progress complete reopen clear ai-analyze ai-plan ai-next ai-check ai-context link-github sync-github"
+          COMPREPLY=($(compgen -W "$goal_cmds" -- "$cur"))
+          ;;
+        *)
+          COMPREPLY=()
+          ;;
+      esac
+      return 0
+      ;;
+    activity)
+      case "$prev" in
+        activity)
+          local activity_cmds="query stats clear cleanup help"
+          COMPREPLY=($(compgen -W "$activity_cmds" -- "$cur"))
+          ;;
+        query | stats)
+          local periods="today yesterday week month all"
+          COMPREPLY=($(compgen -W "$periods" -- "$cur"))
+          ;;
+        *)
+          COMPREPLY=()
+          ;;
+      esac
+      return 0
+      ;;
+    insights)
+      case "$prev" in
+        insights)
+          local insights_cmds="show export json daily"
+          COMPREPLY=($(compgen -W "$insights_cmds" -- "$cur"))
+          ;;
+        show)
+          local periods="today yesterday week month all"
+          COMPREPLY=($(compgen -W "$periods" -- "$cur"))
+          ;;
+        *)
+          COMPREPLY=()
+          ;;
+      esac
+      return 0
+      ;;
+    focus)
+      local focus_cmds="check pomodoro pomodoro-stop pomodoro-status"
+      COMPREPLY=($(compgen -W "$focus_cmds" -- "$cur"))
+      return 0
+      ;;
+    log)
+      case "$prev" in
+        log)
+          local log_cmds="tail search clear stats stream"
+          COMPREPLY=($(compgen -W "$log_cmds" -- "$cur"))
+          ;;
+        *)
+          COMPREPLY=()
+          ;;
+      esac
+      return 0
+      ;;
+    learn)
+      case "$prev" in
+        learn)
+          local learn_cmds="list git docker python bash productivity harm-cli"
+          COMPREPLY=($(compgen -W "$learn_cmds" -- "$cur"))
+          ;;
+        *)
+          COMPREPLY=()
+          ;;
+      esac
+      return 0
+      ;;
+    discover)
+      local discover_cmds="features unused"
+      COMPREPLY=($(compgen -W "$discover_cmds" -- "$cur"))
+      return 0
+      ;;
+    unused)
+      # No subcommands, just runs
+      COMPREPLY=()
+      return 0
+      ;;
+    cheat)
+      # Cheat takes a query string, no completion
+      COMPREPLY=()
+      return 0
+      ;;
+    md)
+      case "$prev" in
+        md)
+          local md_cmds="render render-pipe tui suggest-tools"
+          COMPREPLY=($(compgen -W "$md_cmds" -- "$cur"))
+          ;;
+        render)
+          # Complete markdown files
+          COMPREPLY=($(compgen -f -X '!*.md' -- "$cur"))
+          ;;
+        *)
+          COMPREPLY=()
+          ;;
+      esac
+      return 0
+      ;;
+    cleanup)
+      case "$prev" in
+        cleanup)
+          local cleanup_cmds="scan delete preview"
+          COMPREPLY=($(compgen -W "$cleanup_cmds" -- "$cur"))
+          ;;
+        *)
+          COMPREPLY=()
+          ;;
+      esac
       return 0
       ;;
     ai)

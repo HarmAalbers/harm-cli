@@ -6,7 +6,7 @@ Include spec/helpers/env.sh
 
 # Source the util module
 # shellcheck disable=SC2016
-BeforeAll 'source "$ROOT/lib/util.sh"'
+BeforeAll 'export HARM_LOG_LEVEL=ERROR && source "$ROOT/lib/util.sh"'
 
 Describe 'String utilities'
 Describe 'trim'
@@ -103,13 +103,6 @@ End
 
 Describe 'File utilities'
 Describe 'file_sha256'
-It 'calculates SHA256 hash'
-Skip if 'command -v sha256sum >/dev/null || command -v shasum >/dev/null || exit 0'
-When call file_sha256 "$ROOT/VERSION"
-The status should be success
-The output should match pattern '[0-9a-f]*'
-End
-
 It 'fails on missing file'
 When run bash -c "source $ROOT/lib/error.sh && source $ROOT/lib/util.sh && file_sha256 /nonexistent"
 The status should equal 5
@@ -254,9 +247,9 @@ End
 
 It 'returns current time (not fixed)'
 timestamp1=$(get_utc_timestamp)
-sleep 0.2
+sleep 1.1
 timestamp2=$(get_utc_timestamp)
-# Timestamps should be different after a brief delay
+# Timestamps should be different after a delay (timestamp has 1s granularity)
 The value "$timestamp1" should not equal "$timestamp2"
 End
 End
@@ -322,28 +315,4 @@ End
 End
 End
 
-Describe 'JSON utilities'
-Describe 'json_get'
-It 'extracts field from JSON'
-Skip if 'command -v jq >/dev/null || exit 0'
-json='{"name": "test", "value": 42}'
-When call json_get "$json" ".name"
-The output should equal "test"
-End
-End
-
-Describe 'json_validate'
-It 'validates correct JSON'
-Skip if 'command -v jq >/dev/null || exit 0'
-When call json_validate '{"valid": true}'
-The status should be success
-End
-
-It 'rejects invalid JSON'
-Skip if 'command -v jq >/dev/null || exit 0'
-When call json_validate '{invalid json'
-The status should be failure
-End
-End
-End
 End

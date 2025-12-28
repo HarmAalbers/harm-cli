@@ -1703,13 +1703,13 @@ main() {
       21) run_options_tests || continue ;;
       a | A)
         echo "Running all tests..."
-        run_core_tests && run_work_tests && run_goal_tests && \
-        run_ai_tests && run_git_tests && run_proj_tests && \
-        run_docker_tests && run_python_tests && run_gcloud_tests && \
-        run_health_tests && run_safety_tests && run_markdown_tests && \
-        run_log_tests && run_just_tests && run_break_tests && \
-        run_activity_tests && run_insights_tests && run_focus_tests && \
-        run_learning_tests && run_github_tests && run_options_tests
+        run_core_tests && run_work_tests && run_goal_tests \
+          && run_ai_tests && run_git_tests && run_proj_tests \
+          && run_docker_tests && run_python_tests && run_gcloud_tests \
+          && run_health_tests && run_safety_tests && run_markdown_tests \
+          && run_log_tests && run_just_tests && run_break_tests \
+          && run_activity_tests && run_insights_tests && run_focus_tests \
+          && run_learning_tests && run_github_tests && run_options_tests
         ;;
       r | R) view_results ;;
       q | Q)

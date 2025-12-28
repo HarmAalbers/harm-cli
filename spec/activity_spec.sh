@@ -5,37 +5,39 @@
 Describe 'lib/activity.sh'
 Include spec/helpers/env.sh
 
-# Setup for each test block
-BeforeAll 'setup_activity_env'
-AfterAll 'cleanup_activity_env'
+# Set up test environment variables BEFORE including the module
+# These will become readonly after the module loads
+export HARM_CLI_HOME="${SHELLSPEC_TMPBASE}/harm-cli"
+export HARM_ACTIVITY_DIR="${HARM_CLI_HOME}/activity"
+export HARM_ACTIVITY_LOG="${HARM_ACTIVITY_DIR}/activity.jsonl"
+export HARM_ACTIVITY_ENABLED=1
+export HARM_ACTIVITY_MIN_DURATION_MS=0 # Log everything for testing
+export HARM_ACTIVITY_EXCLUDE="ls cd pwd"
+export HARM_LOG_LEVEL=ERROR # Suppress DEBUG/INFO logs during tests
 
-setup_activity_env() {
-  export HARM_CLI_HOME="${SHELLSPEC_TMPBASE}/harm-cli"
-  export HARM_ACTIVITY_DIR="${HARM_CLI_HOME}/activity"
-  export HARM_ACTIVITY_LOG="${HARM_ACTIVITY_DIR}/activity.jsonl"
-  export HARM_ACTIVITY_ENABLED=1
-  export HARM_ACTIVITY_MIN_DURATION_MS=0 # Log everything for testing
-  export HARM_ACTIVITY_EXCLUDE="ls cd pwd"
+# Create necessary directories
+mkdir -p "$HARM_ACTIVITY_DIR"
 
-  mkdir -p "$HARM_ACTIVITY_DIR"
-}
-
+# Helper functions for test cleanup
 cleanup_activity_env() {
   rm -rf "$HARM_CLI_HOME"
 }
+
+# Clean up after all tests
+AfterAll 'cleanup_activity_env'
 
 # ═══════════════════════════════════════════════════════════════
 # Module Loading
 # ═══════════════════════════════════════════════════════════════
 
 Describe 'Module loading'
-It 'loads without errors'
-When call source lib/activity.sh
-The status should be success
-End
-
 Include lib/hooks.sh
 Include lib/activity.sh
+
+It 'loads without errors'
+# Module is already loaded via Include above
+The variable _HARM_ACTIVITY_LOADED should equal 1
+End
 
 It 'sets _HARM_ACTIVITY_LOADED flag'
 The variable _HARM_ACTIVITY_LOADED should equal 1
@@ -273,8 +275,8 @@ It 'handles missing log file gracefully'
 rm -f "$HARM_ACTIVITY_LOG"
 
 When call activity_query today
-The status should not be success
-The stderr should include "No activity log found"
+The status should equal 0                     # Function creates the file and returns success
+The file "$HARM_ACTIVITY_LOG" should be exist # File is created automatically
 End
 
 It 'supports all period'
@@ -408,7 +410,8 @@ It 'handles missing log file gracefully'
 rm -f "$HARM_ACTIVITY_LOG"
 
 When call activity_cleanup
-The status should be success
+The status should equal 0
+The output should include "No activity log file found"
 End
 End
 
@@ -513,6 +516,7 @@ _activity_precmd_hook 0 "echo test"
 
 When run jq -e '.' "$HARM_ACTIVITY_LOG"
 The status should be success
+The stdout should not be blank
 End
 
 It 'logs project switches'

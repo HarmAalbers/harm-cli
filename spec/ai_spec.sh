@@ -12,10 +12,13 @@ AfterAll 'cleanup_ai_test_env'
 setup_ai_test_env() {
   # Set test configuration
   export HARM_CLI_HOME="$TEST_TMP"
-  export HARM_CLI_LOG_LEVEL="DEBUG" # Enable debug logging for tests
+  export HARM_LOG_LEVEL=ERROR # Suppress DEBUG/INFO logs during tests
   export HARM_CLI_AI_CACHE_TTL=3600
   export HARM_CLI_AI_TIMEOUT=20
   export GEMINI_API_KEY="test_key_1234567890abcdef1234567890abcdef"
+
+  # Prevent git from looking in parent directories
+  export GIT_CEILING_DIRECTORIES="$TEST_TMP"
 
   # Create mock curl that returns valid Gemini responses
   mkdir -p "$TEST_TMP/bin"
@@ -56,7 +59,23 @@ exit 0
 EOF
   chmod +x "$TEST_TMP/bin/curl"
 
-  # Put mock curl first in PATH
+  # Create mock security command (prevents keychain access in tests)
+  cat >"$TEST_TMP/bin/security" <<'EOF'
+#!/usr/bin/env bash
+# Mock security for tests - prevents real keychain access
+exit 1
+EOF
+  chmod +x "$TEST_TMP/bin/security"
+
+  # Create mock secret-tool command (prevents secret storage access in tests)
+  cat >"$TEST_TMP/bin/secret-tool" <<'EOF'
+#!/usr/bin/env bash
+# Mock secret-tool for tests - prevents real secret storage access
+exit 1
+EOF
+  chmod +x "$TEST_TMP/bin/secret-tool"
+
+  # Put mock binaries first in PATH
   export PATH="$TEST_TMP/bin:$PATH"
 
   # Source the AI module

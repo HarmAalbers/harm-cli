@@ -581,38 +581,58 @@ _ai_make_request() {
   log_debug "ai" "Sending request" "Timeout: ${AI_TIMEOUT}s"
 
   # Show progress feedback
+  local curl_status
+  local response_file
+  response_file=$(mktemp)
+
   if command -v gum >/dev/null 2>&1 && [[ -t 1 ]]; then
     # Use gum spinner for beautiful progress
-    response=$(gum spin --spinner dot --title "Thinking..." -- \
+    set +e # Temporarily disable errexit
+    gum spin --spinner dot --title "Thinking..." -- \
       curl -s -w "\n%{http_code}" \
       -m "$AI_TIMEOUT" \
       -H "Content-Type: application/json" \
       -H "x-goog-api-key: $api_key" \
       -d "$request_body" \
-      "$api_url" 2>&1 | _ai_sanitize_secrets)
+      "$api_url" >"$response_file" 2>&1
+    curl_status=$?
+    set -e # Re-enable errexit
+    response=$(cat "$response_file")
+    rm -f "$response_file"
+    # Sanitize response after capturing exit code
+    response=$(echo "$response" | _ai_sanitize_secrets)
   else
     # Fallback: simple text spinner
     if [[ -t 1 ]]; then
       printf "🤖 Thinking... "
     fi
 
-    response=$(curl -s -w "\n%{http_code}" \
+    # Write to file to capture exit code reliably
+    set +e # Temporarily disable errexit
+    curl -s -w "\n%{http_code}" \
       -m "$AI_TIMEOUT" \
       -H "Content-Type: application/json" \
       -H "x-goog-api-key: $api_key" \
       -d "$request_body" \
-      "$api_url" 2>&1 | _ai_sanitize_secrets)
+      "$api_url" >"$response_file" 2>&1
+    curl_status=$?
+    set -e # Re-enable errexit
+    response=$(cat "$response_file")
+    rm -f "$response_file"
+    # Sanitize response after capturing exit code
+    response=$(echo "$response" | _ai_sanitize_secrets)
 
     if [[ -t 1 ]]; then
       printf "\r✓ Response received\n"
     fi
   fi
 
-  local curl_status=$?
-
   # Extract HTTP code from last line
   http_code=$(echo "$response" | tail -n1)
   response=$(echo "$response" | sed '$d')
+
+  # Debug: log curl status
+  log_debug "ai" "curl exit status captured" "Status: $curl_status"
 
   # Check for curl errors (network, timeout, etc.)
   if [[ $curl_status -ne 0 ]]; then
@@ -881,12 +901,12 @@ ai_query() {
   start_time=$(get_utc_epoch)
 
   local response
-  if ! response=$(_ai_make_request "$api_key" "$query" "$context"); then
+  response=$(_ai_make_request "$api_key" "$query" "$context") || {
     local exit_code=$?
     log_error "ai" "API request failed"
     _ai_fallback
     return "$exit_code"
-  fi
+  }
 
   # Calculate duration in milliseconds
   local end_time duration_ms
@@ -1007,20 +1027,32 @@ ai_review() {
 
   log_info "ai" "Starting code review" "Type: $([ $use_staged -eq 1 ] && echo 'staged' || echo 'unstaged')"
 
+  # Check API key first before doing any work
+  local api_key
+  api_key=$(ai_get_api_key 2>/dev/null) || {
+    error_msg "No Gemini API key configured. Run: harm-cli ai --setup"
+    log_error "ai" "Code review failed" "No API key configured"
+    return "$EXIT_AI_NO_KEY"
+  }
+  log_debug "ai" "API key validated"
+
   # Check if in git repository
   if ! git rev-parse --git-dir >/dev/null 2>&1; then
     error_msg "Not in a git repository"
     log_error "ai" "Code review failed" "Not in git repository"
     return "$EXIT_INVALID_STATE"
   fi
+  log_debug "ai" "Git repository confirmed"
 
   # Get diff
   local diff
+  log_debug "ai" "Getting git diff" "Type: $([ $use_staged -eq 1 ] && echo 'staged' || echo 'unstaged')"
   if [[ $use_staged -eq 1 ]]; then
     diff=$(git diff --cached 2>/dev/null)
   else
     diff=$(git diff 2>/dev/null)
   fi
+  log_debug "ai" "Git diff retrieved"
 
   # Check if empty
   if [[ -z "$diff" ]]; then
@@ -1068,20 +1100,33 @@ ai_review() {
   # Build full query (use printf for proper newline handling)
   local full_query
   full_query=$(printf "%b\n\n%b" "$context" "$prompt")
+  log_debug "ai" "Query built" "Length: ${#full_query} chars"
 
   # Query AI (always bypass cache for reviews)
   local response
-  if ! response=$(_ai_make_request "$(ai_get_api_key)" "$full_query" ""); then
+  if ! response=$(_ai_make_request "$api_key" "$full_query" ""); then
     local exit_code=$?
     log_error "ai" "Code review failed" "API request error"
     return "$exit_code"
   fi
+  log_debug "ai" "API response received"
 
   # Parse and display
   local review_text
   if review_text=$(_ai_parse_response "$response"); then
     echo ""
-    echo "$review_text"
+    # Render markdown if terminal and tools available
+    if [[ -t 1 ]]; then
+      if command -v glow >/dev/null 2>&1; then
+        echo "$review_text" | glow -
+      elif command -v bat >/dev/null 2>&1; then
+        echo "$review_text" | bat --language=markdown --style=plain --paging=never -
+      else
+        echo "$review_text"
+      fi
+    else
+      echo "$review_text"
+    fi
     echo ""
     log_info "ai" "Code review completed" "Lines reviewed: $line_count"
     return 0
@@ -1200,7 +1245,18 @@ ai_explain_error() {
   # Parse and display
   local explanation
   if explanation=$(_ai_parse_response "$response"); then
-    echo "$explanation"
+    # Render markdown if terminal and tools available
+    if [[ -t 1 ]]; then
+      if command -v glow >/dev/null 2>&1; then
+        echo "$explanation" | glow -
+      elif command -v bat >/dev/null 2>&1; then
+        echo "$explanation" | bat --language=markdown --style=plain --paging=never -
+      else
+        echo "$explanation"
+      fi
+    else
+      echo "$explanation"
+    fi
     echo ""
     log_info "ai" "Error explanation completed"
     return 0
@@ -1309,8 +1365,16 @@ ai_daily() {
     fi
 
     local work_summary
-    work_summary=$(grep "\"started_at\":\"$cutoff_date" "$work_archive" 2>/dev/null \
-      | jq -r '.goal + " (" + (.duration_seconds/60|floor|tostring) + "m)"' 2>/dev/null || echo "")
+    # For week period, get all sessions from the past week
+    if [[ $period_days -gt 1 ]]; then
+      work_summary=$(jq -r --arg cutoff "$cutoff_date" \
+        'select(.started_at >= $cutoff) | .goal + " (" + (.duration_seconds/60|floor|tostring) + "m)"' \
+        "$work_archive" 2>/dev/null || echo "")
+    else
+      # For today/yesterday, match exact date
+      work_summary=$(grep "\"started_at\":\"$cutoff_date" "$work_archive" 2>/dev/null \
+        | jq -r '.goal + " (" + (.duration_seconds/60|floor|tostring) + "m)"' 2>/dev/null || echo "")
+    fi
 
     if [[ -n "$work_summary" ]]; then
       context+="Work sessions:\n$work_summary\n\n"
@@ -1401,7 +1465,20 @@ ai_daily() {
   # Parse and display
   local insights
   if insights=$(_ai_parse_response "$response"); then
-    echo "$insights"
+    # Render markdown if terminal and tools available
+    if [[ -t 1 ]]; then
+      # Try to render with glow, then bat, otherwise plain text
+      if command -v glow >/dev/null 2>&1; then
+        echo "$insights" | glow -
+      elif command -v bat >/dev/null 2>&1; then
+        echo "$insights" | bat --language=markdown --style=plain --paging=never -
+      else
+        echo "$insights"
+      fi
+    else
+      # Not a terminal (being piped), output raw markdown
+      echo "$insights"
+    fi
     echo ""
     log_info "ai" "Daily insights completed" "Period: $period"
     return 0

@@ -6,7 +6,7 @@
 Describe 'lib/docker.sh - docker_cleanup'
 Include spec/helpers/env.sh
 
-BeforeAll 'source "$ROOT/lib/docker.sh"'
+BeforeAll 'export HARM_LOG_LEVEL=ERROR && source "$ROOT/lib/docker.sh"'
 
 # ═══════════════════════════════════════════════════════════════
 # Test Setup - Mock Docker Commands
@@ -165,16 +165,22 @@ BeforeEach setup_docker_mock_not_running
 It 'exits with EXIT_INVALID_STATE'
 When call docker_cleanup
 The status should equal "$EXIT_INVALID_STATE"
+The output should include "Start Docker Desktop"
+The error should include "Docker daemon is not running"
 End
 
 It 'prints error message to stderr'
 When call docker_cleanup
+The status should equal "$EXIT_INVALID_STATE"
 The error should include "Docker daemon is not running"
+The output should include "Start Docker Desktop"
 End
 
 It 'provides helpful suggestion'
 When call docker_cleanup
+The status should equal "$EXIT_INVALID_STATE"
 The output should include "Start Docker Desktop"
+The error should include "Docker daemon is not running"
 End
 End
 
@@ -184,6 +190,8 @@ BeforeEach setup_docker_mock_running
 It 'returns success exit code'
 When call docker_cleanup
 The status should equal 0
+The output should include "Docker Cleanup"
+The output should include "Cleanup complete"
 End
 
 It 'proceeds with cleanup'
@@ -309,6 +317,8 @@ BeforeEach setup_docker_mock_no_resources
 It 'completes successfully'
 When call docker_cleanup
 The status should equal 0
+The output should include "Docker Cleanup"
+The output should include "Cleanup complete"
 End
 
 It 'shows appropriate messages for empty results'
@@ -324,6 +334,8 @@ BeforeEach setup_docker_mock_df_fails
 It 'continues cleanup despite df failure'
 When call docker_cleanup
 The status should equal 0
+The output should include "Docker Cleanup"
+The output should include "Cleanup complete"
 End
 
 It 'shows warning about df failure'

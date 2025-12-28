@@ -27,9 +27,14 @@ source "$FOCUS_SCRIPT_DIR/logging.sh"
 # shellcheck source=lib/work.sh
 source "$FOCUS_SCRIPT_DIR/work.sh"
 # shellcheck source=lib/activity.sh
-source "$FOCUS_SCRIPT_DIR/activity.sh"
+# Skip loading activity.sh for performance - focus score has its own optimized activity check
+# source "$FOCUS_SCRIPT_DIR/activity.sh"
+
+# Define HARM_ACTIVITY_LOG if not already defined (needed for focus score)
+HARM_ACTIVITY_LOG="${HARM_ACTIVITY_LOG:-${HOME}/.harm-cli/activity/activity.jsonl}"
 # shellcheck source=lib/ai.sh
-source "$FOCUS_SCRIPT_DIR/ai.sh" 2>/dev/null || true
+# Skip AI module for focus score to improve performance
+# source "$FOCUS_SCRIPT_DIR/ai.sh" 2>/dev/null || true
 
 # Mark as loaded
 readonly _HARM_FOCUS_LOADED=1
@@ -95,39 +100,60 @@ focus_calculate_score() {
   # Check if work session active
   if work_is_active; then
     score=$((score + 2)) # Active session = +2
+
+    # Get violations
+    local violations
+    violations=$(work_get_violations 2>/dev/null || echo "0")
+
+    # Penalty for violations
+    if [[ $violations -eq 0 ]]; then
+      score=$((score + 2)) # No violations = +2
+    elif [[ $violations -lt 3 ]]; then
+      score=$((score - 1)) # Few violations = -1
+    else
+      score=$((score - 3)) # Many violations = -3
+    fi
+
+    # Check recent activity more efficiently
+    # Only check if activity log exists and is not empty
+    if [[ -f "$HARM_ACTIVITY_LOG" ]] && [[ -s "$HARM_ACTIVITY_LOG" ]]; then
+      # Use tail to get last 50 lines for efficiency, then filter by time
+      local recent_commands
+      local fifteen_min_ago
+      fifteen_min_ago=$(date -u -d '15 minutes ago' '+%Y-%m-%dT%H:%M' 2>/dev/null || date -u -v-15M '+%Y-%m-%dT%H:%M')
+
+      # More efficient: tail first, then filter
+      recent_commands=$(tail -50 "$HARM_ACTIVITY_LOG" 2>/dev/null | grep -c "\"timestamp\":\"$fifteen_min_ago" || echo "0")
+
+      if [[ $recent_commands -gt 10 ]]; then
+        score=$((score + 1)) # Active = +1
+      fi
+    fi
+
+    # Bounds check
+    [[ $score -lt 1 ]] && score=1
+    [[ $score -gt 10 ]] && score=10
+
+    log_debug "focus" "Focus score calculated" "Score: $score, Violations: $violations"
   else
-    log_debug "focus" "No active work session, returning neutral score" "Score: $score"
-    echo "$score"
-    return 0
+    log_debug "focus" "No active work session" "Score: $score"
   fi
 
-  # Get violations
-  local violations
-  violations=$(work_get_violations 2>/dev/null || echo "0")
+  # Always provide user-friendly output
+  echo "Focus Score: $score/10"
 
-  # Penalty for violations
-  if [[ $violations -eq 0 ]]; then
-    score=$((score + 2)) # No violations = +2
-  elif [[ $violations -lt 3 ]]; then
-    score=$((score - 1)) # Few violations = -1
+  # Provide context based on score
+  if [[ $score -ge 8 ]]; then
+    echo "Status: Excellent focus! Keep it up! 🎯"
+  elif [[ $score -ge 6 ]]; then
+    echo "Status: Good focus, staying on track 👍"
+  elif [[ $score -ge 4 ]]; then
+    echo "Status: Moderate focus, room for improvement 📊"
   else
-    score=$((score - 3)) # Many violations = -3
+    echo "Status: Low focus, consider starting a work session 💡"
   fi
 
-  # Check recent activity (last 15 minutes)
-  local recent_commands
-  recent_commands=$(activity_query today 2>/dev/null | tail -20 | wc -l | tr -d ' ')
-
-  if [[ $recent_commands -gt 10 ]]; then
-    score=$((score + 1)) # Active = +1
-  fi
-
-  # Bounds check
-  [[ $score -lt 1 ]] && score=1
-  [[ $score -gt 10 ]] && score=10
-
-  log_debug "focus" "Focus score calculated" "Score: $score, Violations: $violations"
-  echo "$score"
+  return 0
 }
 
 # ═══════════════════════════════════════════════════════════════
@@ -294,6 +320,11 @@ pomodoro_start() {
   echo "🍅 Pomodoro started: ${duration} minutes"
   echo "   Focus time! Will alert you when done."
   echo ""
+
+  # Skip background process in test mode
+  if [[ "${HARM_TEST_MODE:-0}" == "1" ]]; then
+    return 0
+  fi
 
   # Schedule notification (background)
   (

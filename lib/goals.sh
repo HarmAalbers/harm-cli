@@ -765,6 +765,9 @@ goal_get_active() {
 goal_validate_command_async() {
   local cmd="$1"
 
+  # Skip in test mode (prevents background processes in tests)
+  [[ "${HARM_TEST_MODE:-0}" == "1" ]] && return 0
+
   # Skip if validation disabled
   [[ $HARM_GOAL_VALIDATION_ENABLED -eq 1 ]] || return 0
 
