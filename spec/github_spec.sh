@@ -26,6 +26,7 @@ The variable GITHUB_CACHE_TTL should be defined
 End
 
 It 'creates cache directory on load'
+# shellcheck disable=SC2031  # Variable from parent scope, not subshell modification
 The path "$GITHUB_CACHE_DIR" should be directory
 End
 End
@@ -33,6 +34,7 @@ End
 Describe 'github_check_gh_installed'
 AfterEach 'cleanup_github_mocks'
 
+# shellcheck disable=SC2317  # Function called indirectly by ShellSpec AfterEach
 cleanup_github_mocks() {
   unset -f command gh 2>/dev/null || true
 }
@@ -41,6 +43,7 @@ Context 'when gh CLI is installed'
 BeforeEach 'mock_gh_installed'
 
 mock_gh_installed() {
+  # shellcheck disable=SC2317  # Mock function called indirectly by ShellSpec
   command() {
     if [[ "$2" == "gh" ]]; then
       return 0
@@ -59,6 +62,7 @@ Context 'when gh CLI is not installed'
 BeforeEach 'mock_gh_not_installed'
 
 mock_gh_not_installed() {
+  # shellcheck disable=SC2317  # Mock function called indirectly by ShellSpec
   command() {
     if [[ "$2" == "gh" ]]; then
       return 1
@@ -90,6 +94,7 @@ End
 Describe 'github_check_auth'
 AfterEach 'cleanup_github_mocks'
 
+# shellcheck disable=SC2317  # Function called indirectly by ShellSpec AfterEach
 cleanup_github_mocks() {
   unset -f command gh 2>/dev/null || true
 }
@@ -98,6 +103,7 @@ Context 'when gh is not installed'
 BeforeEach 'mock_gh_not_installed'
 
 mock_gh_not_installed() {
+  # shellcheck disable=SC2317  # Mock function called indirectly by ShellSpec
   command() {
     if [[ "$2" == "gh" ]]; then
       return 1
@@ -117,6 +123,7 @@ Context 'when gh is installed but not authenticated'
 BeforeEach 'mock_gh_not_authenticated'
 
 mock_gh_not_authenticated() {
+  # shellcheck disable=SC2317  # Mock functions called indirectly by ShellSpec
   command() {
     if [[ "$2" == "gh" ]]; then
       return 0
@@ -124,6 +131,7 @@ mock_gh_not_authenticated() {
     builtin command "$@"
   }
 
+  # shellcheck disable=SC2317  # Mock functions called indirectly by ShellSpec
   gh() {
     if [[ "$1" == "auth" ]] && [[ "$2" == "status" ]]; then
       echo "You are not logged into any GitHub hosts" >&2
@@ -156,6 +164,7 @@ Context 'when authenticated'
 BeforeEach 'mock_gh_authenticated'
 
 mock_gh_authenticated() {
+  # shellcheck disable=SC2317  # Mock functions called indirectly by ShellSpec
   command() {
     if [[ "$2" == "gh" ]]; then
       return 0
@@ -163,6 +172,7 @@ mock_gh_authenticated() {
     builtin command "$@"
   }
 
+  # shellcheck disable=SC2317  # Mock functions called indirectly by ShellSpec
   gh() {
     if [[ "$1" == "auth" ]] && [[ "$2" == "status" ]]; then
       echo "Logged in to github.com as test-user"
@@ -234,6 +244,7 @@ End
 Describe 'github_get_repo_info'
 AfterEach 'cleanup_github_mocks'
 
+# shellcheck disable=SC2317  # Function called indirectly by ShellSpec AfterEach
 cleanup_github_mocks() {
   unset -f github_check_auth github_in_repo gh 2>/dev/null || true
 }
@@ -242,6 +253,7 @@ Context 'when not authenticated'
 BeforeEach 'mock_not_authenticated'
 
 mock_not_authenticated() {
+  # shellcheck disable=SC2317  # Mock function called indirectly by ShellSpec
   github_check_auth() { return 1; }
 }
 
@@ -255,7 +267,9 @@ Context 'when not in GitHub repo'
 BeforeEach 'mock_not_in_repo'
 
 mock_not_in_repo() {
+  # shellcheck disable=SC2317  # Mock functions called indirectly by ShellSpec
   github_check_auth() { return 0; }
+  # shellcheck disable=SC2317  # Mock functions called indirectly by ShellSpec
   github_in_repo() { return 1; }
 }
 
@@ -276,9 +290,12 @@ Context 'when in GitHub repo and authenticated'
 BeforeEach 'mock_repo_info'
 
 mock_repo_info() {
+  # shellcheck disable=SC2317  # Mock functions called indirectly by ShellSpec
   github_check_auth() { return 0; }
+  # shellcheck disable=SC2317  # Mock functions called indirectly by ShellSpec
   github_in_repo() { return 0; }
 
+  # shellcheck disable=SC2317  # Mock functions called indirectly by ShellSpec
   gh() {
     if [[ "$1" == "repo" ]] && [[ "$2" == "view" ]] && [[ "$3" == "--json" ]]; then
       echo '{"owner":"test-owner","name":"test-repo"}'
@@ -312,6 +329,7 @@ End
 Describe 'github_get_current_branch_info'
 AfterEach 'cleanup_github_mocks'
 
+# shellcheck disable=SC2317  # Function called indirectly by ShellSpec AfterEach
 cleanup_github_mocks() {
   unset -f github_check_auth github_in_repo git gh 2>/dev/null || true
 }
@@ -320,6 +338,7 @@ Context 'when not authenticated'
 BeforeEach 'mock_not_authenticated'
 
 mock_not_authenticated() {
+  # shellcheck disable=SC2317  # Mock function called indirectly by ShellSpec
   github_check_auth() { return 1; }
 }
 
@@ -333,9 +352,12 @@ Context 'when in GitHub repo'
 BeforeEach 'mock_branch_info'
 
 mock_branch_info() {
+  # shellcheck disable=SC2317  # Mock functions called indirectly by ShellSpec
   github_check_auth() { return 0; }
+  # shellcheck disable=SC2317  # Mock functions called indirectly by ShellSpec
   github_in_repo() { return 0; }
 
+  # shellcheck disable=SC2317  # Mock functions called indirectly by ShellSpec
   git() {
     case "$1 $2" in
       "branch --show-current") echo "main" ;;
@@ -344,6 +366,7 @@ mock_branch_info() {
     esac
   }
 
+  # shellcheck disable=SC2317  # Mock functions called indirectly by ShellSpec
   gh() {
     if [[ "$1" == "pr" ]] && [[ "$2" == "list" ]]; then
       echo '[]' # Empty PR list
@@ -442,7 +465,9 @@ End
 End
 
 Context 'with invalid type'
+# shellcheck disable=SC2317  # Mock functions called indirectly by ShellSpec
 github_check_auth() { return 0; }
+# shellcheck disable=SC2317  # Mock functions called indirectly by ShellSpec
 github_in_repo() { return 0; }
 
 It 'rejects invalid type'
@@ -453,8 +478,11 @@ End
 End
 
 Context 'with issue type'
+# shellcheck disable=SC2317  # Mock functions called indirectly by ShellSpec
 github_check_auth() { return 0; }
+# shellcheck disable=SC2317  # Mock functions called indirectly by ShellSpec
 github_in_repo() { return 0; }
+# shellcheck disable=SC2317  # Mock functions called indirectly by ShellSpec
 github_get_issue() { echo '{"comments": []}'; }
 
 It 'calls github_get_issue'
@@ -465,8 +493,11 @@ End
 End
 
 Context 'with pr type'
+# shellcheck disable=SC2317  # Mock functions called indirectly by ShellSpec
 github_check_auth() { return 0; }
+# shellcheck disable=SC2317  # Mock functions called indirectly by ShellSpec
 github_in_repo() { return 0; }
+# shellcheck disable=SC2317  # Mock functions called indirectly by ShellSpec
 github_get_pr() { echo '{"comments": []}'; }
 
 It 'calls github_get_pr'
@@ -479,6 +510,7 @@ End
 
 Describe 'github_create_context_summary'
 Context 'when not authenticated'
+# shellcheck disable=SC2317  # Mock function called indirectly by ShellSpec
 github_check_auth() { return 1; }
 
 It 'returns error code 1'

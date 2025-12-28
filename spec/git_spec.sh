@@ -109,6 +109,7 @@ End
 Describe 'git_fuzzy_checkout'
 AfterEach 'cleanup_mocks'
 
+# shellcheck disable=SC2317  # Function called indirectly by ShellSpec AfterEach
 cleanup_mocks() {
   unset -f command git_is_repo 2>/dev/null || true
 }
@@ -120,6 +121,7 @@ End
 
 It 'returns EXIT_MISSING_DEPS when fzf not installed'
 # Mock command -v to fail for fzf
+# shellcheck disable=SC2317  # Mock function called indirectly by ShellSpec
 command() {
   if [[ "$2" == "fzf" ]]; then
     return 1
@@ -134,6 +136,7 @@ End
 
 It 'returns EXIT_INVALID_STATE when not in git repository'
 # Mock both fzf (to pass) and git_is_repo (to fail)
+# shellcheck disable=SC2317  # Mock functions called indirectly by ShellSpec
 command() {
   if [[ "$2" == "fzf" ]]; then
     return 0 # Make fzf appear installed
