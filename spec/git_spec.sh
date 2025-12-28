@@ -136,7 +136,7 @@ It 'returns EXIT_INVALID_STATE when not in git repository'
 # Mock both fzf (to pass) and git_is_repo (to fail)
 command() {
   if [[ "$2" == "fzf" ]]; then
-    return 0  # Make fzf appear installed
+    return 0 # Make fzf appear installed
   fi
   builtin command "$@"
 }
