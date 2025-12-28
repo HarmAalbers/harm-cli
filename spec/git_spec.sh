@@ -127,14 +127,11 @@ The stderr should include "fzf not installed"
 End
 
 It 'returns EXIT_INVALID_STATE when not in git repository'
-# Change to a non-git directory
-Skip if "Cannot create temp directory" [ ! -d "/tmp" ]
-(
-  cd /tmp || exit 1
-  When call git_fuzzy_checkout
-  The status should equal "$EXIT_INVALID_STATE"
-  The stderr should include "Not in a git repository"
-)
+# Mock git_is_repo to return failure
+git_is_repo() { return 1; }
+When call git_fuzzy_checkout
+The status should equal "$EXIT_INVALID_STATE"
+The stderr should include "Not in a git repository"
 End
 
 It 'handles empty reflog gracefully'

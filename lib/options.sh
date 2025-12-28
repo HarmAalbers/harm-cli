@@ -209,14 +209,14 @@ options_load_config() {
   # shellcheck disable=SC1090
   # Suppress only "readonly variable" warnings (benign - variable already set correctly)
   # but log other errors
+  local source_output
+  source_output=$(source "$OPTIONS_CONFIG_FILE" 2>&1) || true
   local source_errors
-  if source_errors=$(source "$OPTIONS_CONFIG_FILE" 2>&1 | grep -v "readonly variable"); then
-    log_debug "options" "Loaded config from $OPTIONS_CONFIG_FILE" ""
+  source_errors=$(echo "$source_output" | grep -v "readonly variable" || true)
+  if [[ -n "$source_errors" ]]; then
+    log_warn "options" "Config file has errors" "file=$OPTIONS_CONFIG_FILE, errors=$source_errors"
   else
-    # Log non-readonly errors if any
-    if [[ -n "$source_errors" ]]; then
-      log_warn "options" "Config file has errors" "file=$OPTIONS_CONFIG_FILE, errors=$source_errors"
-    fi
+    log_debug "options" "Loaded config from $OPTIONS_CONFIG_FILE" ""
   fi
   return 0
 }
@@ -384,13 +384,25 @@ options_get() {
 
   # Priority 2: Config file (source it if not already loaded)
   if [[ -f "$OPTIONS_CONFIG_FILE" ]]; then
-    # shellcheck disable=SC1090
-    # Suppress "readonly variable" warnings (benign - variable already set correctly)
-    source "$OPTIONS_CONFIG_FILE" 2>/dev/null || true
+    # Validate config is parseable before sourcing
+    if ! bash -n "$OPTIONS_CONFIG_FILE" 2>/dev/null; then
+      log_warn "options" "Corrupted config file in options_get" "file=$OPTIONS_CONFIG_FILE"
+      # Fall through to default
+    else
+      # shellcheck disable=SC1090
+      # Source and filter only readonly warnings
+      local source_output
+      source_output=$(source "$OPTIONS_CONFIG_FILE" 2>&1) || true
+      local source_errors
+      source_errors=$(echo "$source_output" | grep -v "readonly variable" || true)
+      if [[ -n "$source_errors" ]]; then
+        log_warn "options" "Config file errors in options_get" "errors=$source_errors"
+      fi
 
-    if [[ -n "${!env_var:-}" ]]; then
-      echo "${!env_var}"
-      return 0
+      if [[ -n "${!env_var:-}" ]]; then
+        echo "${!env_var}"
+        return 0
+      fi
     fi
   fi
 

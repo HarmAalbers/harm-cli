@@ -343,11 +343,11 @@ git_status_enhanced() {
   local status
   status=$(git status --porcelain 2>/dev/null)
 
-  # Count changes
+  # Count changes (grep -c returns 0 on no match, which is what we want)
   local modified staged untracked
-  modified=$(echo "$status" | grep -c "^ M\|^M " || true)
-  staged=$(echo "$status" | grep -c "^M\|^A\|^D" || true)
-  untracked=$(echo "$status" | grep -c "^??" || true)
+  modified=$(echo "$status" | grep -c "^ M\|^M " 2>/dev/null | tr -d ' \n' || echo "0")
+  staged=$(echo "$status" | grep -c "^M\|^A\|^D" 2>/dev/null | tr -d ' \n' || echo "0")
+  untracked=$(echo "$status" | grep -c "^??" 2>/dev/null | tr -d ' \n' || echo "0")
 
   # Ensure counts are numeric (grep -c outputs 0 on no match)
   modified=${modified:-0}
@@ -458,12 +458,19 @@ git_fuzzy_checkout() {
   log_debug "git" "Retrieving reflog branch history"
   local reflog_branches
   if reflog_branches=$(git reflog 2>&1); then
-    reflog_branches=$(echo "$reflog_branches" \
+    # Parse reflog output with error handling
+    local parse_result
+    if parse_result=$(echo "$reflog_branches" \
       | grep -o "checkout: moving from .* to .*" \
       | sed -E 's/checkout: moving from .* to (.*)/\1/' \
       | grep -v "^[0-9a-f]\{7,\}$" \
-      | awk '!seen[$0]++' || true)
-    log_debug "git" "Reflog branches retrieved" "count=$(echo "$reflog_branches" | grep -c . || echo 0)"
+      | awk '!seen[$0]++' 2>&1); then
+      reflog_branches="$parse_result"
+      log_debug "git" "Reflog branches retrieved" "count=$(echo "$reflog_branches" | grep -c . || echo 0)"
+    else
+      log_error "git" "Failed to parse reflog" "error=$parse_result"
+      reflog_branches=""
+    fi
   else
     log_warn "git" "Failed to retrieve reflog" "error=$reflog_branches"
     reflog_branches=""
@@ -487,12 +494,16 @@ git_fuzzy_checkout() {
   # Combine: reflog branches first, then remaining branches
   log_debug "git" "Combining and deduplicating branch lists"
   local sorted_branches
-  sorted_branches=$(
+  if ! sorted_branches=$(
     {
       echo "$reflog_branches"
       echo "$all_branches"
-    } | awk '!seen[$0]++' | grep -v '^$' || true
-  )
+    } | awk '!seen[$0]++' | grep -v '^$' 2>&1
+  ); then
+    log_error "git" "Failed to deduplicate branches" "error=$sorted_branches"
+    error_msg "Failed to process branch list"
+    return "$EXIT_ERROR"
+  fi
 
   # Validate we have branches
   if [[ -z "$sorted_branches" ]]; then
