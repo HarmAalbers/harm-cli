@@ -31,21 +31,40 @@ End
 End
 
 Describe 'github_check_gh_installed'
+AfterEach 'cleanup_github_mocks'
+
+cleanup_github_mocks() {
+  unset -f command gh 2>/dev/null || true
+}
+
 Context 'when gh CLI is installed'
+BeforeEach 'mock_gh_installed'
+
+mock_gh_installed() {
+  command() {
+    if [[ "$2" == "gh" ]]; then
+      return 0
+    fi
+    builtin command "$@"
+  }
+}
+
 It 'returns success'
-Skip if "gh not installed" sh -c '! command -v gh >/dev/null'
 When call github_check_gh_installed
 The status should be success
 End
 End
 
 Context 'when gh CLI is not installed'
-# Mock command to simulate gh not found
-command() {
-  if [[ "$2" == "gh" ]]; then
-    return 1
-  fi
-  builtin command "$@"
+BeforeEach 'mock_gh_not_installed'
+
+mock_gh_not_installed() {
+  command() {
+    if [[ "$2" == "gh" ]]; then
+      return 1
+    fi
+    builtin command "$@"
+  }
 }
 
 It 'returns error code 1'
@@ -55,24 +74,33 @@ End
 
 It 'prints error message to stderr'
 When call github_check_gh_installed
-The error should include "GitHub CLI not installed"
+The stderr should include "GitHub CLI not installed"
 End
 
 It 'includes installation instructions'
 When call github_check_gh_installed
-The error should include "brew install gh"
+The stderr should include "brew install gh"
 End
 End
 End
 
 Describe 'github_check_auth'
+AfterEach 'cleanup_github_mocks'
+
+cleanup_github_mocks() {
+  unset -f command gh 2>/dev/null || true
+}
+
 Context 'when gh is not installed'
-# Mock command to simulate gh not found
-command() {
-  if [[ "$2" == "gh" ]]; then
-    return 1
-  fi
-  builtin command "$@"
+BeforeEach 'mock_gh_not_installed'
+
+mock_gh_not_installed() {
+  command() {
+    if [[ "$2" == "gh" ]]; then
+      return 1
+    fi
+    builtin command "$@"
+  }
 }
 
 It 'returns error code 1'
@@ -82,14 +110,23 @@ End
 End
 
 Context 'when gh is installed but not authenticated'
-Skip if "gh not installed" sh -c '! command -v gh >/dev/null'
+BeforeEach 'mock_gh_not_authenticated'
 
-# Mock gh to simulate not authenticated
-gh() {
-  if [[ "$1" == "auth" ]] && [[ "$2" == "status" ]]; then
-    return 1
-  fi
-  command gh "$@"
+mock_gh_not_authenticated() {
+  command() {
+    if [[ "$2" == "gh" ]]; then
+      return 0
+    fi
+    builtin command "$@"
+  }
+
+  gh() {
+    if [[ "$1" == "auth" ]] && [[ "$2" == "status" ]]; then
+      echo "You are not logged into any GitHub hosts" >&2
+      return 1
+    fi
+    builtin command gh "$@"
+  }
 }
 
 It 'returns error code 1'
@@ -99,17 +136,34 @@ End
 
 It 'prints authentication error'
 When call github_check_auth
-The error should include "authentication required"
+The stderr should include "authentication required"
 End
 
 It 'includes auth login command'
 When call github_check_auth
-The error should include "gh auth login"
+The stderr should include "gh auth login"
 End
 End
 
 Context 'when authenticated'
-Skip if "gh not installed or not authenticated" sh -c '! command -v gh >/dev/null || ! gh auth status >/dev/null 2>&1'
+BeforeEach 'mock_gh_authenticated'
+
+mock_gh_authenticated() {
+  command() {
+    if [[ "$2" == "gh" ]]; then
+      return 0
+    fi
+    builtin command "$@"
+  }
+
+  gh() {
+    if [[ "$1" == "auth" ]] && [[ "$2" == "status" ]]; then
+      echo "Logged in to github.com as test-user"
+      return 0
+    fi
+    builtin command gh "$@"
+  }
+}
 
 It 'returns success'
 When call github_check_auth
@@ -171,9 +225,18 @@ End
 End
 
 Describe 'github_get_repo_info'
+AfterEach 'cleanup_github_mocks'
+
+cleanup_github_mocks() {
+  unset -f github_check_auth github_in_repo gh 2>/dev/null || true
+}
+
 Context 'when not authenticated'
-# Mock auth check to fail
-github_check_auth() { return 1; }
+BeforeEach 'mock_not_authenticated'
+
+mock_not_authenticated() {
+  github_check_auth() { return 1; }
+}
 
 It 'returns error code 1'
 When call github_get_repo_info
@@ -182,9 +245,12 @@ End
 End
 
 Context 'when not in GitHub repo'
-# Mock auth to pass but repo check to fail
-github_check_auth() { return 0; }
-github_in_repo() { return 1; }
+BeforeEach 'mock_not_in_repo'
+
+mock_not_in_repo() {
+  github_check_auth() { return 0; }
+  github_in_repo() { return 1; }
+}
 
 It 'returns error code 1'
 When call github_get_repo_info
@@ -193,15 +259,27 @@ End
 
 It 'prints error message'
 When call github_get_repo_info
-The error should include "Not in a GitHub repository"
+The stderr should include "Not in a GitHub repository"
 End
 End
 
 Context 'when in GitHub repo and authenticated'
-Skip if "Not authenticated or not in repo" sh -c '! command -v gh >/dev/null || ! gh auth status >/dev/null 2>&1 || ! git rev-parse --git-dir >/dev/null 2>&1'
+BeforeEach 'mock_repo_info'
+
+mock_repo_info() {
+  github_check_auth() { return 0; }
+  github_in_repo() { return 0; }
+
+  gh() {
+    if [[ "$1" == "repo" ]] && [[ "$2" == "view" ]] && [[ "$3" == "--json" ]]; then
+      echo '{"owner":"test-owner","name":"test-repo"}'
+      return 0
+    fi
+    return 1
+  }
+}
 
 It 'returns JSON with repo info'
-cd "$ROOT" || return
 When call github_get_repo_info
 The status should be success
 The output should include '"owner"'
@@ -209,22 +287,32 @@ The output should include '"name"'
 End
 
 It 'includes owner in JSON'
-cd "$ROOT" || return
 When call github_get_repo_info
 The output should include '"owner"'
+The output should include 'test-owner'
 End
 
 It 'includes name in JSON'
-cd "$ROOT" || return
 When call github_get_repo_info
 The output should include '"name"'
+The output should include 'test-repo'
 End
 End
 End
 
 Describe 'github_get_current_branch_info'
+AfterEach 'cleanup_github_mocks'
+
+cleanup_github_mocks() {
+  unset -f github_check_auth github_in_repo git gh 2>/dev/null || true
+}
+
 Context 'when not authenticated'
-github_check_auth() { return 1; }
+BeforeEach 'mock_not_authenticated'
+
+mock_not_authenticated() {
+  github_check_auth() { return 1; }
+}
 
 It 'returns error code 1'
 When call github_get_current_branch_info
@@ -233,23 +321,27 @@ End
 End
 
 Context 'when in GitHub repo'
-Skip if "Not in git repo" sh -c '! git rev-parse --git-dir >/dev/null 2>&1'
+BeforeEach 'mock_branch_info'
 
-# Mock auth to pass
-github_check_auth() { return 0; }
-github_in_repo() { return 0; }
+mock_branch_info() {
+  github_check_auth() { return 0; }
+  github_in_repo() { return 0; }
 
-# Mock git and gh commands to return valid JSON
-git() {
-  case "$1" in
-    branch) echo "main" ;;
-    rev-parse) echo "origin/main" ;;
-    *) command git "$@" ;;
-  esac
-}
+  git() {
+    case "$1 $2" in
+      "branch --show-current") echo "main" ;;
+      "rev-parse --abbrev-ref") echo "origin/main" ;;
+      *) builtin command git "$@" ;;
+    esac
+  }
 
-gh() {
-  echo '[]' # Empty PR list
+  gh() {
+    if [[ "$1" == "pr" ]] && [[ "$2" == "list" ]]; then
+      echo '[]' # Empty PR list
+      return 0
+    fi
+    return 1
+  }
 }
 
 It 'returns JSON with branch info'
