@@ -175,27 +175,53 @@ End
 Describe 'proj shell function stdout filtering'
 It 'filters cd command from output with pollution'
 # Test the grep filtering logic that extracts only the cd command
+# when stdout is polluted with hashes/debug output
 When call bash -c 'output="cd \"/test\"
 a359b87062e3dc19deed9a20e11402d6c52e322cbb02df493222f384950bb735"
-switch_cmd="$(echo "$output" | grep -m1 "^cd " || true)"
-[ -n "$switch_cmd" ] && [[ "$switch_cmd" =~ ^cd\  ]]'
+switch_cmd="$(echo "$output" | grep -m1 "^cd ")"
+grep_exit=$?
+# grep should succeed (exit 0) and find the cd command
+[ $grep_exit -eq 0 ] && [[ "$switch_cmd" =~ ^cd\  ]]'
 The status should equal 0
 End
 
 It 'handles output without cd command gracefully'
-# Test that grep returns empty when no cd command is found
+# Test that grep correctly signals "no match" (exit 1) when no cd command exists
 When call bash -c 'output="Some error message"
-switch_cmd="$(echo "$output" | grep -m1 "^cd " || true)"
-[ -z "$switch_cmd" ]'
+switch_cmd="$(echo "$output" | grep -m1 "^cd ")"
+grep_exit=$?
+# grep should fail with exit 1 (no match), and switch_cmd should be empty
+[ $grep_exit -eq 1 ] && [ -z "$switch_cmd" ]'
 The status should equal 0
 End
 
-It 'grep returns first cd line only'
-# Test that grep with -m1 only extracts the first cd line
+It 'grep returns first cd line only when multiple exist'
+# Test that grep with -m1 only extracts the first cd line, not subsequent ones
 When call bash -c 'output="cd \"/first\"
 cd \"/second\""
-switch_cmd="$(echo "$output" | grep -m1 "^cd " || true)"
+switch_cmd="$(echo "$output" | grep -m1 "^cd ")"
+# Should extract only the first cd line
 [[ "$switch_cmd" == "cd \"/first\"" ]]'
+The status should equal 0
+End
+
+It 'validates cd command format before execution'
+# Test that the function recognizes valid vs invalid cd command formats
+When call bash -c 'valid_cmd="cd \"/valid/path\""
+invalid_cmd="echo \"/path\""
+# Valid: starts with "cd " followed by path
+[[ "$valid_cmd" =~ ^cd\  ]] && \
+# Invalid: does not start with "cd "
+! [[ "$invalid_cmd" =~ ^cd\  ]]'
+The status should equal 0
+End
+
+It 'handles paths with spaces correctly'
+# Test that cd commands with spaces in paths are preserved correctly
+When call bash -c 'output="cd \"/path with spaces/test\""
+switch_cmd="$(echo "$output" | grep -m1 "^cd ")"
+# grep should preserve spaces in the path
+[[ "$switch_cmd" == "cd \"/path with spaces/test\"" ]]'
 The status should equal 0
 End
 End
