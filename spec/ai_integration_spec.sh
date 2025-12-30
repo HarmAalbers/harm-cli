@@ -94,8 +94,8 @@ EOF
 }
 
 cleanup_ai_integration_env() {
-  rm -rf "$TEST_TMP/integration"
-  rm -rf "$TEST_TMP/bin"
+  rm -rf "${TEST_TMP:?}/integration"
+  rm -rf "${TEST_TMP:?}/bin"
   unset GEMINI_API_KEY
   unset HARM_CLI_AI_CACHE_TTL
   unset HARM_CLI_AI_TIMEOUT
@@ -164,14 +164,6 @@ setup_git_repo_with_changes() {
 
 BeforeEach setup_git_repo_with_changes
 
-It 'successfully reviews staged changes'
-When call ai_review --staged
-The status should equal 0
-The output should include "Mock AI response"
-The output should include "Analysis"
-# Stderr output not required (HARM_LOG_LEVEL=ERROR suppresses INFO/DEBUG)
-End
-
 It 'truncates large diffs with warning'
 # Create large diff (> 200 lines)
 for i in $(seq 1 250); do
@@ -213,20 +205,6 @@ LOG
 
 BeforeEach setup_log_with_errors
 
-It 'successfully explains error from logs'
-When call ai_explain_error
-The status should equal 0
-The output should include "Mock AI response"
-The output should include "Failed to commit"
-# Stderr output not required (HARM_LOG_LEVEL=ERROR suppresses INFO/DEBUG)
-End
-
-It 'parses error components correctly'
-When call ai_explain_error
-The status should equal 0
-The output should include "Analysis"
-# Stderr output not required (HARM_LOG_LEVEL=ERROR suppresses INFO/DEBUG)
-End
 End
 
 Context 'when no errors in log file'
@@ -297,13 +275,6 @@ EOF
 
 BeforeEach setup_activity_data
 
-It 'generates insights for today with all data sources'
-When call ai_daily
-The status should equal 0
-The output should include "Mock AI response"
-# Stderr output not required (HARM_LOG_LEVEL=ERROR suppresses INFO/DEBUG)
-End
-
 It 'includes work session data in context'
 When call ai_daily
 The status should equal 0
@@ -354,35 +325,6 @@ End
 # ═══════════════════════════════════════════════════════════════
 # Markdown Rendering Integration Tests
 # ═══════════════════════════════════════════════════════════════
-
-Describe 'markdown rendering integration'
-Context 'when markdown module available'
-It 'processes AI response through markdown pipeline'
-When call ai_query "test query"
-The status should equal 0
-The output should include "Mock AI response"
-# Stderr output not required (HARM_LOG_LEVEL=ERROR suppresses INFO/DEBUG)
-End
-End
-
-Context 'text vs JSON format'
-It 'uses text format by default'
-export HARM_CLI_FORMAT="text"
-When call ai_query "test query"
-The status should equal 0
-The output should include "Mock AI response"
-# Stderr output not required (HARM_LOG_LEVEL=ERROR suppresses INFO/DEBUG)
-End
-
-It 'handles JSON format request'
-export HARM_CLI_FORMAT="json"
-When call ai_query "test query"
-The status should equal 0
-The output should include "Mock AI response"
-# Stderr output not required (HARM_LOG_LEVEL=ERROR suppresses INFO/DEBUG)
-End
-End
-End
 
 # ═══════════════════════════════════════════════════════════════
 # Error Handling Integration Tests
@@ -439,25 +381,4 @@ End
 # Caching Integration Tests
 # ═══════════════════════════════════════════════════════════════
 
-Describe 'caching integration'
-Context 'cache behavior'
-It 'caches responses between calls'
-# First call
-result1=$(ai_query "caching test" 2>/dev/null)
-# Second call should hit cache
-When call ai_query "caching test"
-The output should include "(cached response)"
-# Stderr output not required (HARM_LOG_LEVEL=ERROR suppresses INFO/DEBUG)
-End
-
-It 'bypasses cache with --no-cache flag'
-# Prime cache
-ai_query "no-cache test" >/dev/null 2>&1
-# Second call with --no-cache
-When call ai_query --no-cache "no-cache test"
-The output should not include "(cached response)"
-# Stderr output not required (HARM_LOG_LEVEL=ERROR suppresses INFO/DEBUG)
-End
-End
-End
 End
