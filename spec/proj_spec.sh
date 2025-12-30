@@ -167,4 +167,35 @@ When call type -t proj_switch
 The output should equal "function"
 End
 End
+
+# ═══════════════════════════════════════════════════════════════
+# Stdout Filtering Tests (for the shell function improvement)
+# ═══════════════════════════════════════════════════════════════
+
+Describe 'proj shell function stdout filtering'
+It 'filters cd command from output with pollution'
+# Test the grep filtering logic that extracts only the cd command
+When call bash -c 'output="cd \"/test\"
+a359b87062e3dc19deed9a20e11402d6c52e322cbb02df493222f384950bb735"
+switch_cmd="$(echo "$output" | grep -m1 "^cd " || true)"
+[ -n "$switch_cmd" ] && [[ "$switch_cmd" =~ ^cd\  ]]'
+The status should equal 0
+End
+
+It 'handles output without cd command gracefully'
+# Test that grep returns empty when no cd command is found
+When call bash -c 'output="Some error message"
+switch_cmd="$(echo "$output" | grep -m1 "^cd " || true)"
+[ -z "$switch_cmd" ]'
+The status should equal 0
+End
+
+It 'grep returns first cd line only'
+# Test that grep with -m1 only extracts the first cd line
+When call bash -c 'output="cd \"/first\"
+cd \"/second\""
+switch_cmd="$(echo "$output" | grep -m1 "^cd " || true)"
+[[ "$switch_cmd" == "cd \"/first\"" ]]'
+The status should equal 0
+End
 End

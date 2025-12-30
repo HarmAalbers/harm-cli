@@ -67,22 +67,44 @@ builtin unalias proj 2>/dev/null || true
 #   proj sw myapp      # Short alias for switch
 #
 # Note: For all other proj subcommands, this passes through to harm-cli.
+#
+# Design: The function filters stdout to extract only the cd command line.
+# This makes it robust against any stdout pollution from hooks or integrations.
+# Only the first line starting with "cd " is evaluated.
 function proj {
   # Handle switch/sw subcommand specially
   if [[ "${1:-}" == "switch" || "${1:-}" == "sw" ]]; then
     # Execute harm-cli proj switch and capture output (stdout only)
     # Note: stderr (logs) go directly to terminal, only cd command captured
-    local switch_cmd
-    switch_cmd="$(harm-cli proj "$@")"
+    local output
+    output="$(harm-cli proj "$@")"
     local exit_code=$?
 
-    # If successful and output starts with "cd ", evaluate it
-    if [[ $exit_code -eq 0 ]] && [[ "$switch_cmd" =~ ^cd\  ]]; then
-      eval "$switch_cmd"
+    if [[ $exit_code -eq 0 ]]; then
+      # Extract only the first line starting with "cd " using grep
+      # This filters out any stdout pollution from hooks or integrations
+      # Explicitly handle grep exit codes: 1=no match (expected), others=error
+      local switch_cmd
+      if switch_cmd="$(echo "$output" | grep -m1 '^cd ' 2>&1)"; then
+        # grep succeeded - cd command found
+        eval "$switch_cmd"
+      else
+        local grep_exit=$?
+        if [[ $grep_exit -eq 1 ]]; then
+          # Expected: grep found no match (no cd command in output)
+          # This means output contains only pollution, preserve original exit code
+          [[ -n "$output" ]] && echo "$output"
+          return "$exit_code"
+        else
+          # Unexpected: grep failed for other reasons
+          [[ -n "$output" ]] && echo "$output"
+          return "$exit_code"
+        fi
+      fi
     else
-      # Print error message if failed (stderr already shown)
-      [[ -n "$switch_cmd" ]] && echo "$switch_cmd"
-      return $exit_code
+      # Command failed, show output (if any) and return exit code
+      [[ -n "$output" ]] && echo "$output"
+      return "$exit_code"
     fi
   else
     # Pass through all other commands
