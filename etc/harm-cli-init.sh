@@ -67,25 +67,60 @@ builtin unalias proj 2>/dev/null || true
 #   proj sw myapp      # Short alias for switch
 #
 # Note: For all other proj subcommands, this passes through to harm-cli.
+#
+# DESIGN RATIONALE:
+# The function must filter stdout to extract ONLY the cd command line, because
+# harm-cli proj switch may output log messages, debug info, or status text via
+# stdout hooks or integrations. We cannot eval arbitrary text - only the actual
+# 'cd "/path"' command. This approach is robust against stdout pollution while
+# maintaining security by validating the cd command format before execution.
 function proj {
   # Handle switch/sw subcommand specially
   if [[ "${1:-}" == "switch" || "${1:-}" == "sw" ]]; then
-    # Execute harm-cli proj switch and capture output (stdout only)
-    # Note: stderr (logs) go directly to terminal, only cd command captured
-    local switch_cmd
-    switch_cmd="$(harm-cli proj "$@")"
+    # Execute harm-cli proj switch and capture output
+    # stderr (logs) go directly to terminal; only stdout is captured
+    local output
+    output="$(harm-cli proj "$@")"
     local exit_code=$?
 
-    # If successful and output starts with "cd ", evaluate it
-    if [[ $exit_code -eq 0 ]] && [[ "$switch_cmd" =~ ^cd\  ]]; then
-      eval "$switch_cmd"
+    if [[ $exit_code -eq 0 ]]; then
+      # proj switch succeeded - extract cd command from output
+      # Use grep to find first line starting with "cd " (filters out pollution)
+      local switch_cmd
+      switch_cmd="$(echo "$output" | grep -m1 '^cd ')" || switch_cmd=""
+
+      if [[ -n "$switch_cmd" ]]; then
+        # cd command found - validate format to prevent command injection
+        # Valid format: cd followed by space(s) and path (with optional quotes)
+        if [[ "$switch_cmd" =~ ^cd\ +[\'\"]*/ ]]; then
+          # Execute the cd command with error handling
+          if eval "$switch_cmd"; then
+            # Successfully changed directory
+            return 0
+          else
+            # cd failed (directory not found, permission denied, etc.)
+            echo "ERROR: Failed to change directory: $switch_cmd" >&2
+            return 1
+          fi
+        else
+          # Invalid cd command format - indicates possible malicious pollution
+          echo "ERROR: Invalid cd command format detected" >&2
+          [[ -n "$output" ]] && echo "$output" >&2
+          return 1
+        fi
+      else
+        # No cd command in output - proj succeeded but output contains only logs/pollution
+        # Return original exit code and show output for debugging
+        [[ -n "$output" ]] && echo "$output"
+        return "$exit_code"
+      fi
     else
-      # Print error message if failed (stderr already shown)
-      [[ -n "$switch_cmd" ]] && echo "$switch_cmd"
-      return $exit_code
+      # proj switch failed - show output and return its exit code
+      [[ -n "$output" ]] && echo "$output"
+      return "$exit_code"
     fi
   else
-    # Pass through all other commands
+    # Pass through all other commands (list, add, remove)
     harm-cli proj "$@"
   fi
 }

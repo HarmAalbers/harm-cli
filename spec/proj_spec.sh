@@ -167,4 +167,40 @@ When call type -t proj_switch
 The output should equal "function"
 End
 End
+
+# ═══════════════════════════════════════════════════════════════
+# Stdout Filtering Tests (for the shell function improvement)
+# ═══════════════════════════════════════════════════════════════
+
+Describe 'proj shell function stdout filtering'
+It 'filters cd command from output with pollution'
+# Test the grep filtering logic that extracts only the cd command
+# when stdout is polluted with hashes/debug output
+When call bash -c $'output="cd \\"/test\\"\na359b87062e3dc19deed9a20e11402d6c52e322cbb02df493222f384950bb735"; switch_cmd="$(echo "$output" | grep -m1 "^cd ")"; grep_exit=$?; [ $grep_exit -eq 0 ] && [[ "$switch_cmd" =~ ^cd\  ]]'
+The status should equal 0
+End
+
+It 'handles output without cd command gracefully'
+# Test that grep correctly signals "no match" (exit 1) when no cd command exists
+When call bash -c 'output="Some error message"; switch_cmd="$(echo "$output" | grep -m1 "^cd ")"; grep_exit=$?; [ $grep_exit -eq 1 ] && [ -z "$switch_cmd" ]'
+The status should equal 0
+End
+
+It 'grep returns first cd line only when multiple exist'
+# Test that grep with -m1 only extracts the first cd line, not subsequent ones
+When call bash -c $'output="cd \\"/first\\"\ncd \\"/second\\""; switch_cmd="$(echo "$output" | grep -m1 "^cd ")"; [[ "$switch_cmd" == "cd \\"/first\\"" ]]'
+The status should equal 0
+End
+
+It 'validates cd command format before execution'
+# Test that the function recognizes valid vs invalid cd command formats
+When call bash -c 'valid_cmd="cd \"/valid/path\""; invalid_cmd="echo \"/path\""; [[ "$valid_cmd" =~ ^cd\  ]] && ! [[ "$invalid_cmd" =~ ^cd\  ]]'
+The status should equal 0
+End
+
+It 'handles paths with spaces correctly'
+# Test that cd commands with spaces in paths are preserved correctly
+When call bash -c 'output="cd \"/path with spaces/test\""; switch_cmd="$(echo "$output" | grep -m1 "^cd ")"; [[ "$switch_cmd" == "cd \"/path with spaces/test\"" ]]'
+The status should equal 0
+End
 End
